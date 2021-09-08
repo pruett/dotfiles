@@ -27,7 +27,6 @@ brew "wget"
 brew "yarn"
 
 # Apps
-
 cask "1password"
 cask "appcleaner"
 cask "brave-browser-dev"
