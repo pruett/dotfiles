@@ -19,11 +19,6 @@ if test -d /usr/local/opt/asdf
     source /usr/local/opt/asdf/asdf.fish
 end
 
-# Add Volta if installed
-if test -d ~/.volta/bin/
-    fish_add_path -g "$VOLTA_HOME/bin"
-end
-
 # -------------
 # Additional (optional) config
 # -------------
