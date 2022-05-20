@@ -29,10 +29,10 @@
 [core]
   editor = nvim
   excludesfile = ~/.gitignore
-[filter "lfs"]
-	smudge = git-lfs smudge -- %f
-  required = true
-	clean = git-lfs clean -- %f
-	process = git-lfs filter-process
 [init]
 	defaultBranch = main
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
