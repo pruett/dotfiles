@@ -9,12 +9,16 @@ fish_add_path -g\
  /usr/sbin\
  /sbin
 
-# Add rust binaries to PATH if rust is installed
+# -------------
+# Rust
+# -------------
 if test -d ~/.cargo/bin/
     fish_add_path -ga "$HOME/.cargo/bin"
 end
 
-# Add asdf if installed
+# -------------
+# asdf
+# -------------
 if test -d /usr/local/opt/asdf
     source /usr/local/opt/asdf/asdf.fish
 end
@@ -28,8 +32,9 @@ end
 
 # -------------
 # Prompt
-# -------------
+#
 # https://github.com/starship/starship
+# -------------
 starship init fish | source
 
 
