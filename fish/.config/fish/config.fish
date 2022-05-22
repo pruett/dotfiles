@@ -19,8 +19,8 @@ end
 # -------------
 # asdf
 # -------------
-if test -d /usr/local/opt/asdf
-    source /usr/local/opt/asdf/asdf.fish
+if test -d (brew --prefix asdf)
+    source (brew --prefix asdf)/libexec/asdf.fish
 end
 
 # -------------
