@@ -20,8 +20,6 @@ end
 # asdf
 # -------------
 if test -d (brew --prefix asdf)
-    # temp fix for homebrew version mismatch
-    set -e ASDF_DIR
     source (brew --prefix asdf)/libexec/asdf.fish
 end
 
