@@ -1,5 +1,12 @@
 # [~/.\*](https://dotfiles.github.io/)
 
+## New machine setup
+
+1. homebrew
+2. git
+3. ssh
+4. clone and install dotfiles
+
 ## Installation
 
 ```bash

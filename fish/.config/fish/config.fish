@@ -10,6 +10,18 @@ fish_add_path -g\
  /sbin
 
 # -------------
+# Homebrew (brew)
+# -------------
+eval (/opt/homebrew/bin/brew shellenv)
+
+# -------------
+# Prompt
+#
+# https://github.com/starship/starship
+# -------------
+starship init fish | source
+
+# -------------
 # Rust
 # -------------
 if test -d ~/.cargo/bin/
@@ -29,14 +41,6 @@ end
 if test -e ~/.localconfig.fish
     source ~/.localconfig.fish
 end
-
-# -------------
-# Prompt
-#
-# https://github.com/starship/starship
-# -------------
-starship init fish | source
-
 
 # -------------
 # Functions
@@ -71,10 +75,6 @@ function rm -d "Prompt confirmation when removing files"
     command rm -i $argv
 end
 
-function vim -d "Overwrite vim to use neovim"
-    nvim $argv
-end
-
 function list_node_modules -d "Recursively find and list node_modules directories"
     find . -name "node_modules" -type d -prune -print | xargs du -chs
 end
@@ -82,11 +82,6 @@ end
 function clean_node_modules -d "Recursively find and remove all node_modules directories"
     find . -name 'node_modules' -type d -prune -print -exec rm -rf '{}' \;
 end
-
-# -------------
-# Editor
-# -------------
-set -Ux EDITOR nvim
 
 # -------------
 # Enable vi-like editing mode

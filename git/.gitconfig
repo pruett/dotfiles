@@ -14,7 +14,6 @@
   remote = green
 [commit]
   template = ~/.gitmessage
-	gpgsign = true
 [fetch]
   prune = true
 [color "diff"]
@@ -27,12 +26,12 @@
   changed = yellow
   untracked = cyan
 [core]
-  editor = nvim
+  editor = vim
   excludesfile = ~/.gitignore
 [init]
-	defaultBranch = main
+  defaultBranch = main
 [filter "lfs"]
-	clean = git-lfs clean -- %f
-	smudge = git-lfs smudge -- %f
-	process = git-lfs filter-process
-	required = true
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
+  process = git-lfs filter-process
+  required = true
