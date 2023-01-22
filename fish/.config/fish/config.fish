@@ -83,6 +83,12 @@ function clean_node_modules -d "Recursively find and remove all node_modules dir
     find . -name 'node_modules' -type d -prune -print -exec rm -rf '{}' \;
 end
 
+
+# -------------
+# Aliases
+# -------------
+alias pn="pnpm"
+
 # -------------
 # Enable vi-like editing mode
 # -------------
