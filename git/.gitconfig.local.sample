@@ -1,0 +1,14 @@
+# This file is sourced within ~/.gitconfig
+# and used for user-specific and/or sensitive
+# data like username, tokens, signing keys, etc.
+#
+# To use, duplicate and edit a copy of this file named `.gitconfig.local`
+#
+# e.g.
+#
+# [user]
+#   name = John Doe
+#   email = doe.john@gmail.com
+#   signingkey = <key> $ gpg --list-secret-keys --keyid-format LONG
+# [commit]
+#   gpgsign = true

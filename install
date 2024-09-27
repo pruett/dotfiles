@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+(cd /tmp && curl -Lk https://github.com/pruett/dotfiles/tarball/master | tar zx)
+mv /tmp/pruett-dotfiles* ~/.dotfiles
+(cd ~/.dotfiles/ && echo "✨ Successfully downloaded pruett/dotfiles. ✨")

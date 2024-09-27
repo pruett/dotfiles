@@ -1,0 +1,25 @@
+# Bootstrap new macOS computer
+
+- [ ] System Preferences
+  - [ ] Desktop & Screensaver
+    - [ ] Desktop > Solar Gradient
+    - [ ] Screen Saver > Ken Burns | Big Sur | (show with clock)
+  - [ ] Dock & Menu Bar
+    - [ ] Dock >
+      - [ ] Tweak Size
+      - [ ] Enable Magnification
+      - [ ] Position on screen: Left
+      - [ ] Enable “Automatically hide and show the Dock”
+  - [ ] Network
+    - [ ] Wi-Fi > Advanced > DNS
+      - [ ] 1.1.1.1
+      - [ ] 1.0.0.1
+      - [ ] 2606:4700:4700::1111
+      - [ ] 2606:4700:4700::1001
+  - [ ] Keyboard
+    - [ ] Modifier Keys… >
+      - [ ] Caps Lock => Control
+  - [ ] Trackpad
+    - [ ] Enable “Tap to click (Tap with one finger)”
+    - [ ] More Gestures >
+      - [ ] Swipe between pages: “Swipe with two or three fingers”
