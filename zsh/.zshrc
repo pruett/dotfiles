@@ -48,7 +48,10 @@ zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 # Aliases
 # ---------
 alias ls="eza --icons=auto"
+alias vim="nvim"
+alias pn="pnpm"
 alias nvim="nvim"
+alias dot="cd $DOTFILES && nvim ."
 alias c="clear"
 alias reload="source ~/.zshrc"
 alias brewu="echo 'Updating Homebrew...' &&\
