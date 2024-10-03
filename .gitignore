@@ -1,3 +1,6 @@
 .DS_Store
 .netrwhist
 !zsh/plugins/*
+Brewfile.lock.json
+lazy-lock.json
+
