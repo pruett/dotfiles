@@ -1,0 +1,160 @@
+{
+  // ******
+  // Appearance
+  // ******
+  "workbench.statusBar.visible": true,
+  "workbench.editor.showTabs": "none",
+  "workbench.activityBar.location": "hidden",
+  "breadcrumbs.enabled": false,
+  "workbench.editor.editorActionsLocation": "hidden",
+  "workbench.layoutControl.enabled": false,
+  "window.commandCenter": false,
+  "workbench.colorCustomizations": {
+    "editor.background": "#1c2128",
+    "sideBar.background": "#1c2128",
+    "panel.background": "#1c2128",
+    "activityBar.activeBorder": "#1c2128",
+    "activityBar.foreground": "#7ce38b",
+    "activityBarBadge.background": "#7ce38b",
+    "activityBarBadge.foreground": "#1c2128",
+    "activityBar.background": "#1c2128",
+    "statusBar.debuggingBackground": "#1c2128",
+    // https://github.com/microsoft/vscode/issues/36490
+    // "editor.selectionBackground": "#7ce38b",
+    // "editor.selectionForeground": "#1c2128",
+    "statusBar.background": "#1c2128",
+    "statusBar.noFolderBackground": "#1c2128",
+    "titleBar.inactiveBackground": "#1c2128",
+    "titleBar.activeBackground": "#1c2128",
+    "editorCursor.foreground": "#7ce38b",
+    "editorCursor.background": "#1c2128",
+    "editorLineNumber.activeForeground": "#7ce38b"
+  },
+
+  // ******
+  // Editor
+  // ******
+  "editor.fontFamily": "MesloLGS Nerd Font Mono",
+  "editor.fontLigatures": true,
+  "editor.fontSize": 18,
+  "editor.formatOnSave": true,
+  "editor.minimap.enabled": false,
+  "editor.suggest.showMethods": true,
+  "editor.suggest.preview": true,
+  "editor.acceptSuggestionOnEnter": "on",
+  "editor.snippetSuggestions": "top",
+  "editor.accessibilitySupport": "off",
+  "extensions.ignoreRecommendations": true,
+
+  // ******
+  // Explorer
+  // *******
+  "explorer.compactFolders": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.trimTrailingWhitespace": true,
+  "workbench.editor.enablePreviewFromQuickOpen": false,
+
+  // ******
+  // Vim
+  // ******
+  "vim.handleKeys": {
+    "<C-a>": false,
+    "<C-f>": false
+  },
+  "vim.hlsearch": true,
+  "vim.incsearch": true,
+  "vim.leader": "<space>",
+  "vim.normalModeKeyBindingsNonRecursive": [
+    {
+      "before": ["<leader>", "<space>"],
+      "commands": [
+        {
+          "command": ":nohlsearch"
+        }
+      ]
+    },
+    {
+      "before": ["<leader>", "z"],
+      "commands": [
+        {
+          "command": "workbench.action.toggleZenMode"
+        }
+      ]
+    }
+  ],
+  "vim.useCtrlKeys": true,
+  "vim.useSystemClipboard": true,
+
+  // ******
+  // File-specific rules
+  // ******
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python",
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true
+  },
+  "[astro]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ******
+  // Tailwind
+  // ******
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "css.validate": false,
+
+  // ================================================================================
+  // APC - UI Customizer
+  // ================================================================================
+  "apc.font.family": "MesloLGS Nerd Font Mono",
+  "apc.monospace.font.family": "MesloLGS Nerd Font Mono",
+  "apc.menubar.compact": true,
+  "apc.electron": {
+    "transparent": true,
+    "opacity": 0.9
+  },
+  "apc.header": {
+    "compact": 22,
+    "fontSize": 12,
+    "fontWeight": "bold"
+  },
+  "apc.statusBar": {
+    "height": 40,
+    "fontSize": 16
+  },
+  "apc.stylesheet": {
+    "*": "font-family: 'MesloLGS Nerd Font Mono';",
+    ".title-label": "display: none !important;",
+    ".title-actions": "display: none !important;"
+  }
+}

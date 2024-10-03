@@ -7,8 +7,8 @@ SETUVAR FZF_LEGACY_KEYBINDINGS:0
 SETUVAR FZF_PREVIEW_DIR_CMD:ls
 SETUVAR FZF_PREVIEW_FILE_CMD:head\x20\x2dn\x2010
 SETUVAR FZF_TMUX_HEIGHT:40\x25
-SETUVAR --export XDG_CONFIG_HOME:/Users/kevinpruett/\x2econfig
-SETUVAR --export XDG_DATA_HOME:/Users/kevinpruett/\x2elocal/share
+SETUVAR --export XDG_CONFIG_HOME:/Users/kevin\x40primeft\x2ecom/\x2econfig
+SETUVAR --export XDG_DATA_HOME:/Users/kevin\x40primeft\x2ecom/\x2elocal/share
 SETUVAR ZO_CMD:jo
 SETUVAR Z_CMD:j
 SETUVAR Z_DATA:/Users/kevin\x40primeft\x2ecom/\x2elocal/share/z/data
