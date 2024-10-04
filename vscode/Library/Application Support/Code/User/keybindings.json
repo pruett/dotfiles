@@ -35,18 +35,27 @@
     "command": "workbench.action.navigateUp"
   },
   {
-    "key": "space space",
-    "command": "workbench.action.showAllEditors",
-    "when": "vim.mode == 'Normal' && (editorTextFocus || !inputFocus)"
-  },
-  {
     "key": "ctrl+[",
     "command": "workbench.action.closeQuickOpen",
     "when": "inQuickOpen"
   },
+
+  // File Explorer
+  {
+    "key": "\\",
+    "command": "workbench.files.action.focusFilesExplorer",
+    "when": "vim.mode == 'Normal' && (editorTextFocus || !inputFocus)"
+  },
   {
     "key": "\\",
     "command": "workbench.action.toggleSidebarVisibility",
+    "when": "filesExplorerFocus"
+  },
+
+  // Buffers/Tabs
+  {
+    "key": "space space",
+    "command": "workbench.action.showAllEditors",
     "when": "vim.mode == 'Normal' && (editorTextFocus || !inputFocus)"
   },
   {
@@ -58,5 +67,12 @@
     "key": "shift+tab",
     "command": "workbench.action.previousEditorInGroup",
     "when": "(vim.mode == 'Normal' || vim.mode == 'Visual') && (editorTextFocus || !inputFocus)"
+  },
+
+  // Coding
+  {
+    "key": "shift+k",
+    "command": "editor.action.showHover",
+    "when": "vim.mode == 'Normal' && editorTextFocus"
   }
 ]

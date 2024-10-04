@@ -43,10 +43,10 @@
   // ******
   // Vim
   // ******
-  "vim.handleKeys": {
-    "<C-a>": false,
-    "<C-f>": false
-  },
+  // "vim.handleKeys": {
+  //   "<C-a>": false,
+  //   "<C-f>": false
+  // },
   "vim.hlsearch": true,
   "vim.incsearch": true,
   "vim.useCtrlKeys": true,
@@ -54,24 +54,24 @@
   "vim.highlightedyank.color": "#ff9e64",
   "vim.useSystemClipboard": true,
   "vim.leader": "<space>",
-  "vim.normalModeKeyBindingsNonRecursive": [
-    {
-      "before": ["<leader>", "<space>"],
-      "commands": [
-        {
-          "command": ":nohlsearch"
-        }
-      ]
-    },
-    {
-      "before": ["<leader>", "z"],
-      "commands": [
-        {
-          "command": "workbench.action.toggleZenMode"
-        }
-      ]
-    }
-  ],
+  // "vim.normalModeKeyBindingsNonRecursive": [
+  //   {
+  //     "before": ["<leader>", "<space>"],
+  //     "commands": [
+  //       {
+  //         "command": ":nohlsearch"
+  //       }
+  //     ]
+  //   },
+  //   {
+  //     "before": ["<leader>", "z"],
+  //     "commands": [
+  //       {
+  //         "command": "workbench.action.toggleZenMode"
+  //       }
+  //     ]
+  //   }
+  // ],
 
   // ******
   // File-specific rules
