@@ -9,7 +9,7 @@
     "editorLineNumber.activeForeground": "#9ece6a"
   },
   "workbench.statusBar.visible": true,
-  "workbench.editor.showTabs": "none",
+  // "workbench.editor.showTabs": "none",
   "workbench.activityBar.location": "hidden",
   "breadcrumbs.enabled": false,
   "workbench.editor.editorActionsLocation": "hidden",
@@ -38,40 +38,74 @@
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
   "files.trimTrailingWhitespace": true,
-  "workbench.editor.enablePreviewFromQuickOpen": false,
+  "workbench.editor.enablePreviewFromQuickOpen": true,
 
   // ******
   // Vim
   // ******
-  // "vim.handleKeys": {
-  //   "<C-a>": false,
-  //   "<C-f>": false
-  // },
   "vim.hlsearch": true,
   "vim.incsearch": true,
-  "vim.useCtrlKeys": true,
   "vim.highlightedyank.enable": true,
   "vim.highlightedyank.color": "#ff9e64",
+  "vim.searchHighlightColor": "#ff9e64",
+  "vim.searchHighlightTextColor": "#000",
   "vim.useSystemClipboard": true,
-  "vim.leader": "<space>",
-  // "vim.normalModeKeyBindingsNonRecursive": [
-  //   {
-  //     "before": ["<leader>", "<space>"],
-  //     "commands": [
-  //       {
-  //         "command": ":nohlsearch"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     "before": ["<leader>", "z"],
-  //     "commands": [
-  //       {
-  //         "command": "workbench.action.toggleZenMode"
-  //       }
-  //     ]
-  //   }
-  // ],
+  "vim.leader": " ",
+  // Use <C-a> for window management keybindings
+  "vim.handleKeys": {
+    "<C-a>": false
+  },
+  "vim.normalModeKeyBindingsNonRecursive": [
+    // File Explorer
+    {
+      "before": ["<leader>", "s", "f"],
+      "commands": ["workbench.action.quickOpen"]
+    },
+    {
+      "before": ["<leader>", "s", "g"],
+      "commands": ["workbench.action.findInFiles"]
+    },
+    // Buffers/Tabs
+    {
+      "before": ["<leader>", "space"],
+      "commands": ["workbench.action.showAllEditors"]
+    },
+    // Coding
+    {
+      "before": ["<leader>", "c", "a"],
+      "commands": ["editor.action.codeAction"]
+    },
+    {
+      "before": ["<leader>", "c", "r"],
+      "commands": ["editor.action.rename"]
+    },
+    {
+      "before": ["<leader>", "c", "h"],
+      "commands": ["editor.action.showHover"]
+    },
+    {
+      "before": ["<leader>", "c", "d"],
+      "commands": ["editor.action.revealDefinition"]
+    },
+    {
+      "before": ["<leader>", "c", "r"],
+      "commands": ["editor.action.goToReferences"]
+    },
+    // Git
+    {
+      "before": ["<leader>", "g", "g"],
+      "commands": ["workbench.view.scm"]
+    },
+    // Misc
+    {
+      "before": ["<C-[>"],
+      "commands": [":nohl"]
+    },
+    {
+      "before": ["<Esc>"],
+      "commands": [":nohl"]
+    }
+  ],
 
   // ******
   // File-specific rules
@@ -86,26 +120,22 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[javascriptreact]": {
-    "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[typescriptreact]": {
-    "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.python",
-    "editor.formatOnSave": true,
-    "editor.formatOnType": true
   },
   "[astro]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[css]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
   },
 
   // ******

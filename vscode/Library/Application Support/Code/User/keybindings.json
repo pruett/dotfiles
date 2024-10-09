@@ -1,20 +1,14 @@
 [
-  // Global
-  {
-    "key": "ctrl+f",
-    "command": "workbench.action.quickOpen"
-  },
-
-  // Window/Pane Management
+  // Window Management
   {
     "key": "ctrl+a \\",
     "command": "workbench.action.splitEditor",
-    "when": "editorFocus"
+    "when": "vim.mode == 'Normal' && (editorTextFocus || !inputFocus)"
   },
   {
     "key": "ctrl+a -",
     "command": "workbench.action.splitEditorOrthogonal",
-    "when": "editorFocus"
+    "when": "vim.mode == 'Normal' && (editorTextFocus || !inputFocus)"
   },
 
   // Navigation
@@ -49,15 +43,44 @@
   {
     "key": "\\",
     "command": "workbench.action.toggleSidebarVisibility",
-    "when": "filesExplorerFocus"
+    "when": "explorerViewletVisible && filesExplorerFocus"
+  },
+  {
+    "key": "r",
+    "command": "renameFile",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus"
+  },
+  {
+    "key": "d",
+    "command": "deleteFile",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus"
+  },
+  {
+    "key": "a",
+    "command": "explorer.newFile",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus"
+  },
+  // Open file explorer selection in vertical split pane
+  {
+    "key": "\\",
+    "command": "explorer.openToSide",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus"
+  },
+  // Open file explorer selection in horizontal split pane
+  {
+    "key": "-",
+    "command": "runCommands",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus",
+    "args": {
+      "commands": [
+        "workbench.action.splitEditorDown",
+        "explorer.openAndPassFocus",
+        "workbench.action.closeOtherEditors"
+      ]
+    }
   },
 
   // Buffers/Tabs
-  {
-    "key": "space space",
-    "command": "workbench.action.showAllEditors",
-    "when": "vim.mode == 'Normal' && (editorTextFocus || !inputFocus)"
-  },
   {
     "key": "tab",
     "command": "workbench.action.nextEditorInGroup",
@@ -67,12 +90,5 @@
     "key": "shift+tab",
     "command": "workbench.action.previousEditorInGroup",
     "when": "(vim.mode == 'Normal' || vim.mode == 'Visual') && (editorTextFocus || !inputFocus)"
-  },
-
-  // Coding
-  {
-    "key": "shift+k",
-    "command": "editor.action.showHover",
-    "when": "vim.mode == 'Normal' && editorTextFocus"
   }
 ]
