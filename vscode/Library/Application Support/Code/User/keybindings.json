@@ -62,13 +62,13 @@
   },
   // Open file explorer selection in vertical split pane
   {
-    "key": "\\",
+    "key": "ctrl-a + \\",
     "command": "explorer.openToSide",
     "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus"
   },
   // Open file explorer selection in horizontal split pane
   {
-    "key": "-",
+    "key": "ctrl-a + -",
     "command": "runCommands",
     "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus",
     "args": {
@@ -79,16 +79,14 @@
       ]
     }
   },
-
-  // Buffers/Tabs
   {
-    "key": "tab",
-    "command": "workbench.action.nextEditorInGroup",
-    "when": "(vim.mode == 'Normal' || vim.mode == 'Visual') && (editorTextFocus || !inputFocus)"
+    "key": "enter",
+    "command": "explorer.openAndPassFocus",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceIsFolder && !inputFocus"
   },
   {
-    "key": "shift+tab",
-    "command": "workbench.action.previousEditorInGroup",
-    "when": "(vim.mode == 'Normal' || vim.mode == 'Visual') && (editorTextFocus || !inputFocus)"
+    "key": "enter",
+    "command": "list.toggleExpand",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && explorerResourceIsFolder && !inputFocus"
   }
 ]

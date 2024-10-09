@@ -9,9 +9,8 @@
     "editorLineNumber.activeForeground": "#9ece6a"
   },
   "workbench.statusBar.visible": true,
-  // "workbench.editor.showTabs": "none",
+  "workbench.editor.showTabs": "none",
   "workbench.activityBar.location": "hidden",
-  "breadcrumbs.enabled": false,
   "workbench.editor.editorActionsLocation": "hidden",
   "workbench.layoutControl.enabled": false,
   "window.commandCenter": false,
@@ -70,6 +69,18 @@
       "before": ["<leader>", "space"],
       "commands": ["workbench.action.showAllEditors"]
     },
+    {
+      "before": ["<leader>", "b", "n"],
+      "commands": ["workbench.action.nextEditorInGroup"]
+    },
+    {
+      "before": ["<leader>", "b", "p"],
+      "commands": ["workbench.action.previousEditorInGroup"]
+    },
+    {
+      "before": ["<leader>", "b", "d"],
+      "commands": ["workbench.action.closeActiveEditor"]
+    },
     // Coding
     {
       "before": ["<leader>", "c", "a"],
@@ -94,7 +105,11 @@
     // Git
     {
       "before": ["<leader>", "g", "g"],
-      "commands": ["workbench.view.scm"]
+      "commands": ["workbench.view.scm", "workbench.scm.focus"]
+    },
+    {
+      "before": ["<leader>", "g", "s"],
+      "commands": ["git.stage"]
     },
     // Misc
     {
