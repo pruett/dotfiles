@@ -71,15 +71,15 @@
     },
     {
       "before": ["<leader>", "b", "n"],
-      "commands": ["workbench.action.nextEditorInGroup"]
+      "commands": "workbench.action.nextEditorInGroup"
     },
     {
       "before": ["<leader>", "b", "p"],
-      "commands": ["workbench.action.previousEditorInGroup"]
+      "commands": "workbench.action.previousEditorInGroup"
     },
     {
       "before": ["<leader>", "b", "d"],
-      "commands": ["workbench.action.closeActiveEditor"]
+      "commands": "workbench.action.closeActiveEditor"
     },
     // Coding
     {
