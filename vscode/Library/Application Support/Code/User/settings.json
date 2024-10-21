@@ -49,6 +49,7 @@
   "vim.searchHighlightColor": "#ff9e64",
   "vim.searchHighlightTextColor": "#000",
   "vim.useSystemClipboard": true,
+  "vim.foldfix": true,
   "vim.leader": " ",
   // Use <C-a> for window management keybindings
   "vim.handleKeys": {
