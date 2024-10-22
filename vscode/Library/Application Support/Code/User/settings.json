@@ -8,12 +8,6 @@
     "editorCursor.background": "#000",
     "editorLineNumber.activeForeground": "#9ece6a"
   },
-  "workbench.statusBar.visible": true,
-  "workbench.editor.showTabs": "none",
-  "workbench.activityBar.location": "hidden",
-  "workbench.editor.editorActionsLocation": "hidden",
-  "workbench.layoutControl.enabled": false,
-  "window.commandCenter": false,
 
   // ******
   // Editor
@@ -28,6 +22,7 @@
   "editor.acceptSuggestionOnEnter": "on",
   "editor.snippetSuggestions": "top",
   "editor.accessibilitySupport": "off",
+  "breadcrumbs.enabled": false,
   "extensions.ignoreRecommendations": true,
 
   // ******
@@ -86,10 +81,6 @@
     {
       "before": ["<leader>", "c", "a"],
       "commands": ["editor.action.codeAction"]
-    },
-    {
-      "before": ["<leader>", "c", "r"],
-      "commands": ["editor.action.rename"]
     },
     {
       "before": ["<leader>", "c", "h"],
