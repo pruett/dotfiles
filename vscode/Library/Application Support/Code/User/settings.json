@@ -2,12 +2,7 @@
   // ******
   // Appearance
   // ******
-  "workbench.colorTheme": "Tokyo Night",
-  "workbench.colorCustomizations": {
-    "editorCursor.foreground": "#9ece6a",
-    "editorCursor.background": "#000",
-    "editorLineNumber.activeForeground": "#9ece6a"
-  },
+  "workbench.colorTheme": "GitHub Light Default",
 
   // ******
   // Editor
