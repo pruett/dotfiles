@@ -3,6 +3,7 @@
   // Appearance
   // ******
   "workbench.colorTheme": "GitHub Light Default",
+  "workbench.startupEditor": "none",
 
   // ******
   // Editor
@@ -43,6 +44,7 @@
   "vim.leader": " ",
   // Use <C-a> for window management keybindings
   "vim.handleKeys": {
+    "<C-f>": false,
     "<C-a>": false
   },
   "vim.normalModeKeyBindingsNonRecursive": [
@@ -88,6 +90,22 @@
     {
       "before": ["<leader>", "c", "r"],
       "commands": ["editor.action.goToReferences"]
+    },
+    {
+      "before": ["<leader>", "f", "f"],
+      "commands": ["editor.foldRecursively"]
+    },
+    {
+      "before": ["<leader>", "f", "a"],
+      "commands": ["editor.foldAll"]
+    },
+    {
+      "before": ["<leader>", "u", "u"],
+      "commands": ["editor.unfoldRecursively"]
+    },
+    {
+      "before": ["<leader>", "u", "a"],
+      "commands": ["editor.unfoldAll"]
     },
     // Git
     {
@@ -150,5 +168,5 @@
   "editor.quickSuggestions": {
     "strings": true
   },
-  "css.validate": false
+  "css.validate": false,
 }

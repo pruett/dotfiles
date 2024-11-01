@@ -36,6 +36,10 @@
 
   // File Explorer
   {
+    "key": "ctrl-f",
+    "command": "workbench.action.quickOpen"
+  },
+  {
     "key": "\\",
     "command": "workbench.files.action.focusFilesExplorer",
     "when": "vim.mode == 'Normal' && (editorTextFocus || !inputFocus)"
