@@ -1,0 +1,172 @@
+{
+  // ******
+  // Appearance
+  // ******
+  "workbench.colorTheme": "GitHub Light Default",
+  "workbench.startupEditor": "none",
+
+  // ******
+  // Editor
+  // ******
+  "editor.fontFamily": "MesloLGS Nerd Font Mono",
+  "editor.fontLigatures": true,
+  "editor.fontSize": 18,
+  "editor.formatOnSave": true,
+  "editor.minimap.enabled": false,
+  "editor.suggest.showMethods": true,
+  "editor.suggest.preview": true,
+  "editor.acceptSuggestionOnEnter": "on",
+  "editor.snippetSuggestions": "top",
+  "editor.accessibilitySupport": "off",
+  "breadcrumbs.enabled": false,
+  "extensions.ignoreRecommendations": true,
+
+  // ******
+  // Explorer
+  // *******
+  "explorer.compactFolders": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.trimTrailingWhitespace": true,
+  "workbench.editor.enablePreviewFromQuickOpen": true,
+
+  // ******
+  // Vim
+  // ******
+  "vim.hlsearch": true,
+  "vim.incsearch": true,
+  "vim.highlightedyank.enable": true,
+  "vim.highlightedyank.color": "#ff9e64",
+  "vim.searchHighlightColor": "#ff9e64",
+  "vim.searchHighlightTextColor": "#000",
+  "vim.useSystemClipboard": true,
+  "vim.foldfix": true,
+  "vim.leader": " ",
+  // Use <C-a> for window management keybindings
+  "vim.handleKeys": {
+    "<C-f>": false,
+    "<C-a>": false
+  },
+  "vim.normalModeKeyBindingsNonRecursive": [
+    // File Explorer
+    {
+      "before": ["<leader>", "s", "f"],
+      "commands": ["workbench.action.quickOpen"]
+    },
+    {
+      "before": ["<leader>", "s", "g"],
+      "commands": ["workbench.action.findInFiles"]
+    },
+    // Buffers/Tabs
+    {
+      "before": ["<leader>", "space"],
+      "commands": ["workbench.action.showAllEditors"]
+    },
+    {
+      "before": ["<leader>", "b", "n"],
+      "commands": "workbench.action.nextEditorInGroup"
+    },
+    {
+      "before": ["<leader>", "b", "p"],
+      "commands": "workbench.action.previousEditorInGroup"
+    },
+    {
+      "before": ["<leader>", "b", "d"],
+      "commands": "workbench.action.closeActiveEditor"
+    },
+    // Coding
+    {
+      "before": ["<leader>", "c", "a"],
+      "commands": ["editor.action.codeAction"]
+    },
+    {
+      "before": ["<leader>", "c", "h"],
+      "commands": ["editor.action.showHover"]
+    },
+    {
+      "before": ["<leader>", "c", "d"],
+      "commands": ["editor.action.revealDefinition"]
+    },
+    {
+      "before": ["<leader>", "c", "r"],
+      "commands": ["editor.action.goToReferences"]
+    },
+    {
+      "before": ["<leader>", "f", "f"],
+      "commands": ["editor.foldRecursively"]
+    },
+    {
+      "before": ["<leader>", "f", "a"],
+      "commands": ["editor.foldAll"]
+    },
+    {
+      "before": ["<leader>", "u", "u"],
+      "commands": ["editor.unfoldRecursively"]
+    },
+    {
+      "before": ["<leader>", "u", "a"],
+      "commands": ["editor.unfoldAll"]
+    },
+    // Git
+    {
+      "before": ["<leader>", "g", "g"],
+      "commands": ["workbench.view.scm", "workbench.scm.focus"]
+    },
+    {
+      "before": ["<leader>", "g", "s"],
+      "commands": ["git.stage"]
+    },
+    // Misc
+    {
+      "before": ["<C-[>"],
+      "commands": [":nohl"]
+    },
+    {
+      "before": ["<Esc>"],
+      "commands": [":nohl"]
+    }
+  ],
+
+  // ******
+  // File-specific rules
+  // ******
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[astro]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  },
+
+  // ******
+  // Tailwind
+  // ******
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "css.validate": false
+}
