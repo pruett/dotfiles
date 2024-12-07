@@ -2,8 +2,7 @@
   // ******
   // Appearance
   // ******
-  "workbench.colorTheme": "GitHub Light Default",
-  "workbench.startupEditor": "none",
+  "workbench.activityBar.orientation": "vertical",
 
   // ******
   // Editor
@@ -168,5 +167,6 @@
   "editor.quickSuggestions": {
     "strings": true
   },
-  "css.validate": false
+  "css.validate": false,
+  "redhat.telemetry.enabled": true
 }
