@@ -1,3 +1,5 @@
+# Add deno completions to search path
+if [[ ":$FPATH:" != *":/Users/kevinpruett/.zsh/completions:"* ]]; then export FPATH="/Users/kevinpruett/.zsh/completions:$FPATH"; fi
 # --------
 # Prompt
 # --------
@@ -89,6 +91,8 @@ eval $(/opt/homebrew/bin/brew shellenv)
 # PNPM
 export PNPM_HOME="$HOME/.local/share/pnpm"
 export PATH="$PATH:$PNPM_HOME"
+# Deno
+source ~/.dotfiles/deno/.deno/env
 
 # ---------
 # Shell integrations
