@@ -1,5 +1,3 @@
-# Add deno completions to search path
-if [[ ":$FPATH:" != *":/Users/kevinpruett/.zsh/completions:"* ]]; then export FPATH="/Users/kevinpruett/.zsh/completions:$FPATH"; fi
 # --------
 # Prompt
 # --------
