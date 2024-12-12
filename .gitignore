@@ -3,4 +3,5 @@
 !zsh/plugins/*
 Brewfile.lock.json
 lazy-lock.json
-
+git/.gitconfig.local
+deno/.deno/bin/*
