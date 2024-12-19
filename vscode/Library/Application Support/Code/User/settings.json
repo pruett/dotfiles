@@ -2,7 +2,7 @@
   // ******
   // Appearance
   // ******
-  "workbench.colorTheme": "GitHub Light Default",
+  "workbench.colorTheme": "Tokyo Night Storm",
   "workbench.startupEditor": "none",
 
   // ******
@@ -168,5 +168,5 @@
   "editor.quickSuggestions": {
     "strings": true
   },
-  "css.validate": false,
+  "css.validate": false
 }

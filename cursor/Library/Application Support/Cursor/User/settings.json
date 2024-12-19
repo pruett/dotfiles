@@ -153,9 +153,6 @@
   "[css]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.python"
-  },
 
   // ******
   // Tailwind
@@ -168,5 +165,4 @@
     "strings": true
   },
   "css.validate": false,
-  "redhat.telemetry.enabled": true
 }
