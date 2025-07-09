@@ -3,6 +3,7 @@
   // Appearance
   // ******
   "workbench.activityBar.orientation": "vertical",
+  "workbench.colorTheme": "Solarized Dark",
 
   // ******
   // Editor
@@ -17,7 +18,6 @@
   "editor.acceptSuggestionOnEnter": "on",
   "editor.snippetSuggestions": "top",
   "editor.accessibilitySupport": "off",
-  "breadcrumbs.enabled": false,
   "extensions.ignoreRecommendations": true,
 
   // ******
@@ -28,6 +28,8 @@
   "files.trimFinalNewlines": true,
   "files.trimTrailingWhitespace": true,
   "workbench.editor.enablePreviewFromQuickOpen": true,
+  "breadcrumbs.enabled": false,
+  "workbench.editor.labelFormat": "short",
 
   // ******
   // Vim
@@ -164,5 +166,5 @@
   "editor.quickSuggestions": {
     "strings": true
   },
-  "css.validate": false,
+  "css.validate": false
 }

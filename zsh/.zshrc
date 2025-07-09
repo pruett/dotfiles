@@ -45,6 +45,11 @@ source ~/.dotfiles/zsh/extras/ls_colors.sh
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
 # ---------
+# Functions
+# ---------
+source ~/.dotfiles/zsh/functions/worktree.zsh
+
+# ---------
 # Aliases
 # ---------
 alias ls="eza --icons=auto"
@@ -77,7 +82,7 @@ setopt hist_ignore_dups
 setopt hist_find_no_dups
 
 # keybindings
-# bindkey -e
+bindkey -v
 bindkey "^p" history-search-backward
 bindkey "^n" history-search-forward
 
@@ -90,7 +95,7 @@ eval $(/opt/homebrew/bin/brew shellenv)
 export PNPM_HOME="$HOME/.local/share/pnpm"
 export PATH="$PATH:$PNPM_HOME"
 # Deno
-source ~/.dotfiles/deno/.deno/env
+source ~/.deno/env
 
 # ---------
 # Shell integrations

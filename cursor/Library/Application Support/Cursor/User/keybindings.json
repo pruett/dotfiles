@@ -103,5 +103,9 @@
     "key": "ctrl+[",
     "command": "removeSecondaryCursors",
     "when": "editorHasMultipleSelections && textInputFocus && vim.active && vim.mode == 'Normal'"
+  },
+  {
+    "key": "cmd+i",
+    "command": "composerMode.agent"
   }
 ]
