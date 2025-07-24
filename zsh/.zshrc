@@ -102,6 +102,7 @@ source ~/.deno/env
 # ---------
 # Shell integrations
 # ---------
+
 # fzf
 eval "$(fzf --zsh)"
 
