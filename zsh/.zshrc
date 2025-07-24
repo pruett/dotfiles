@@ -41,7 +41,7 @@ zstyle ':completion:*:git-checkout:*' sort false
 # NOTE: don't use escape sequences (like '%F{red}%d%f') here, fzf-tab will ignore them
 zstyle ':completion:*:descriptions' format '[%d]'
 # enable filename colorizing
-source ~/.dotfiles/zsh/extras/ls_colors.sh
+source $DOTFILES/zsh/extras/ls_colors.sh
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
 # ---------
@@ -55,8 +55,7 @@ source ~/.dotfiles/zsh/functions/worktree.zsh
 alias ls="eza --icons=auto"
 alias vim="nvim"
 alias pn="pnpm"
-alias nvim="nvim"
-alias dot="cd $DOTFILES && nvim ."
+alias dot="cd $DOTFILES && $EDITOR ."
 alias c="clear"
 alias reload="source ~/.zshrc"
 alias brewu="echo 'Updating Homebrew...' &&\
@@ -89,11 +88,14 @@ bindkey "^n" history-search-forward
 # --------
 # Path
 # --------
+
 # Homebrew
 eval $(/opt/homebrew/bin/brew shellenv)
+
 # PNPM
 export PNPM_HOME="$HOME/.local/share/pnpm"
 export PATH="$PATH:$PNPM_HOME"
+
 # Deno
 source ~/.deno/env
 
