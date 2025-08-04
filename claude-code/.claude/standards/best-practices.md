@@ -1,13 +1,5 @@
 # Development Best Practices
 
-> Version: 1.0.0
-> Last updated: 2025-07-23
-> Scope: Global development standards
-
-## Context
-
-This file is part of the Agent OS standards system. These global best practices are referenced by all product codebases and provide default development guidelines. Individual projects may extend or override these practices in their `.agent-os/product/dev-best-practices.md` file.
-
 ## Core Principles
 
 ### Keep It Simple
@@ -28,6 +20,7 @@ This file is part of the Agent OS standards system. These global best practices 
 ## Dependencies
 
 ### Choose Libraries Wisely
+
 When adding third-party dependencies:
 - Select the most popular and actively maintained option
 - Check the library's GitHub repository for:
@@ -39,11 +32,13 @@ When adding third-party dependencies:
 ## Code Organization
 
 ### File Structure
+
 - Keep files focused on a single responsibility
 - Group related functionality together
 - Use consistent naming conventions
 
 ### Testing
+
 - Write tests for new functionality
 - Maintain existing test coverage
 - Test edge cases and error conditions
@@ -62,6 +57,7 @@ When adding third-party dependencies:
   - `src/lib/auth.ts` - better-auth configuration
 
 ### Database migrations and Schema
+
 - Database migrations and schema managed through better-auth and Drizzle ORM
 
 ## Next.js Best Practices
@@ -85,6 +81,7 @@ When adding third-party dependencies:
 ### Data Fetching
 
 #### Server-Side Data Fetching
+
 - Fetch data close to the source (database, APIs)
 - Reduces client-side JavaScript bundle size
 - Keeps sensitive information (API keys, tokens) secure
@@ -498,6 +495,7 @@ export default async function Page({ params }: { params: { id: string } }) {
 ```
 
 ### Authentication Implementation
+
 - Use better-auth session helpers in Server Components
 - Client-side authentication state managed through better-auth React hooks
 - Protected routes implemented at the layout level where possible

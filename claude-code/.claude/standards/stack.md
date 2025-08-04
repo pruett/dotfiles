@@ -1,12 +1,5 @@
 # Tech Stack
 
-> Version: 1.0.0
-> Last Updated: 2025-07-23
-
-## Context
-
-This file is part of the Agent OS standards system. These global tech stack defaults are referenced by all product codebases when initializing new projects. Individual projects may override these choices in their `.agent-os/product/tech-stack.md` file.
-
 ## Core Technologies
 
 ### Application Framework
@@ -18,7 +11,7 @@ This file is part of the Agent OS standards system. These global tech stack defa
 - **Framework:** AI SDK
 - **Version:** v5 or Latest
 - **Language:** TypeScript
-- **Reference:** [AI SDK Documentation](https://v5.ai-sdk.dev)
+- **Reference:** [AI SDK Documentation](https://ai-sdk.dev/docs/getting-started/nextjs-app-router)
 
 ### Database
 - **Primary:** PostgreSQL
