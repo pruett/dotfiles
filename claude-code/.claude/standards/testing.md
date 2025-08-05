@@ -1,6 +1,8 @@
-# Testing
+# Testing Standards and Practices
 
-## Unit Testing with Vitest and React Testing Library
+## Unit Testing
+
+**Tools**: Vitest and React Testing Library
 
 Vite and React Testing Library are frequently used together for **Unit Testing**. This guide will show you how to setup Vitest with Next.js and write your first tests.
 
@@ -93,7 +95,9 @@ You may find these resources helpful:
 * [React Testing Library Docs](https://testing-library.com/docs/react-testing-library/intro/)
 
 
-## E2E Testing with Playwright
+## E2E Testing
+
+**Tools**: Playwright
 
 Playwright is a testing framework that lets you automate Chromium, Firefox, and WebKit with a single API. You can use it to write **End-to-End (E2E)** testing. This guide will show you how to set up Playwright with Next.js and write your first tests.
 

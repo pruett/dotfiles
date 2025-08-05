@@ -13,34 +13,15 @@ mkdir -p .ai/features
 mkdir -p .ai/docs
 ```
 
-### 2. Create vision.md template
-Create `.ai/vision.md` with project vision template:
-```markdown
-# Project Vision & Scope
-
-## Purpose
-[Clear statement of what this project does and why it exists]
-
-## Target Users
-[Specific user personas and their needs]
-
-## Core User Flows
-[Key user journeys with step-by-step descriptions]
-
-## Scope Boundaries
-[What this project does and doesn't handle]
-
-## Success Metrics
-[How you measure project success]
-```
-
-### 3. Copy standard documentation files
+### 2. Copy standards documentation files and templates
 - Copy `~/.claude/standards/stack.md` to `.ai/stack.md`
 - Copy `~/.claude/standards/best-practices.md` to `.ai/best-practices.md`
 - Copy `~/.claude/standards/testing.md` to `.ai/testing.md`
+- Copy `~/.claude/templates/vision.md` to `.ai/vision.md`
 
-### 4. Create CLAUDE.md file
+### 3. Create CLAUDE.md file
 Create `CLAUDE.md` in project root with the following content:
+
 ```markdown
 # Project Context & Development Guidelines
 
@@ -61,7 +42,7 @@ Create `CLAUDE.md` in project root with the following content:
 - @.ai/docs/: Extended documentation and architecture diagrams
 
 ## Development Workflow
-1. Always reference all four documentation files when creating specifications
+1. Always reference all documentation files when creating specifications
 2. Place feature specs in @.ai/features/YYYY-MM-DD-feature-name/
 3. Run typechecker and tests before commits
 4. Update relevant documentation when features are completed
@@ -73,7 +54,7 @@ After successful execution, display:
 ✅ Project bootstrapped successfully!
 
 Created:
-- .ai/vision.md (template - please update with your project details)
+- .ai/vision.md (template copied from ~/.claude/templates - please update with your project details)
 - .ai/stack.md (copied from ~/.claude/standards/)
 - .ai/best-practices.md (copied from ~/.claude/standards/)
 - .ai/testing.md (copied from ~/.claude/standards/)
