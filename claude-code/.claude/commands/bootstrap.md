@@ -14,10 +14,10 @@ mkdir -p .ai/docs
 ```
 
 ### 2. Copy standards documentation files and templates
-- Copy `~/.claude/standards/stack.md` to `.ai/stack.md`
-- Copy `~/.claude/standards/best-practices.md` to `.ai/best-practices.md`
-- Copy `~/.claude/standards/testing.md` to `.ai/testing.md`
-- Copy `~/.claude/templates/vision.md` to `.ai/vision.md`
+- Copy `~/.claude/standards/stack.md` to `.ai/docs/stack.md`
+- Copy `~/.claude/standards/best-practices.md` to `.ai/docs/best-practices.md`
+- Copy `~/.claude/standards/testing.md` to `.ai/docs/testing.md`
+- Copy `~/.claude/templates/vision.md` to `.ai/docs/vision.md`
 
 ### 3. Create CLAUDE.md file
 Create `CLAUDE.md` in project root with the following content:
@@ -26,10 +26,10 @@ Create `CLAUDE.md` in project root with the following content:
 # Project Context & Development Guidelines
 
 ## Quick Reference
-- @.ai/vision.md: Project scope, purpose, target users, user flows
-- @.ai/stack.md: Technology choices, frameworks, libraries, tools
-- @.ai/best-practices.md: Coding preferences, patterns, data fetching
-- @.ai/testing.md: Testing frameworks, examples, guidelines
+- @.ai/docs/vision.md: Project scope, purpose, target users, user flows
+- @.ai/docs/stack.md: Technology choices, frameworks, libraries, tools
+- @.ai/docs/best-practices.md: Coding preferences, patterns, data fetching
+- @.ai/docs/testing.md: Testing frameworks, examples, guidelines
 
 ## Bash Commands
 - pnpm run build: Build the project
@@ -54,17 +54,17 @@ After successful execution, display:
 ✅ Project bootstrapped successfully!
 
 Created:
-- .ai/vision.md (template copied from ~/.claude/templates - please update with your project details)
-- .ai/stack.md (copied from ~/.claude/standards/)
-- .ai/best-practices.md (copied from ~/.claude/standards/)
-- .ai/testing.md (copied from ~/.claude/standards/)
-- CLAUDE.md (project context file)
 - .ai/features/ directory
 - .ai/docs/ directory
+- .ai/docs/vision.md (template copied from ~/.claude/templates/ - please update with your project details)
+- .ai/docs/stack.md (copied from ~/.claude/standards/)
+- .ai/docs/best-practices.md (copied from ~/.claude/standards/)
+- .ai/docs/testing.md (copied from ~/.claude/standards/)
+- CLAUDE.md (project context file)
 
 Next steps:
-1. Edit .ai/vision.md to define your project scope
-2. Review and customize .ai/stack.md if needed for this project
+1. Edit .ai/docs/vision.md to define your project scope
+2. Review and customize .ai/docs/stack.md if needed for this project
 3. Update CLAUDE.md bash commands section with your actual scripts
 4. Run '/create-feature' to start building your first feature
 ```
