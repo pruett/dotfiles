@@ -5,8 +5,9 @@
 #
 # Additionally, each config option is also explained in detail
 # on Ghostty's website, at https://ghostty.org/docs/config.
-#
+
+font-family = FiraCode Nerd Font Mono
 font-size = 16
-background-opacity = 0.90
+background-opacity = 0.95
 background=#1a1c1c
 keybind = shift+enter=text:\n

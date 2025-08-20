@@ -15,25 +15,25 @@ function getGitInfo() {
       stdio: "pipe",
     });
 
-    let statusEmoji = "";
-    if (status.includes("??")) statusEmoji += "❓"; // Untracked
-    if (status.includes(" M") || status.includes("M ")) statusEmoji += "📝"; // Modified
-    if (status.includes(" A") || status.includes("A ")) statusEmoji += "➕"; // Added
-    if (status.includes(" D") || status.includes("D ")) statusEmoji += "🗑️"; // Deleted
-    if (status.includes("UU")) statusEmoji += "⚠️"; // Merge conflict
+    let statusMeta = "";
+    if (status.includes("??")) statusMeta += "??"; // Untracked
+    if (status.includes(" M") || status.includes("M ")) statusMeta += "M"; // Modified
+    if (status.includes(" A") || status.includes("A ")) statusMeta += "A"; // Added
+    if (status.includes(" D") || status.includes("D ")) statusMeta += "D"; // Deleted
+    if (status.includes("UU")) statusMeta += "UU️"; // Merge conflict
 
-    return ` ${branch} ${statusEmoji}`;
+    return `GIT: ${branch} [${statusMeta}]`;
   } catch (error) {
-    return " 🚫";
+    return "GIT: N/A";
   }
 }
 
 function getNodeVersion() {
   try {
     const version = process.version;
-    return `🟢 ${version}`;
+    return `NODE: ${version}`;
   } catch (error) {
-    return "🟢 unknown";
+    return "NODE: [unknown]";
   }
 }
 
@@ -56,24 +56,27 @@ function getDirectory() {
   const cwd = process.cwd();
   const home = process.env.HOME;
   const displayPath = cwd.replace(home, "~");
-  return `📂 ${displayPath}`;
+  return `DIR: ${displayPath}`;
 }
 
-function getModel() {
+function getCCInfo() {
   const input = fs.readFileSync(0, "utf-8"); // Read from stdin synchronously
   const data = JSON.parse(input);
   const model = data.model.display_name;
-  return `🤖 ${model}`;
+  const version = data.version;
+  const output = data.output_style.name;
+  const session = data.session_id;
+  return `CC: v${version} • ${model} • ${output} • ${session.slice(0, 8)}`;
 }
 
 function main() {
   const parts = [
-    getModel(),
     getDirectory(),
     getGitInfo(),
     getNodeVersion(),
-    getPackageManager(),
-    getTime(),
+    // getPackageManager(),
+    // getTime(),
+    getCCInfo(),
   ].filter(Boolean);
 
   console.log(parts.join(" │ "));
