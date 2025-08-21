@@ -9,5 +9,7 @@
 font-family = FiraCode Nerd Font Mono
 font-size = 16
 background-opacity = 0.95
-background=#1a1c1c
+background = #1a1c1c
 keybind = shift+enter=text:\n
+# fix issue with ctrl-[ not working as expected (https://github.com/ghostty-org/ghostty/discussions/5071#discussioncomment-11857652)
+keybind = ctrl+left_bracket=text:\x1b
