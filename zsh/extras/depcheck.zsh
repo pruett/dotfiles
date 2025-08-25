@@ -43,8 +43,6 @@ DEPCHECK_DEV_DEPS=(
 DEPCHECK_OPTIONAL_DEPS=(
     "gh:GitHub CLI"
     "jq:JSON processor"
-    "tldr:Simplified man pages"
-    "delta:Better git diff viewer"
 )
 
 # ----------------------------------------
@@ -85,7 +83,7 @@ _depcheck_optional_missing=()
 for dep in "${DEPCHECK_CORE_DEPS[@]}"; do
     cmd=$(_depcheck_parse_dep "$dep")
     desc=$(_depcheck_parse_desc "$dep")
-    
+
     if ! _depcheck_command_exists "$cmd"; then
         _depcheck_missing_deps+=("$cmd")
         _depcheck_print "$DEPCHECK_RED" "⚠️  Missing: $cmd ($desc)"
@@ -96,7 +94,7 @@ done
 for dep in "${DEPCHECK_DEV_DEPS[@]}"; do
     cmd=$(_depcheck_parse_dep "$dep")
     desc=$(_depcheck_parse_desc "$dep")
-    
+
     if ! _depcheck_command_exists "$cmd"; then
         _depcheck_missing_deps+=("$cmd")
         _depcheck_print "$DEPCHECK_RED" "⚠️  Missing: $cmd ($desc)"
@@ -107,7 +105,7 @@ done
 for dep in "${DEPCHECK_OPTIONAL_DEPS[@]}"; do
     cmd=$(_depcheck_parse_dep "$dep")
     desc=$(_depcheck_parse_desc "$dep")
-    
+
     if ! _depcheck_command_exists "$cmd"; then
         _depcheck_optional_missing+=("$cmd")
         _depcheck_print "$DEPCHECK_YELLOW" "💡 Optional: $cmd ($desc)"
@@ -122,7 +120,7 @@ if [[ ${#_depcheck_missing_deps[@]} -gt 0 ]]; then
     _depcheck_print "$DEPCHECK_BLUE" ""
     _depcheck_print "$DEPCHECK_BLUE" "📦 Install missing dependencies:"
     _depcheck_print "$DEPCHECK_BLUE" "   brew install ${_depcheck_missing_deps[*]}"
-    
+
     if [[ "$DEPCHECK_STRICT_MODE" == "true" ]]; then
         _depcheck_print "$DEPCHECK_RED" "❌ Exiting due to missing dependencies (DEPCHECK_STRICT_MODE=true)"
         return 1
@@ -136,9 +134,9 @@ if [[ ${#_depcheck_optional_missing[@]} -gt 0 ]]; then
 fi
 
 # Success message if everything is installed
-if [[ ${#_depcheck_missing_deps[@]} -eq 0 && ${#_depcheck_optional_missing[@]} -eq 0 ]]; then
-    _depcheck_print "$DEPCHECK_GREEN" "✅ All dependencies satisfied!"
-fi
+# if [[ ${#_depcheck_missing_deps[@]} -eq 0 && ${#_depcheck_optional_missing[@]} -eq 0 ]]; then
+#     _depcheck_print "$DEPCHECK_GREEN" "✅ All dependencies satisfied!"
+# fi
 
 # ----------------------------------------
 # Cleanup
@@ -151,9 +149,9 @@ unset -f _depcheck_command_exists _depcheck_print _depcheck_parse_dep _depcheck_
 # ----------------------------------------
 # Usage Examples
 # ----------------------------------------
-# 
+#
 # To add new dependencies, simply append to the appropriate array:
-# 
+#
 # DEPCHECK_CORE_DEPS+=(
 #     "new-tool:Description of the tool"
 # )
