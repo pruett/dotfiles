@@ -1,4 +1,1 @@
 "$schema" = 'https://starship.rs/config-schema.json'
-
-[character]
-vicmd_symbol = "[❮](bold green)"
