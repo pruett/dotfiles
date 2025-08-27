@@ -14,7 +14,7 @@ background-opacity = 0.95
 
 # Quick terminal
 quick-terminal-position = center
-keybind = global:cmd+grave_accent=toggle_quick_terminal
+keybind = global:ctrl+grave_accent=toggle_quick_terminal
 
 # Addtl Keybindings
 keybind = shift+enter=text:\n
