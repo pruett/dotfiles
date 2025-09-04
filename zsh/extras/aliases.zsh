@@ -10,3 +10,4 @@ alias brewu="echo 'Updating Homebrew...' &&\
     brew upgrade &&\
     echo 'Cleaning up Homebrew...' &&\
     brew cleanup && brew doctor"
+alias edit="$EDITOR"

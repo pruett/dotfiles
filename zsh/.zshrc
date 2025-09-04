@@ -27,6 +27,7 @@ source $DOTFILES/zsh/extras/aliases.zsh
 # Functions
 # ---------
 source $DOTFILES/zsh/functions/worktree.zsh
+source $DOTFILES/zsh/functions/tmuxn.zsh
 
 # --------
 # Syntax Highlighting
