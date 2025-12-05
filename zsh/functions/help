@@ -1,0 +1,69 @@
+# ZSH configuration cheatsheet - displays custom keybindings, aliases, and functions
+
+# Color codes
+local blue='\033[0;34m'
+local green='\033[0;32m'
+local yellow='\033[1;33m'
+local cyan='\033[0;36m'
+local nc='\033[0m' # No Color
+
+echo ""
+printf "${blue}╔════════════════════════════════════════════════════════════════╗${nc}\n"
+printf "${blue}║${nc}              ${cyan}ZSH Configuration Cheatsheet${nc}                  ${blue}║${nc}\n"
+printf "${blue}╚════════════════════════════════════════════════════════════════╝${nc}\n"
+echo ""
+
+# Keybindings
+printf "${green}⌨️  Keybindings${nc}\n"
+printf "${blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${nc}\n"
+echo "  Ctrl+F          Accept autosuggestion"
+echo "  Ctrl+R          FZF history search"
+echo "  Ctrl+T          FZF file search"
+echo "  Alt+C           FZF directory navigation"
+echo "  < / >           Switch completion groups (in fzf-tab)"
+echo ""
+
+# Standard Aliases
+printf "${green}📝 Standard Aliases${nc}\n"
+printf "${blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${nc}\n"
+echo "  ls              eza --icons=auto"
+echo "  vim             nvim"
+echo "  pn              pnpm"
+echo "  dot             cd \$DOTFILES && \$EDITOR ."
+echo "  c               clear"
+echo "  reload          source ~/.zshrc"
+echo "  brewu           Homebrew update/upgrade/cleanup cycle"
+echo "  edit            \$EDITOR"
+echo ""
+
+# Navigation Aliases
+printf "${green}🧭 Navigation${nc}\n"
+printf "${blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${nc}\n"
+echo "  ..              cd .."
+echo "  ...             cd ../.."
+echo "  ....            cd ../../.."
+echo "  .....           cd ../../../.."
+echo "  md              mkdir -p"
+echo "  rd              rmdir"
+echo ""
+
+# FZF Aliases
+printf "${green}🔍 FZF Functions${nc}\n"
+printf "${blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${nc}\n"
+echo "  ff              Search and open file with FZF"
+echo "  fcd             Fuzzy directory navigation"
+echo "  fgb             Git branch switcher"
+echo "  fenv            Environment variable browser"
+echo ""
+
+# Custom Functions
+printf "${green}⚡ Custom Functions${nc}\n"
+printf "${blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${nc}\n"
+echo "  worktree <name> Create git worktree with new branch"
+echo "  tmuxn           Create/attach tmux session (named after cwd)"
+echo "  dayta [--port]  Launch dayta-mcp dev server"
+echo "  help            Show this cheatsheet"
+echo ""
+
+printf "${yellow}💡 Tip: Run 'depcheck' info at startup. Set DEPCHECK_QUIET=1 to suppress.${nc}\n"
+echo ""

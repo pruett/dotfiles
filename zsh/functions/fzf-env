@@ -1,0 +1,9 @@
+# Environment variable browser with preview
+# Usage: fzf-env
+# Alias: fenv
+
+local selection
+selection=$(env | sort | fzf --preview 'echo {} | cut -d= -f2-' --preview-label="Environment Variable Value")
+if [[ -n "$selection" ]]; then
+    echo "$selection"
+fi

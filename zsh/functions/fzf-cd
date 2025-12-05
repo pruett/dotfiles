@@ -1,0 +1,7 @@
+# Enhanced directory navigation
+# Usage: fzf-cd [starting-directory]
+# Alias: fcd
+
+local dir
+dir=$(fd --type d --hidden --follow --exclude .git --exclude node_modules . "${1:-.}" | fzf --query="$1" --select-1 --exit-0)
+[[ -n "$dir" ]] && cd "$dir"

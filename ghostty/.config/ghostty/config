@@ -7,7 +7,7 @@
 # on Ghostty's website, at https://ghostty.org/docs/config.
 
 # Appearance
-theme = catppuccin-mocha
+theme = Catppuccin Mocha
 font-family = FiraCode Nerd Font Mono
 font-size = 16
 background-opacity = 0.95
@@ -17,6 +17,7 @@ quick-terminal-position = center
 keybind = global:ctrl+grave_accent=toggle_quick_terminal
 
 # Addtl Keybindings
-keybind = shift+enter=text:\n
+# used primarily in claude code for newlines (https://github.com/anthropics/claude-code/issues/1282)
+keybind = shift+enter=text:\x1b\r
 # fix issue with ctrl-[ not working as expected (https://github.com/ghostty-org/ghostty/discussions/5071#discussioncomment-11857652)
 keybind = ctrl+left_bracket=text:\x1b

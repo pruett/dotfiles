@@ -8,11 +8,15 @@
 # Core FZF Setup
 # ----------------------------------------
 
-# Initialize FZF with default keybindings:
+# FZF keybinding initialization is deferred to .zshrc's zvm_after_init() hook
+# to prevent zsh-vi-mode from overwriting FZF keybindings.
+#
+# Default keybindings (applied after vi-mode loads):
 # - Ctrl+R: Search command history
 # - Ctrl+T: Search files in current directory
 # - Alt+C: Change to selected directory
-eval "$(fzf --zsh)"
+#
+# This file only contains FZF configuration (opts, commands, previews, functions)
 
 # ----------------------------------------
 # FZF Configuration
@@ -61,42 +65,10 @@ export FZF_ALT_C_OPTS="
 export FZF_CTRL_R_OPTS="--no-preview"
 
 # ----------------------------------------
-# Custom Functions
+# Function Aliases
 # ----------------------------------------
-
-# Enhanced file search with preview
-fzf-file() {
-    local file
-    file=$(fzf --query="$1" --select-1 --exit-0)
-    [[ -n "$file" ]] && ${EDITOR:-vim} "$file"
-}
-
-# Enhanced directory navigation
-fzf-cd() {
-    local dir
-    dir=$(fd --type d --hidden --follow --exclude .git --exclude node_modules . "${1:-.}" | fzf --query="$1" --select-1 --exit-0)
-    [[ -n "$dir" ]] && cd "$dir"
-}
-
-# Git branch switcher
-fzf-git-branch() {
-    local branch
-    branch=$(git branch --all | grep -v HEAD | sed 's/.* //' | sed 's#remotes/[^/]*/##' | sort -u | fzf --query="$1" --select-1 --exit-0)
-    [[ -n "$branch" ]] && git checkout "$branch"
-}
-
-# ----------------------------------------
-# Aliases
-# ----------------------------------------
-
-# Environment variable browser
-fzf-env() {
-    local selection
-    selection=$(env | sort | fzf --preview 'echo {} | cut -d= -f2-' --preview-label="Environment Variable Value")
-    if [[ -n "$selection" ]]; then
-        echo "$selection"
-    fi
-}
+# Custom FZF functions are autoloaded from $DOTFILES/zsh/functions/
+# and registered in .zshrc via: autoload -Uz fzf-file fzf-cd fzf-git-branch fzf-env
 
 # Convenient aliases for custom functions
 alias ff='fzf-file'

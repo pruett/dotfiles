@@ -10,7 +10,14 @@
 if type brew &>/dev/null; then
   FPATH=/opt/homebrew/share/zsh-completions:$FPATH
   autoload -Uz compinit
-  compinit
+
+  # Only check for new completions once per day
+  # compinit -C skips the security check for faster startup
+  if [[ -n ${HOME}/.zcompdump(#qN.mh+24) ]]; then
+    compinit
+  else
+    compinit -C
+  fi
 fi
 
 # ----------------------------------------
@@ -32,9 +39,9 @@ zstyle ':completion:*:descriptions' format '[%d]'
 # ----------------------------------------
 # FZF-Tab Integration
 # ----------------------------------------
-
-# Load fzf-tab plugin
-source $DOTFILES/zsh/plugins/fzf-tab/fzf-tab.plugin.zsh
+# NOTE: fzf-tab plugin is loaded in .zshrc via zvm_after_init hook
+# to prevent keybinding conflicts with zsh-vi-mode.
+# This file only contains the zstyle configuration.
 
 # ----------------------------------------
 # Command-Specific Previews
@@ -62,9 +69,8 @@ zstyle ':fzf-tab:complete:brew-install:*' fzf-preview 'brew info $word'
 # Completion Styling
 # ----------------------------------------
 
-# Enable colorized file listings
-source $DOTFILES/zsh/extras/ls_colors.sh
-zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+# Use eza's default colors for file listings
+zstyle ':completion:*' list-colors ''
 
 # Completion sorting preferences
 zstyle ':completion:*:git-checkout:*' sort false  # Keep branch order
@@ -74,13 +80,12 @@ zstyle ':completion:*' file-sort modification     # Sort files by modification t
 # FZF-Tab Appearance
 # ----------------------------------------
 
-# Use tmux popup if available, otherwise regular fzf
-if command -v tmux > /dev/null 2>&1; then
-    zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
-fi
+# Make fzf-tab follow FZF_DEFAULT_OPTS from fzf.zsh
+# This ensures consistent appearance between regular fzf and tab completion
+zstyle ':fzf-tab:*' use-fzf-default-opts yes
 
-# Configure fzf-tab appearance with better spacing
-zstyle ':fzf-tab:*' fzf-flags --height=50% --layout=reverse --border=rounded --preview-window=right:50%:wrap
+# Preview window configuration
+zstyle ':fzf-tab:*' fzf-flags --preview-window=right:50%:wrap
 
 # Switch group with `<` and `>`
 zstyle ':fzf-tab:*' switch-group '<' '>'

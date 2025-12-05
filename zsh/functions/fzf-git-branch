@@ -1,0 +1,7 @@
+# Git branch switcher with fuzzy search
+# Usage: fzf-git-branch [query]
+# Alias: fgb
+
+local branch
+branch=$(git branch --all | grep -v HEAD | sed 's/.* //' | sed 's#remotes/[^/]*/##' | sort -u | fzf --query="$1" --select-1 --exit-0)
+[[ -n "$branch" ]] && git checkout "$branch"

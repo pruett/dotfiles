@@ -1,18 +1,22 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "permissions": {
-    "defaultMode": "plan",
-    "additionalDirectories": ["~/.dotfiles/claude-code/.claude/"]
-  },
   "env": {
     "ANTHROPIC_MODEL": "opusplan"
   },
   "includeCoAuthoredBy": false,
+  "permissions": {
+    "defaultMode": "plan",
+    "additionalDirectories": [
+      "~/.dotfiles/claude-code/.claude/",
+      "~/dayta-mcp/"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "hooks": {},
   "statusLine": {
     "type": "command",
-    "command": "node ~/.claude/statusline.js"
+    "command": "bun x ccusage statusline --context-low-threshold 50 --context-medium-threshold 70 --active",
+    "padding": 0
   },
-  "enableAllProjectMcpServers": true,
-  "model": "opusplan"
+  "alwaysThinkingEnabled": false
 }

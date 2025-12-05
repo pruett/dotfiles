@@ -11,6 +11,9 @@
 # Set to true to exit on missing dependencies (strict mode)
 DEPCHECK_STRICT_MODE=${DEPCHECK_STRICT_MODE:-false}
 
+# Set to true to suppress output when all dependencies are satisfied
+DEPCHECK_QUIET=${DEPCHECK_QUIET:-true}
+
 # Color codes for output
 DEPCHECK_RED='\033[0;31m'
 DEPCHECK_YELLOW='\033[1;33m'
@@ -116,27 +119,29 @@ done
 # Installation Instructions
 # ----------------------------------------
 
-if [[ ${#_depcheck_missing_deps[@]} -gt 0 ]]; then
-    _depcheck_print "$DEPCHECK_BLUE" ""
-    _depcheck_print "$DEPCHECK_BLUE" "📦 Install missing dependencies:"
-    _depcheck_print "$DEPCHECK_BLUE" "   brew install ${_depcheck_missing_deps[*]}"
+# Check if we should suppress output (quiet mode)
+if [[ "$DEPCHECK_QUIET" == "true" ]] && [[ ${#_depcheck_missing_deps[@]} -eq 0 ]]; then
+    # Quiet mode and no missing deps - suppress all output
+    :
+else
+    # Show output if there are missing deps or quiet mode is off
+    if [[ ${#_depcheck_missing_deps[@]} -gt 0 ]]; then
+        _depcheck_print "$DEPCHECK_BLUE" ""
+        _depcheck_print "$DEPCHECK_BLUE" "📦 Install missing dependencies:"
+        _depcheck_print "$DEPCHECK_BLUE" "   brew install ${_depcheck_missing_deps[*]}"
 
-    if [[ "$DEPCHECK_STRICT_MODE" == "true" ]]; then
-        _depcheck_print "$DEPCHECK_RED" "❌ Exiting due to missing dependencies (DEPCHECK_STRICT_MODE=true)"
-        return 1
+        if [[ "$DEPCHECK_STRICT_MODE" == "true" ]]; then
+            _depcheck_print "$DEPCHECK_RED" "❌ Exiting due to missing dependencies (DEPCHECK_STRICT_MODE=true)"
+            return 1
+        fi
+    fi
+
+    if [[ ${#_depcheck_optional_missing[@]} -gt 0 ]]; then
+        _depcheck_print "$DEPCHECK_BLUE" ""
+        _depcheck_print "$DEPCHECK_BLUE" "🔧 Install optional tools:"
+        _depcheck_print "$DEPCHECK_BLUE" "   brew install ${_depcheck_optional_missing[*]}"
     fi
 fi
-
-if [[ ${#_depcheck_optional_missing[@]} -gt 0 ]]; then
-    _depcheck_print "$DEPCHECK_BLUE" ""
-    _depcheck_print "$DEPCHECK_BLUE" "🔧 Install optional tools:"
-    _depcheck_print "$DEPCHECK_BLUE" "   brew install ${_depcheck_optional_missing[*]}"
-fi
-
-# Success message if everything is installed
-# if [[ ${#_depcheck_missing_deps[@]} -eq 0 && ${#_depcheck_optional_missing[@]} -eq 0 ]]; then
-#     _depcheck_print "$DEPCHECK_GREEN" "✅ All dependencies satisfied!"
-# fi
 
 # ----------------------------------------
 # Cleanup
