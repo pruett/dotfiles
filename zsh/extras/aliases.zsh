@@ -28,6 +28,12 @@ alias reload="source ~/.zshrc"
 alias edit="$EDITOR"
 
 # ---------
+# Claude Code
+# ---------
+alias cc="claude"
+alias 'cc!'="claude --dangerously-skip-permissions"
+
+# ---------
 # Homebrew maintenance
 # ---------
 alias brewu="echo 'Updating Homebrew...' &&\
