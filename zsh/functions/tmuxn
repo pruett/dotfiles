@@ -2,6 +2,8 @@
 
 local session_name=$(basename $(pwd))
 
+echo "$session_name"
+
 # Check if session already exists
 if tmux has-session -t "$session_name" 2>/dev/null; then
     echo "Warning: A tmux session named '$session_name' already exists."
