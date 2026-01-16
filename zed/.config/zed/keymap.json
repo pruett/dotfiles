@@ -15,6 +15,7 @@
       // Search-related operations
       //
       "ctrl-f": "file_finder::Toggle",
+      "space f f": "file_finder::Toggle",
       "space s f": "file_finder::Toggle",
       "space space": "tab_switcher::Toggle",
       "space s s": "outline::Toggle",
@@ -30,30 +31,30 @@
       // Docks hide/unhide
       //
       "\\": "workspace::ToggleLeftDock",
-      "ctrl-\\": "workspace::ToggleRightDock"
-    }
+      "ctrl-\\": "workspace::ToggleRightDock",
+    },
   },
   {
     "context": "AgentPanel > MessageEditor > Editor",
     "bindings": {
       // Pane navigation
-      "ctrl-h": "workspace::ActivatePaneLeft"
-    }
+      "ctrl-h": "workspace::ActivatePaneLeft",
+    },
   },
   {
     "context": "ProjectPanel && not_editing",
     "bindings": {
       "a": "project_panel::NewFile",
       "d": "project_panel::Delete",
-      "r": "project_panel::Rename"
-    }
+      "r": "project_panel::Rename",
+    },
   },
   {
     "context": "Editor",
     "bindings": {
       "ctrl-w -": "pane::SplitHorizontal",
-      "ctrl-w \\": "pane::SplitVertical"
-    }
+      "ctrl-w \\": "pane::SplitVertical",
+    },
   },
   {
     "context": "VimControl && !menu",
@@ -84,26 +85,26 @@
       "cmd-ctrl-[": "editor::Fold",
       "cmd-ctrl-]": "editor::UnfoldLines",
       "space f a": "editor::FoldAll",
-      "space f u": "editor::UnfoldAll"
-    }
+      "space f u": "editor::UnfoldAll",
+    },
   },
   {
     "context": "vim_mode == normal && !menu",
     "bindings": {
       // "shift-y": ["workspace::SendKeystrokes", "y $"] // Use neovim's yank behavior: yank to end of line.
-    }
+    },
   },
   {
     "context": "vim_mode == insert",
     "bindings": {
       // "j k": "vim::NormalBefore" // In insert mode, make jk escape to normal mode.
-    }
+    },
   },
   {
     "context": "Terminal",
     "bindings": {
-      "ctrl-k": "workspace::ActivatePaneUp"
-    }
+      "ctrl-k": "workspace::ActivatePaneUp",
+    },
   },
   {
     "context": "EmptyPane || SharedScreen",
@@ -111,7 +112,8 @@
       // Put key bindings here (in addition to the context above) if you want them to
       // work when no editor exists.
       "ctrl-f": "file_finder::Toggle",
-      "space s f": "file_finder::Toggle"
-    }
-  }
+      "space f f": "file_finder::Toggle",
+      "space s f": "file_finder::Toggle",
+    },
+  },
 ]

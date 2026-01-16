@@ -8,25 +8,34 @@
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
   "terminal": {
-    "dock": "bottom"
+    "dock": "bottom",
   },
   "agent": {
+    "inline_assistant_model": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5-thinking-latest",
+    },
     "always_allow_tool_actions": true,
-    "default_profile": "write",
+    "default_profile": "ask",
     "model_parameters": [],
     "default_model": {
       "provider": "anthropic",
-      "model": "claude-sonnet-4-thinking-latest"
-    }
+      "model": "claude-sonnet-4-5-thinking-latest",
+    },
   },
   "base_keymap": "VSCode",
   "vim_mode": true,
   "ui_font_size": 16,
   "buffer_font_size": 16,
+  "code_actions_on_format": {
+    "source.organizeImports.biome": true,
+  },
   "theme": {
     "mode": "system",
     "light": "One Light",
-    "dark": "One Dark"
+    "dark": "One Dark",
   },
-  "cursor_blink": false
+  "cursor_blink": false,
+  "show_wrap_guides": true,
+  "soft_wrap": "preferred_line_length",
 }

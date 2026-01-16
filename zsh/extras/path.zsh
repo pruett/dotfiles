@@ -9,6 +9,7 @@ typeset -U path
 # Add custom paths (prepend to take precedence)
 path=(
     $HOME/.local/bin
+    $HOME/.config/cache/.bun/bin
     $HOME/bin
     $path
 )

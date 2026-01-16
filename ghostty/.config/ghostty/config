@@ -21,3 +21,6 @@ keybind = global:ctrl+grave_accent=toggle_quick_terminal
 keybind = shift+enter=text:\x1b\r
 # fix issue with ctrl-[ not working as expected (https://github.com/ghostty-org/ghostty/discussions/5071#discussioncomment-11857652)
 keybind = ctrl+left_bracket=text:\x1b
+
+# Notifications
+desktop-notifications = true
