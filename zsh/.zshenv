@@ -14,3 +14,4 @@ export XDG_CACHE_HOME="$XDG_CONFIG_HOME/cache"
 # Editor
 export EDITOR="zed"
 export VISUAL="$EDITOR"
+. "$HOME/.cargo/env"

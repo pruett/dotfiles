@@ -40,6 +40,7 @@ DEPCHECK_DEV_DEPS=(
     "git:Version control system"
     "nvim:Modern Vim-based editor"
     "rg:Fast text search (ripgrep)"
+    "cargo:Rust package manager"
 )
 
 # Optional but recommended tools
@@ -126,9 +127,27 @@ if [[ "$DEPCHECK_QUIET" == "true" ]] && [[ ${#_depcheck_missing_deps[@]} -eq 0 ]
 else
     # Show output if there are missing deps or quiet mode is off
     if [[ ${#_depcheck_missing_deps[@]} -gt 0 ]]; then
-        _depcheck_print "$DEPCHECK_BLUE" ""
-        _depcheck_print "$DEPCHECK_BLUE" "📦 Install missing dependencies:"
-        _depcheck_print "$DEPCHECK_BLUE" "   brew install ${_depcheck_missing_deps[*]}"
+        # Filter out cargo from brew install list (has special install method)
+        local brew_deps=()
+        for dep in "${_depcheck_missing_deps[@]}"; do
+            if [[ "$dep" != "cargo" ]]; then
+                brew_deps+=("$dep")
+            fi
+        done
+
+        # Show brew install command only if there are non-cargo dependencies
+        if [[ ${#brew_deps[@]} -gt 0 ]]; then
+            _depcheck_print "$DEPCHECK_BLUE" ""
+            _depcheck_print "$DEPCHECK_BLUE" "📦 Install missing dependencies:"
+            _depcheck_print "$DEPCHECK_BLUE" "   brew install ${brew_deps[*]}"
+        fi
+
+        # Check for Rust specifically and show rustup instructions
+        if [[ " ${_depcheck_missing_deps[*]} " =~ " cargo " ]]; then
+            _depcheck_print "$DEPCHECK_BLUE" ""
+            _depcheck_print "$DEPCHECK_BLUE" "🦀 Install Rust (official method):"
+            _depcheck_print "$DEPCHECK_BLUE" "   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+        fi
 
         if [[ "$DEPCHECK_STRICT_MODE" == "true" ]]; then
             _depcheck_print "$DEPCHECK_RED" "❌ Exiting due to missing dependencies (DEPCHECK_STRICT_MODE=true)"

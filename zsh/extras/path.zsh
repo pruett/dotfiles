@@ -10,6 +10,8 @@ typeset -U path
 path=(
     $HOME/.local/bin
     $HOME/.config/cache/.bun/bin
+    $HOME/go/bin
+    $HOME/.cargo/bin
     $HOME/bin
     $path
 )

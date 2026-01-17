@@ -99,3 +99,9 @@ fi
 # Starship Prompt
 # --------
 eval "$(starship init zsh)"
+
+
+# --------
+# Rust startup
+# --------
+. "$HOME/.cargo/env"
