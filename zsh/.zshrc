@@ -4,8 +4,8 @@
 # Modular ZSH configuration managed by GNU Stow
 #
 # Load order:
-#   1. Dependency check (validates required tools)
-#   2. PATH management (custom binary paths)
+#   1. PATH management (custom binary paths)
+#   2. Dependency check (validates required tools)
 #   3. Homebrew environment
 #   4. FZF integration (fuzzy finder)
 #   5. zsh-vi-mode plugin (defers FZF & fzf-tab keybindings via zvm_after_init)
@@ -21,14 +21,14 @@
 # ========================================
 
 # --------
+# PATH Management (must come before depcheck)
+# --------
+source $DOTFILES/zsh/extras/path.zsh
+
+# --------
 # Dependency Check
 # --------
 source $DOTFILES/zsh/extras/depcheck.zsh
-
-# --------
-# PATH Management
-# --------
-source $DOTFILES/zsh/extras/path.zsh
 
 # --------
 # Homebrew
@@ -99,9 +99,3 @@ fi
 # Starship Prompt
 # --------
 eval "$(starship init zsh)"
-
-
-# --------
-# Rust startup
-# --------
-. "$HOME/.cargo/env"
