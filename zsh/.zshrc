@@ -86,7 +86,10 @@ source $DOTFILES/zsh/extras/tabcomp.zsh
 # --------
 # Zoxide
 # --------
-eval "$(zoxide init --cmd cd zsh)"
+# Prevent zoxide from being loaded when CLAUDECODE is set to 1
+if [[ "$CLAUDECODE" != "1" ]]; then
+    eval "$(zoxide init --cmd cd zsh)"
+fi
 
 # --------
 # Local Config (optionally load gitignored config)
