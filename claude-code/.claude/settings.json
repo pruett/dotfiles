@@ -1,60 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "env": {
-    "ANTHROPIC_MODEL": "opusplan"
-  },
   "includeCoAuthoredBy": false,
   "permissions": {
     "defaultMode": "plan",
     "additionalDirectories": ["~/.dotfiles/claude-code/.claude/"]
   },
   "enableAllProjectMcpServers": true,
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -c '{\n  type: \"SessionStart\",\n  sessionId: .session_id,\n  timestamp: (now | todate),\n  cwd: .cwd,\n  slug: .slug,\n  gitBranch: .git_branch\n}' | curl -X POST -H \"Content-Type: application/json\" -d @- http://localhost:3001/api/hooks/event -s -o /dev/null"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -c '{\n  type: \"SessionEnd\",\n  sessionId: .session_id,\n  timestamp: (now | todate),\n  cwd: .cwd,\n  gitBranch: .git_branch,\n  messageCount: .message_count,\n  duration: .duration\n}' | curl -X POST -H \"Content-Type: application/json\" -d @- http://localhost:3001/api/hooks/event -s -o /dev/null"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -c '{\n  type: \"PreToolUse\",\n  sessionId: .session_id,\n  timestamp: (now | todate),\n  cwd: .cwd,\n  gitBranch: .git_branch,\n  toolName: .tool_name,\n  toolInput: .tool_input,\n  messageUuid: .message_uuid\n}' | curl -X POST -H \"Content-Type: application/json\" -d @- http://localhost:3001/api/hooks/event -s -o /dev/null"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -c '{\n  type: \"PostToolUse\",\n  sessionId: .session_id,\n  timestamp: (now | todate),\n  cwd: .cwd,\n  gitBranch: .git_branch,\n  toolName: .tool_name,\n  toolOutput: .tool_output,\n  success: .success,\n  duration: .duration,\n  messageUuid: .message_uuid\n}' | curl -X POST -H \"Content-Type: application/json\" -d @- http://localhost:3001/api/hooks/event -s -o /dev/null"
-          }
-        ]
-      }
-    ]
-  },
   "statusLine": {
     "type": "command",
     "command": "~/.dotfiles/claude-code/.claude/statusline.sh",
