@@ -9,10 +9,30 @@ input=$(cat)
 
 # Extract values using jq
 model=$(echo "$input" | jq -r '.model.display_name // "Unknown"')
+cwd=$(echo "$input" | jq -r '.workspace.current_dir // "."')
+
+# Get git information
+git_info=""
+if [ -d "$cwd/.git" ] || git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
+    # Get current branch name
+    branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null)
+
+    if [ -n "$branch" ]; then
+        git_info="🌿 $branch"
+
+        # Check if we're in a git worktree
+        git_dir=$(git -C "$cwd" --no-optional-locks rev-parse --git-dir 2>/dev/null)
+        if [ -n "$git_dir" ] && [[ "$git_dir" == *"/worktrees/"* ]]; then
+            worktree_path=$(git -C "$cwd" --no-optional-locks worktree list --porcelain 2>/dev/null | grep -A2 "worktree $cwd" | grep "^worktree" | cut -d' ' -f2)
+            if [ -z "$worktree_path" ]; then
+                worktree_path="$cwd"
+            fi
+            git_info="🌿 $branch 🌳 $worktree_path"
+        fi
+    fi
+fi
+
 session_id_full=$(echo "$input" | jq -r '.session_id // "N/A"')
-duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
-lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
-lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
 
 # Truncate session ID to show first 4 and last 4 characters with ... in between
 if [ "$session_id_full" != "N/A" ] && [ ${#session_id_full} -gt 11 ]; then
@@ -21,43 +41,34 @@ else
     session_id="$session_id_full"
 fi
 
-# Format session duration
-if [ "$duration_ms" -gt 0 ]; then
-    total_seconds=$((duration_ms / 1000))
-    minutes=$((total_seconds / 60))
-    seconds=$((total_seconds % 60))
-
-    if [ "$minutes" -gt 0 ]; then
-        session_time="${minutes}m ${seconds}s"
-    else
-        session_time="${seconds}s"
+# Determine sandbox status from settings files
+project_dir=$(echo "$input" | jq -r '.workspace.project_dir // "."')
+sandbox_enabled="false"
+# Check project-level settings first, then global
+for settings_file in "$project_dir/.claude/settings.json" "$HOME/.claude/settings.json"; do
+    if [ -f "$settings_file" ]; then
+        val=$(jq -r '.sandbox.enabled // empty' "$settings_file" 2>/dev/null)
+        if [ -n "$val" ]; then
+            sandbox_enabled="$val"
+            break
+        fi
     fi
-else
-    session_time="0s"
-fi
+done
 
-# Format lines changed
-if [ "$lines_added" -gt 0 ] || [ "$lines_removed" -gt 0 ]; then
-    lines_changed="+${lines_added}/-${lines_removed}"
+if [ "$sandbox_enabled" = "true" ]; then
+    sandbox_display="🔒 sandbox"
 else
-    lines_changed="+0/-0"
+    sandbox_display="🔓 no sandbox"
 fi
 
 # Calculate context usage percentage
 usage=$(echo "$input" | jq '.context_window.current_usage')
 if [ "$usage" != "null" ] && [ -n "$usage" ]; then
-    # Extract token counts from current_usage
-    # - input_tokens: Fresh, non-cached input tokens
-    # - cache_creation_input_tokens: Input tokens being written to cache
-    # - cache_read_input_tokens: Input tokens read from cache (90% cheaper but still use context)
-    # Note: output_tokens is NOT included in context usage calculation
     input_tokens=$(echo "$usage" | jq '.input_tokens // 0')
     cache_creation=$(echo "$usage" | jq '.cache_creation_input_tokens // 0')
     cache_read=$(echo "$usage" | jq '.cache_read_input_tokens // 0')
     window_size=$(echo "$input" | jq '.context_window.context_window_size // 1')
 
-    # Calculate current tokens and percentage
-    # Formula: input_tokens + cache_creation_input_tokens + cache_read_input_tokens
     current_tokens=$((input_tokens + cache_creation + cache_read))
     if [ "$window_size" -gt 0 ]; then
         percentage=$((current_tokens * 100 / window_size))
@@ -65,7 +76,6 @@ if [ "$usage" != "null" ] && [ -n "$usage" ]; then
         percentage=0
     fi
 
-    # Apply emoji indicator based on thresholds
     if [ "$percentage" -gt "$RED_THRESHOLD" ]; then
         usage_display="🔴 ${percentage}%"
     elif [ "$percentage" -gt "$ORANGE_THRESHOLD" ]; then
@@ -78,4 +88,8 @@ else
 fi
 
 # Output the formatted status line
-printf "Model: %s | Session: %s | Time: %s | Lines: %s | Context: %s" "$model" "$session_id" "$session_time" "$lines_changed" "$usage_display"
+if [ -n "$git_info" ]; then
+    printf "%s | 🤖 %s | 🔑 %s | %s | %s" "$git_info" "$model" "$session_id" "$sandbox_display" "$usage_display"
+else
+    printf "🤖 %s | 🔑 %s | %s | %s" "$model" "$session_id" "$sandbox_display" "$usage_display"
+fi

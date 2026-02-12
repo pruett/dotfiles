@@ -7,6 +7,29 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "ssh_connections": [
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": [
+        {
+          "paths": ["/root"],
+        },
+        {
+          "paths": ["/root/.openclaw"],
+        },
+        {
+          "paths": ["/root/openclaw/Dockerfile"],
+        },
+      ],
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": [],
+    },
+  ],
+  "disable_ai": true,
   "terminal": {
     "dock": "bottom",
   },
@@ -38,4 +61,5 @@
   "cursor_blink": false,
   "show_wrap_guides": true,
   "soft_wrap": "preferred_line_length",
+  "use_system_window_tabs": true,
 }

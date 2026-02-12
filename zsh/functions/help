@@ -61,7 +61,6 @@ printf "${green}⚡ Custom Functions${nc}\n"
 printf "${blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${nc}\n"
 echo "  worktree <name> Create git worktree with new branch"
 echo "  tmuxn           Create/attach tmux session (named after cwd)"
-echo "  dayta [--port]  Launch dayta-mcp dev server"
 echo "  help            Show this cheatsheet"
 echo ""
 
