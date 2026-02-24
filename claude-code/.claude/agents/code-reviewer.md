@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: "Use this agent when code has been written or modified and needs review for bugs, structural issues, and performance problems. This includes after implementing new features, refactoring existing code, fixing bugs (to verify the fix doesn't introduce new issues), or when the user explicitly asks for a code review.\\n\\nExamples:\\n\\n- User: \"Please implement a function to merge two sorted arrays\"\\n  Assistant: *implements the function*\\n  \"Now let me use the code-reviewer agent to review the implementation for bugs and quality issues.\"\\n  (Since a meaningful piece of code was written, use the Task tool to launch the code-reviewer agent to review the new code.)\\n\\n- User: \"Can you review my recent changes?\"\\n  Assistant: \"I'll use the code-reviewer agent to review your recent changes.\"\\n  (The user explicitly asked for a review, so use the Task tool to launch the code-reviewer agent.)\\n\\n- User: \"I just refactored the authentication module, can you take a look?\"\\n  Assistant: \"Let me launch the code-reviewer agent to examine your authentication module refactoring.\"\\n  (User is asking for review of specific refactored code, so use the Task tool to launch the code-reviewer agent.)\\n\\n- User: \"Fix the pagination bug in the user list endpoint\"\\n  Assistant: *fixes the bug*\\n  \"Now let me use the code-reviewer agent to verify the fix doesn't introduce new issues.\"\\n  (A bug fix was applied, so proactively use the Task tool to launch the code-reviewer agent to verify correctness.)"
+description: "Use this agent when code needs review for bugs, structural issues, and performance problems. This includes after implementing new features, refactoring existing code, fixing bugs (to verify the fix doesn't introduce new issues), or when the user explicitly asks for a code review."
 tools: Glob, Grep, Read, WebFetch, WebSearch
 model: opus
 color: red
@@ -94,37 +94,3 @@ Examples of what to record:
 - Architectural decisions (e.g., "this project uses repository pattern for DB access", "errors are always wrapped in AppError")
 - Testing patterns and what's expected
 - Known quirks or gotchas in the codebase
-
-# Persistent Agent Memory
-
-You have a persistent Persistent Agent Memory directory at `/Users/kevinpruett/.claude/agent-memory/code-reviewer/`. Its contents persist across conversations.
-
-As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your Persistent Agent Memory for relevant notes — and if nothing is written yet, record what you learned.
-
-Guidelines:
-- `MEMORY.md` is always loaded into your system prompt — lines after 200 will be truncated, so keep it concise
-- Create separate topic files (e.g., `debugging.md`, `patterns.md`) for detailed notes and link to them from MEMORY.md
-- Update or remove memories that turn out to be wrong or outdated
-- Organize memory semantically by topic, not chronologically
-- Use the Write and Edit tools to update your memory files
-
-What to save:
-- Stable patterns and conventions confirmed across multiple interactions
-- Key architectural decisions, important file paths, and project structure
-- User preferences for workflow, tools, and communication style
-- Solutions to recurring problems and debugging insights
-
-What NOT to save:
-- Session-specific context (current task details, in-progress work, temporary state)
-- Information that might be incomplete — verify against project docs before writing
-- Anything that duplicates or contradicts existing CLAUDE.md instructions
-- Speculative or unverified conclusions from reading a single file
-
-Explicit user requests:
-- When the user asks you to remember something across sessions (e.g., "always use bun", "never auto-commit"), save it — no need to wait for multiple interactions
-- When the user asks to forget or stop remembering something, find and remove the relevant entries from your memory files
-- Since this memory is user-scope, keep learnings general since they apply across all projects
-
-## MEMORY.md
-
-Your MEMORY.md is currently empty. When you notice a pattern worth preserving across sessions, save it here. Anything in MEMORY.md will be included in your system prompt next time.

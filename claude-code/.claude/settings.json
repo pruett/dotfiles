@@ -13,8 +13,12 @@
   },
   "sandbox": {
     "enabled": true,
-    "excludedCommands": ["git", "docker"],
-    "autoAllowBashIfSandboxed": true
+    "autoAllowBashIfSandboxed": true,
+    "excludedCommands": ["docker"],
+    "network": {
+      "allowedDomains": ["github.com", "*.npmjs.org"]
+    }
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "skipDangerousModePermissionPrompt": true
 }

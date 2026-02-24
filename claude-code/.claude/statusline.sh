@@ -23,11 +23,15 @@ if [ -d "$cwd/.git" ] || git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; the
         # Check if we're in a git worktree
         git_dir=$(git -C "$cwd" --no-optional-locks rev-parse --git-dir 2>/dev/null)
         if [ -n "$git_dir" ] && [[ "$git_dir" == *"/worktrees/"* ]]; then
-            worktree_path=$(git -C "$cwd" --no-optional-locks worktree list --porcelain 2>/dev/null | grep -A2 "worktree $cwd" | grep "^worktree" | cut -d' ' -f2)
-            if [ -z "$worktree_path" ]; then
-                worktree_path="$cwd"
+            worktree_root=$(git -C "$cwd" --no-optional-locks rev-parse --show-toplevel 2>/dev/null)
+            if [ -n "$worktree_root" ]; then
+                parent=$(basename "$(dirname "$worktree_root")")
+                name=$(basename "$worktree_root")
+                worktree_display="$parent/$name"
+            else
+                worktree_display="$cwd"
             fi
-            git_info="🌿 $branch 🌳 $worktree_path"
+            git_info="🌿 $branch 🌳 $worktree_display"
         fi
     fi
 fi
