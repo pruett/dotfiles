@@ -3,9 +3,26 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "defaultMode": "bypassPermissions",
-    "additionalDirectories": ["~/.dotfiles/claude-code/.claude/"]
+    "additionalDirectories": [
+      "~/.dotfiles/claude-code/.claude/"
+    ]
   },
+  "model": "haiku",
   "enableAllProjectMcpServers": true,
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.dotfiles/claude-code/.claude/hooks/worktree_create.sh",
+            "timeout": 120,
+            "statusMessage": "Installing worktree dependencies..."
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "~/.dotfiles/claude-code/.claude/statusline.sh",
@@ -14,10 +31,15 @@
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
-    "excludedCommands": ["docker"],
     "network": {
-      "allowedDomains": ["github.com", "*.npmjs.org"]
-    }
+      "allowedDomains": [
+        "github.com",
+        "*.npmjs.org"
+      ]
+    },
+    "excludedCommands": [
+      "docker"
+    ]
   },
   "alwaysThinkingEnabled": true,
   "skipDangerousModePermissionPrompt": true
