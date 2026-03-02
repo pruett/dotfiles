@@ -3,11 +3,8 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "defaultMode": "bypassPermissions",
-    "additionalDirectories": [
-      "~/.dotfiles/claude-code/.claude/"
-    ]
+    "additionalDirectories": ["~/.dotfiles/claude-code/.claude/"]
   },
-  "model": "haiku",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "WorktreeCreate": [
@@ -32,14 +29,9 @@
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
     "network": {
-      "allowedDomains": [
-        "github.com",
-        "*.npmjs.org"
-      ]
+      "allowedDomains": ["*.github.com", "*.npmjs.org"]
     },
-    "excludedCommands": [
-      "docker"
-    ]
+    "excludedCommands": ["docker"]
   },
   "alwaysThinkingEnabled": true,
   "skipDangerousModePermissionPrompt": true

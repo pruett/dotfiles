@@ -1,10 +1,10 @@
 ---
-name: implementation-plan
+name: generate:plan
 description: >
   Generate a structured, file-based implementation plan from a spec or PRD.
   Use when the user asks to turn a spec, PRD, or requirements document into
   an ordered set of implementation tasks, or requests an "implementation plan."
-  Triggers on "/implementation-plan".
+  Triggers on "/generate:plan".
 ---
 
 # Implementation Plan

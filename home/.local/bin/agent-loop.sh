@@ -3,7 +3,7 @@ set -eo pipefail
 
 ITERATIONS=25
 EXPECTED_MODEL="claude-opus-4-6"
-PROMPT_FILE="AGENT-LOOP-PROMPT.md"
+PROMPT_FILE="agent-loop-prompt.md"
 REVIEW=true
 
 while [[ $# -gt 0 ]]; do

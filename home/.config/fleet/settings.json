@@ -1,0 +1,16 @@
+{
+  "projects": [
+    {
+      "title": "fleet",
+      "projectDirs": [
+        "-Users-kevinpruett-code-fleet*"
+      ]
+    },
+    {
+      "title": "wpm",
+      "projectDirs": [
+        "-Users-kevinpruett-code-wpm*"
+      ]
+    }
+  ]
+}
