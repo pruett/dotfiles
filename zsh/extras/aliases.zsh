@@ -31,7 +31,6 @@ alias edit="$EDITOR"
 # Claude Code
 # ---------
 alias cc="claude"
-alias 'cc!'="claude --dangerously-skip-permissions"
 
 # ---------
 # Homebrew maintenance

@@ -92,6 +92,15 @@ if [[ "$CLAUDECODE" != "1" ]]; then
 fi
 
 # --------
+# gcloud
+# --------
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f '/Users/kevinpruett/google-cloud-sdk/path.zsh.inc' ]; then . '/Users/kevinpruett/google-cloud-sdk/path.zsh.inc'; fi
+
+# The next line enables shell command completion for gcloud.
+if [ -f '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc'; fi
+
+# --------
 # Local Config (optionally load gitignored config)
 # --------
 if [[ -f $DOTFILES/zsh/extras/.zshrc.local.zsh ]]; then

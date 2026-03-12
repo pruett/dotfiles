@@ -2,14 +2,26 @@
   "projects": [
     {
       "title": "fleet",
-      "projectDirs": [
+      "projectIds": [
         "-Users-kevinpruett-code-fleet*"
       ]
     },
     {
       "title": "wpm",
-      "projectDirs": [
+      "projectIds": [
         "-Users-kevinpruett-code-wpm*"
+      ]
+    },
+    {
+      "title": "dotfiles",
+      "projectIds": [
+        "-Users-kevinpruett--dotfiles*"
+      ]
+    },
+    {
+      "title": "prep",
+      "projectIds": [
+        "-Users-kevinpruett-code-meal-prep*"
       ]
     }
   ]

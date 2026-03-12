@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-ITERATIONS=25
+ITERATIONS=50
 EXPECTED_MODEL="claude-opus-4-6"
 PROMPT_FILE="agent-loop-prompt.md"
 REVIEW=true
@@ -83,6 +83,6 @@ fi
 # Post-loop code review
 if [[ "$REVIEW" == true ]]; then
   echo -e "\n=== Starting automatic code review ===\n"
-  run_claude "/code-review"
+  run_claude "/simplify"
   echo -e "\n=== Code review session complete ==="
 fi

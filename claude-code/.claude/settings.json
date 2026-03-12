@@ -3,7 +3,10 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "defaultMode": "bypassPermissions",
-    "additionalDirectories": ["~/.dotfiles/claude-code/.claude/"]
+    "additionalDirectories": [
+      "~/.dotfiles/claude-code/.claude/",
+      "~/.gnupg/"
+    ]
   },
   "enableAllProjectMcpServers": true,
   "hooks": {
@@ -29,10 +32,16 @@
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
     "network": {
-      "allowedDomains": ["*.github.com", "*.npmjs.org"]
+      "allowedDomains": [
+        "*.github.com",
+        "*.npmjs.org"
+      ]
     },
-    "excludedCommands": ["docker"]
+    "excludedCommands": [
+      "docker"
+    ]
   },
   "alwaysThinkingEnabled": true,
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "effortLevel": "high"
 }
