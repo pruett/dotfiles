@@ -4,25 +4,29 @@
       "title": "fleet",
       "projectIds": [
         "-Users-kevinpruett-code-fleet*"
-      ]
+      ],
+      "color": "#E05252"
     },
     {
-      "title": "wpm",
+      "title": "meal-prep",
       "projectIds": [
-        "-Users-kevinpruett-code-wpm*"
-      ]
+        "-Users-kevinpruett-code-meal-prep*"
+      ],
+      "color": "#2D8CFF"
+    },
+    {
+      "title": "kevinpruett.com",
+      "projectIds": [
+        "-Users-kevinpruett-code-kevinpruett-com*"
+      ],
+      "color": "#16A34A"
     },
     {
       "title": "dotfiles",
       "projectIds": [
         "-Users-kevinpruett--dotfiles*"
-      ]
-    },
-    {
-      "title": "prep",
-      "projectIds": [
-        "-Users-kevinpruett-code-meal-prep*"
-      ]
+      ],
+      "color": "#E89E18"
     }
   ]
 }
