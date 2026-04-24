@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "includeCoAuthoredBy": false,
   "permissions": {
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "auto",
     "additionalDirectories": [
       "~/.dotfiles/claude-code/.claude/",
       "~/.gnupg/"
@@ -30,14 +30,9 @@
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": false,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
-    "playwright@claude-plugins-official": false,
-    "skill-creator@claude-plugins-official": true,
-    "pr-review-toolkit@claude-plugins-official": false,
-    "claude-code-setup@claude-plugins-official": false,
-    "playground@claude-plugins-official": false
+    "skill-creator@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {
@@ -62,5 +57,8 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true,
+  "editorMode": "vim",
+  "agentPushNotifEnabled": true
 }

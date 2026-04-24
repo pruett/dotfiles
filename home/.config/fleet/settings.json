@@ -8,13 +8,6 @@
       "color": "#E05252"
     },
     {
-      "title": "meal-prep",
-      "projectIds": [
-        "-Users-kevinpruett-code-meal-prep*"
-      ],
-      "color": "#2D8CFF"
-    },
-    {
       "title": "kevinpruett.com",
       "projectIds": [
         "-Users-kevinpruett-code-kevinpruett-com*"
@@ -27,6 +20,20 @@
         "-Users-kevinpruett--dotfiles*"
       ],
       "color": "#E89E18"
+    },
+    {
+      "title": "wpm",
+      "projectIds": [
+        "-Users-kevinpruett-code-wpm*"
+      ],
+      "color": "#E89E18"
+    },
+    {
+      "title": "resume",
+      "projectIds": [
+        "-Users-kevinpruett-code-resume*"
+      ],
+      "color": "#8B5CF6"
     }
   ]
 }

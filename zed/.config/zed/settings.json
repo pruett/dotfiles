@@ -7,32 +7,66 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "project_panel": {
+    "dock": "left"
+  },
+  "outline_panel": {
+    "dock": "left"
+  },
+  "collaboration_panel": {
+    "dock": "left"
+  },
+  "git_panel": {
+    "dock": "left"
+  },
+  "show_wrap_guides": true,
+  "gutter": {
+    "breakpoints": true
+  },
+  "disable_ai": true,
   "ssh_connections": [
     {
       "host": "openclaw",
       "args": [],
       "projects": [
         {
-          "paths": ["/root"],
+          "paths": [
+            "/etc/cron.d"
+          ]
         },
         {
-          "paths": ["/root/.openclaw"],
+          "paths": [
+            "/root"
+          ]
         },
         {
-          "paths": ["/root/openclaw/Dockerfile"],
+          "paths": [
+            "/root/.openclaw"
+          ]
         },
-      ],
+        {
+          "paths": [
+            "/root/openclaw/Dockerfile"
+          ]
+        }
+      ]
     },
     {
       "host": "openclaw",
       "args": [],
-      "projects": [],
+      "projects": []
     },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    }
   ],
   "terminal": {
     "dock": "bottom",
   },
   "agent": {
+    "dock": "right",
     "inline_assistant_model": {
       "provider": "anthropic",
       "model": "claude-sonnet-4-5-thinking-latest",
@@ -54,7 +88,6 @@
     "dark": "One Dark",
   },
   "cursor_blink": false,
-  "show_wrap_guides": true,
   "soft_wrap": "preferred_line_length",
   "use_system_window_tabs": true,
 }
