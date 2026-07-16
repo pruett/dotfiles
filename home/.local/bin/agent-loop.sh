@@ -2,7 +2,7 @@
 set -eo pipefail
 
 ITERATIONS=50
-EXPECTED_MODEL="claude-opus-4-6"
+EXPECTED_MODEL="claude-opus-4-7"
 PROMPT_FILE="agent-loop-prompt.md"
 REVIEW=true
 
@@ -43,6 +43,7 @@ run_claude() {
   OUTFILE=$(mktemp)
   TMPFILES+=("$OUTFILE")
 
+  set +e
   claude \
     --print \
     --dangerously-skip-permissions \
@@ -53,13 +54,20 @@ run_claude() {
     --output-format stream-json \
     "$@" \
     "$prompt" \
-  | grep --line-buffered '^{' \
+  | { grep --line-buffered '^{' || true; } \
   | tee "$OUTFILE" \
   | jq --unbuffered -rj "$JQ_STREAM"
+  local rc=${PIPESTATUS[0]}
+  set -e
+
+  if [[ $rc -ne 0 ]]; then
+    echo "WARN: claude exited $rc; continuing." >&2
+  fi
 }
 
 # Main agent loop
 for ((i=1; i<=ITERATIONS; i++)); do
+  echo -e "\n=== Iteration $i/$ITERATIONS ===" >&2
   run_claude "$(cat "$PROMPT_FILE")"
 
   actual_model=$(jq -r "$JQ_MODEL" "$OUTFILE" | head -1)

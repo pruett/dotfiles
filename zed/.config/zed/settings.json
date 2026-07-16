@@ -7,6 +7,12 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "agent_servers": {
+    "claude-acp": {
+      "type": "registry"
+    }
+  },
+  "cli_default_open_behavior": "existing_window",
   "project_panel": {
     "dock": "left"
   },
@@ -31,6 +37,11 @@
       "projects": [
         {
           "paths": [
+            "/./"
+          ]
+        },
+        {
+          "paths": [
             "/etc/cron.d"
           ]
         },
@@ -46,10 +57,85 @@
         },
         {
           "paths": [
+            "/root/openclaw"
+          ]
+        },
+        {
+          "paths": [
             "/root/openclaw/Dockerfile"
           ]
         }
       ]
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
+    },
+    {
+      "host": "openclaw",
+      "args": [],
+      "projects": []
     },
     {
       "host": "openclaw",

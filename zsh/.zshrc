@@ -35,6 +35,12 @@ source $DOTFILES/zsh/extras/depcheck.zsh
 # --------
 eval $(/opt/homebrew/bin/brew shellenv)
 
+# brew shellenv only adds site-functions, not the core functions dir containing
+# is-at-least, add-zsh-hook, compinit, bashcompinit, etc. Add it explicitly so
+# plugins loaded below can find these. typeset -U prevents duplicates on reload.
+fpath=(/opt/homebrew/share/zsh/functions $fpath)
+typeset -U fpath
+
 # --------
 # FZF Integration
 # --------
