@@ -30,19 +30,10 @@ alias edit="$EDITOR"
 # ---------
 # Claude Code
 # ---------
-# `cc` runs claude as usual; `cc --<profile>` runs it with
-# CLAUDE_CONFIG_DIR=~/.claude-<profile> (e.g. `cc --snowdrop`).
-# Only treated as a profile if that directory exists, so real
-# claude flags like --resume still pass through.
-cc() {
-    if [[ "$1" == --* ]] && [[ -d "$HOME/.claude-${1#--}" ]]; then
-        local profile="${1#--}"
-        shift
-        CLAUDE_CONFIG_DIR="$HOME/.claude-$profile" claude "$@"
-    else
-        claude "$@"
-    fi
-}
+# `cc` runs claude as usual; `ccs` runs it against the snowdrop
+# config profile (its own MCP servers, auth, and settings).
+alias cc="claude"
+alias ccs="CLAUDE_CONFIG_DIR=$HOME/.claude-snowdrop claude"
 
 # ---------
 # Homebrew maintenance
