@@ -1,0 +1,7 @@
+[user]
+  name = Kevin Pruett
+  email = kevin@snowdrop.tech
+[url "git@github-snowdrop:"]
+  insteadOf = git@github.com:
+[commit]
+  gpgsign = false

@@ -1,73 +1,86 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "includeCoAuthoredBy": false,
-  "permissions": {
-    "defaultMode": "auto",
-    "additionalDirectories": [
-      "~/.dotfiles/claude-code/.claude/",
-      "~/.gnupg/"
-    ]
-  },
-  "model": "claude-fable-5[1m]",
+  "agentPushNotifEnabled": true,
+  "alwaysThinkingEnabled": true,
+  "editorMode": "vim",
+  "effortLevel": "high",
   "enableAllProjectMcpServers": true,
-  "hooks": {
-    "WorktreeCreate": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.dotfiles/claude-code/.claude/hooks/worktree_create.sh",
-            "timeout": 120,
-            "statusMessage": "Installing worktree dependencies..."
-          }
-        ]
-      }
-    ]
-  },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.dotfiles/claude-code/.claude/statusline.sh",
-    "padding": 0
-  },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {
       "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
+        "repo": "anthropics/skills",
+        "source": "github"
       }
     },
     "claude-plugins-official": {
       "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-official"
+        "repo": "anthropics/claude-plugins-official",
+        "source": "github"
       }
     }
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/kevinpruett/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "command": "$HOME/.dotfiles/claude-code/.claude/hooks/worktree_create.sh",
+            "statusMessage": "Installing worktree dependencies...",
+            "timeout": 120,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  },
+  "includeCoAuthoredBy": false,
+  "model": "claude-fable-5[1m]",
+  "permissions": {
+    "additionalDirectories": [
+      "~/.dotfiles/claude-code/.claude/",
+      "~/.gnupg/"
+    ],
+    "defaultMode": "auto"
+  },
   "sandbox": {
-    "enabled": false,
     "autoAllowBashIfSandboxed": true,
+    "enabled": false,
+    "excludedCommands": [
+      "docker"
+    ],
     "network": {
       "allowedDomains": [
         "*.github.com",
         "*.npmjs.org"
       ]
-    },
-    "excludedCommands": [
-      "docker"
-    ]
+    }
   },
-  "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
-  "tui": "fullscreen",
+  "skipAutoPermissionPrompt": true,
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
-  "editorMode": "vim",
-  "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "statusLine": {
+    "command": "~/.dotfiles/claude-code/.claude/statusline.sh",
+    "padding": 0,
+    "type": "command"
+  },
+  "theme": "dark",
+  "tui": "fullscreen"
 }
