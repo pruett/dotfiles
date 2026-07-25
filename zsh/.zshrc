@@ -60,6 +60,12 @@ function zvm_after_init() {
   fi
 }
 
+# Initialize immediately at source time instead of at first precmd, so
+# Starship (loaded last) wraps zvm's ZLE widgets exactly once. The default
+# deferred init runs after Starship and the mutual wrapping of
+# zle-keymap-select recurses until FUNCNEST is exceeded.
+ZVM_INIT_MODE=sourcing
+
 source "$(brew --prefix zsh-vi-mode)/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh"
 
 # ---------
