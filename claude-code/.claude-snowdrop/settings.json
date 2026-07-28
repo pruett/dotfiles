@@ -8,7 +8,7 @@
       "~/.gnupg/"
     ]
   },
-  "model": "claude-fable-5[1m]",
+  "model": "opus[1m]",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "SessionStart": [
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash '/Users/kevinpruett/.claude-snowdrop/hooks/herdr-agent-state.sh' session",
+            "command": "bash '/Users/pruett/.claude-snowdrop/hooks/herdr-agent-state.sh' session",
             "timeout": 10
           }
         ]

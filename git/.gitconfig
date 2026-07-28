@@ -1,6 +1,6 @@
 [include]
   path = ~/.gitconfig.local # user / tokens / etc.
-[includeIf "gitdir:~/code/snowdrop/"]
+[includeIf "gitdir:~/work/snowdrop/"]
   path = ~/.gitconfig-snowdrop
 [push]
   default = current
