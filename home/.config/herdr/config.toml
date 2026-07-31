@@ -1,0 +1,20 @@
+onboarding = false
+
+[keys]
+prefix = "ctrl+a"
+goto = "prefix+f"
+split_vertical = "prefix+backslash"
+focus_pane_left = "ctrl+h"
+focus_pane_down = "ctrl+j"
+focus_pane_up = "ctrl+k"
+focus_pane_right = "ctrl+l"
+
+[ui]
+show_agent_labels_on_pane_borders = true
+
+[ui.toast]
+delivery = "off"
+
+[theme]
+name = "nord"
+auto_switch = false
