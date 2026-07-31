@@ -8,7 +8,7 @@
       "~/.gnupg/"
     ]
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5[1m]",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "SessionStart": [
