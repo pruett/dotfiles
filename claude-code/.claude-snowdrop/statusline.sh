@@ -4,6 +4,27 @@
 ORANGE_THRESHOLD=35
 RED_THRESHOLD=50
 
+# Branch/worktree names longer than this get shortened to first 4 + last 4
+MAX_NAME_LENGTH=16
+
+# Shorten the final path segment of a name, leaving any leading segments intact
+# (so worktree/v2-rearchitecture becomes worktree/v2-r...ture, not work...ture)
+truncate_name() {
+    local name="$1"
+    local prefix="" leaf="$name"
+
+    if [[ "$name" == */* ]]; then
+        prefix="${name%/*}/"
+        leaf="${name##*/}"
+    fi
+
+    if [ ${#leaf} -gt "$MAX_NAME_LENGTH" ]; then
+        leaf="${leaf:0:4}...${leaf: -4}"
+    fi
+
+    printf '%s%s' "$prefix" "$leaf"
+}
+
 # Read JSON input from stdin
 input=$(cat)
 
@@ -18,7 +39,8 @@ if [ -d "$cwd/.git" ] || git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; the
     branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null)
 
     if [ -n "$branch" ]; then
-        git_info="🌿 $branch"
+        branch_display=$(truncate_name "$branch")
+        git_info="🌿 $branch_display"
 
         # Check if we're in a git worktree
         git_dir=$(git -C "$cwd" --no-optional-locks rev-parse --git-dir 2>/dev/null)
@@ -31,38 +53,9 @@ if [ -d "$cwd/.git" ] || git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; the
             else
                 worktree_display="$cwd"
             fi
-            git_info="🌿 $branch 🌳 $worktree_display"
+            git_info="🌿 $branch_display 🌳 $(truncate_name "$worktree_display")"
         fi
     fi
-fi
-
-session_id_full=$(echo "$input" | jq -r '.session_id // "N/A"')
-
-# Truncate session ID to show first 4 and last 4 characters with ... in between
-if [ "$session_id_full" != "N/A" ] && [ ${#session_id_full} -gt 11 ]; then
-    session_id="${session_id_full:0:4}...${session_id_full: -4}"
-else
-    session_id="$session_id_full"
-fi
-
-# Determine sandbox status from settings files
-project_dir=$(echo "$input" | jq -r '.workspace.project_dir // "."')
-sandbox_enabled="false"
-# Check project-level settings first, then global
-for settings_file in "$project_dir/.claude/settings.json" "$HOME/.claude/settings.json"; do
-    if [ -f "$settings_file" ]; then
-        val=$(jq -r '.sandbox.enabled // empty' "$settings_file" 2>/dev/null)
-        if [ -n "$val" ]; then
-            sandbox_enabled="$val"
-            break
-        fi
-    fi
-done
-
-if [ "$sandbox_enabled" = "true" ]; then
-    sandbox_display="🔒 sandbox"
-else
-    sandbox_display="🔓 no sandbox"
 fi
 
 # Calculate context usage percentage
@@ -93,7 +86,7 @@ fi
 
 # Output the formatted status line
 if [ -n "$git_info" ]; then
-    printf "%s | 🤖 %s | 🔑 %s | %s | %s" "$git_info" "$model" "$session_id" "$sandbox_display" "$usage_display"
+    printf "%s | 🤖 %s | %s" "$git_info" "$model" "$usage_display"
 else
-    printf "🤖 %s | 🔑 %s | %s | %s" "$model" "$session_id" "$sandbox_display" "$usage_display"
+    printf "🤖 %s | %s" "$model" "$usage_display"
 fi
