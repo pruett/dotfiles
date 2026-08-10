@@ -16,6 +16,7 @@
       //
       "ctrl-f": "file_finder::Toggle",
       "space f f": "file_finder::Toggle",
+      "space f p": "projects::OpenRecent",
       "space s f": "file_finder::Toggle",
       "space space": "tab_switcher::Toggle",
       "space s s": "outline::Toggle",
@@ -104,16 +105,6 @@
     "context": "Terminal",
     "bindings": {
       "ctrl-k": "workspace::ActivatePaneUp",
-    },
-  },
-  {
-    "context": "EmptyPane || SharedScreen",
-    "bindings": {
-      // Put key bindings here (in addition to the context above) if you want them to
-      // work when no editor exists.
-      "ctrl-f": "file_finder::Toggle",
-      "space f f": "file_finder::Toggle",
-      "space s f": "file_finder::Toggle",
     },
   },
 ]
