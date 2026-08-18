@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Context usage thresholds
-ORANGE_THRESHOLD=35
-RED_THRESHOLD=50
-
 # Read JSON input from stdin
 input=$(cat)
 
@@ -65,30 +61,16 @@ else
     sandbox_display="🔓 no sandbox"
 fi
 
-# Calculate context usage percentage
+# Calculate total context tokens
 usage=$(echo "$input" | jq '.context_window.current_usage')
 if [ "$usage" != "null" ] && [ -n "$usage" ]; then
     input_tokens=$(echo "$usage" | jq '.input_tokens // 0')
     cache_creation=$(echo "$usage" | jq '.cache_creation_input_tokens // 0')
     cache_read=$(echo "$usage" | jq '.cache_read_input_tokens // 0')
-    window_size=$(echo "$input" | jq '.context_window.context_window_size // 1')
-
     current_tokens=$((input_tokens + cache_creation + cache_read))
-    if [ "$window_size" -gt 0 ]; then
-        percentage=$((current_tokens * 100 / window_size))
-    else
-        percentage=0
-    fi
-
-    if [ "$percentage" -gt "$RED_THRESHOLD" ]; then
-        usage_display="🔴 ${percentage}%"
-    elif [ "$percentage" -gt "$ORANGE_THRESHOLD" ]; then
-        usage_display="🟠 ${percentage}%"
-    else
-        usage_display="🟢 ${percentage}%"
-    fi
+    usage_display="${current_tokens} tokens"
 else
-    usage_display="0%"
+    usage_display="0 tokens"
 fi
 
 # Output the formatted status line
