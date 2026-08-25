@@ -61,16 +61,21 @@ else
     sandbox_display="🔓 no sandbox"
 fi
 
-# Calculate total context tokens
+# Calculate total context tokens and percentage of the model's context window
 usage=$(echo "$input" | jq '.context_window.current_usage')
 if [ "$usage" != "null" ] && [ -n "$usage" ]; then
     input_tokens=$(echo "$usage" | jq '.input_tokens // 0')
     cache_creation=$(echo "$usage" | jq '.cache_creation_input_tokens // 0')
     cache_read=$(echo "$usage" | jq '.cache_read_input_tokens // 0')
     current_tokens=$((input_tokens + cache_creation + cache_read))
-    usage_display="${current_tokens} tokens"
+    window_size=$(echo "$input" | jq '.context_window.context_window_size // 1000000')
+    if [ "$window_size" -le 0 ]; then
+        window_size=1000000
+    fi
+    percentage=$((current_tokens * 100 / window_size))
+    usage_display="${current_tokens} tokens (${percentage}%)"
 else
-    usage_display="0 tokens"
+    usage_display="0 tokens (0%)"
 fi
 
 # Output the formatted status line

@@ -123,3 +123,6 @@ fi
 # Starship Prompt
 # --------
 eval "$(starship init zsh)"
+
+# Added by Devin
+export PATH="/Users/pruett/.codeium/windsurf/bin:$PATH"
