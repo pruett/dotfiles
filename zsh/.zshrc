@@ -96,6 +96,11 @@ bindkey '^f' autosuggest-accept
 source $DOTFILES/zsh/extras/tabcomp.zsh
 
 # --------
+# Mise (runtime version manager: ruby, etc.)
+# --------
+eval "$(mise activate zsh)"
+
+# --------
 # Zoxide
 # --------
 # Prevent zoxide from being loaded when CLAUDECODE is set to 1

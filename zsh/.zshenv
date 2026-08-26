@@ -14,6 +14,9 @@ export XDG_CACHE_HOME="$HOME/.cache"
 # Local bin
 export PATH="$HOME/.local/bin:$PATH"
 
+# Mise shims (non-interactive shells; interactive shells use `mise activate` in .zshrc)
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+
 # Editor
 export EDITOR="zed"
 export VISUAL="$EDITOR"
