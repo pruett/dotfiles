@@ -4,7 +4,7 @@
   "permissions": {
     "defaultMode": "auto",
     "additionalDirectories": [
-      "~/.dotfiles/claude-code/.claude/",
+      "~/.dotfiles/home/.claude/",
       "~/.gnupg/"
     ]
   },
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.dotfiles/claude-code/.claude/hooks/worktree_create.sh",
+            "command": "$HOME/.claude/hooks/worktree_create.sh",
             "timeout": 120,
             "statusMessage": "Installing worktree dependencies..."
           }
@@ -38,7 +38,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.dotfiles/claude-code/.claude/statusline.sh",
+    "command": "~/.claude/statusline.sh",
     "padding": 0
   },
   "enabledPlugins": {

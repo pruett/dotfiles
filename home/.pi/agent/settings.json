@@ -6,6 +6,7 @@
   "defaultThinkingLevel": "medium",
   "packages": [
     "npm:pi-mcp-adapter",
-    "npm:pi-claude-bridge"
+    "npm:pi-claude-bridge",
+    "npm:pi-vim"
   ]
 }

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path="$(realpath "${BASH_SOURCE[0]}")"
+repo_root="$(cd "$(dirname "$script_path")/../../.." && pwd)"
+managed_home="$repo_root/home"
+real_home="$HOME"
+npm_cache="${npm_config_cache:-$real_home/.npm}"
+
+run_skills_cli() {
+  npm_config_cache="$npm_cache" HOME="$managed_home" \
+    command npx --yes skills "$@"
+}
+
+usage() {
+  cat <<'EOF'
+Usage: skills <command> [arguments]
+
+Commands:
+  add <source> [options] Add skills from a path, URL, or GitHub repository
+  list, ls               List centrally managed global skills
+  update [skills...]     Update all skills, or only the named skills
+  help                   Show this help
+EOF
+}
+
+case "${1:-help}" in
+  add)
+    shift
+    if [[ $# -eq 0 ]]; then
+      printf 'Usage: skills add <source> [options]\n' >&2
+      exit 2
+    fi
+    run_skills_cli add "$@" --global --agent zed --yes
+    (cd "$repo_root" && stow -R home)
+    ;;
+  list|ls)
+    shift
+    run_skills_cli list --global "$@"
+    ;;
+  update|upgrade)
+    shift
+    run_skills_cli update --global --yes "$@"
+    (cd "$repo_root" && stow -R home)
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    printf 'Unknown command: %s\n\n' "$1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
