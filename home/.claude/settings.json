@@ -1,15 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "includeCoAuthoredBy": false,
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
   "permissions": {
     "defaultMode": "auto",
     "additionalDirectories": [
-      "~/.dotfiles/home/.claude/",
-      "~/.gnupg/"
+      "~/.dotfiles/home/.claude/"
     ]
   },
-  "model": "claude-fable-5[1m]",
-  "enableAllProjectMcpServers": true,
+  "model": "claude-fable-5",
   "hooks": {
     "SessionStart": [
       {
@@ -17,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash '/Users/pruett/.claude/hooks/herdr-agent-state.sh' session",
+            "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
             "timeout": 10
           }
         ]
@@ -38,24 +40,16 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh",
-    "padding": 0
+    "command": "~/.claude/statusline.sh"
   },
   "enabledPlugins": {
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true,
-    "mattpocock-skills@claude-plugins-official": true
+    "vercel@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
-    "anthropic-agent-skills": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
-      }
-    },
     "claude-plugins-official": {
       "source": {
         "source": "github",
@@ -64,25 +58,39 @@
     }
   },
   "sandbox": {
-    "enabled": false,
-    "autoAllowBashIfSandboxed": true,
-    "network": {
-      "allowedDomains": [
-        "*.github.com",
-        "*.npmjs.org"
-      ]
-    },
-    "excludedCommands": [
-      "docker"
-    ]
+    "enabled": false
   },
   "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
-  "skipWorkflowUsageWarning": true,
-  "theme": "dark",
   "editorMode": "vim",
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: Vercel (deploy target, host `*.vercel.app`, `vercel.com`, `api.vercel.com`); Neon Postgres (via `DATABASE_URL`)",
+      "**Repository visibility**: private — `pruett/finances` (confirmed via gh)",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: `.env.local` (gitignored, not `.env.example`) holding `HOUSEHOLD_PASSWORD`, `SESSION_SECRET`, `DATABASE_URL`, `SKILL_API_TOKEN`; `vercel env pull` fills it from Vercel's env store",
+      "**Default / protected branches**: default branch `main`; no protected branches listed and rulesets not queryable here — do not assume unprotected",
+      "**CI/CD deploy targets**: Vercel project(s) behind `finances-git-main-kevinpruett.vercel.app`, `finances-three-ebon.vercel.app`, `finances-hwefcx9re-kevinpruett.vercel.app`",
+      "**Network posture**: None configured",
+      "**Source control**: `pruett/finances` (GitHub, private) and its `origin` remote only",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: deployed app origin `$FINANCES_APP_URL` (e.g. `https://finances.vercel.app`) authenticated via `$FINANCES_SKILL_TOKEN` bearer token against `/api/skill/*` — used only from the categorize skill, never the session cookie",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: `.env.local` and any Vercel-pulled env values (household password, session secret, DB connection string, skill API token); household financial transaction data (descriptions, amounts, accounts, categories) in Neon Postgres — audience is the household only, never posted or shared outside the app's own API",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (personal/hobby project — private household finance dashboard)",
+      "**Trusted repo**: `pruett/finances` (this repo, private) and its `origin` remote — confidential household data OK to commit/handle here, but secrets/credentials are never cleared into the repo regardless of visibility",
+      "**Org-specific CLIs**: `herdr`, `wt`, `bunx`, `pn`/`pnpm`, `ccs`/`cc` (personal tooling observed in shell history; no org-mandated CLI configured)",
+      "**Trusted repo, routine under pruett/ prefix**: sibling repos `pruett/dotfiles` and `pruett/commissioner` are candidates only — not corroborated as part of this project's trust scope, omitted from Source control"
+    ]
+  }
 }

@@ -12,6 +12,113 @@ run_skills_cli() {
     command npx --yes skills "$@"
 }
 
+list_skills() {
+  local skill_file name description found=false
+
+  for skill_file in "$managed_home/.agents/skills"/*/SKILL.md; do
+    [[ -f "$skill_file" ]] || continue
+    found=true
+    name="$(basename "$(dirname "$skill_file")")"
+    description="$(awk '
+      function clean(value) {
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        if (value ~ /^".*"$/ || value ~ /^\047.*\047$/) {
+          value = substr(value, 2, length(value) - 2)
+        }
+        return value
+      }
+      NR == 1 && $0 == "---" { frontmatter = 1; next }
+      frontmatter && collecting && /^[[:space:]]+/ {
+        line = clean($0)
+        description = description (description ? " " : "") line
+        next
+      }
+      frontmatter && collecting { collecting = 0; print description; exit }
+      frontmatter && $0 == "---" { exit }
+      frontmatter && /^description:[[:space:]]*/ {
+        sub(/^description:[[:space:]]*/, "")
+        if ($0 ~ /^[>|][-+]?[[:space:]]*$/) {
+          collecting = 1
+          next
+        }
+        print clean($0)
+        exit
+      }
+      END { if (collecting) print description }
+    ' "$skill_file")"
+
+    description="${description//$'\n'/ }"
+    if [[ ${#description} -gt 80 ]]; then
+      description="${description:0:77}..."
+    elif [[ -z "$description" ]]; then
+      description="(no description)"
+    fi
+    printf '%-24s %s\n' "$name" "$description"
+  done
+
+  if [[ "$found" == false ]]; then
+    printf 'No skills installed.\n'
+  fi
+}
+
+sync_agent() {
+  local agent="$1"
+  local target_dir
+
+  case "$agent" in
+    claude|claude-code)
+      agent="claude-code"
+      target_dir="$managed_home/.claude/skills"
+      ;;
+    codex|codex-cli|openai-codex|pi)
+      printf '%s already reads skills from ~/.agents/skills; nothing to sync.\n' "$agent"
+      return
+      ;;
+    *)
+      printf 'Unknown agent: %s (expected claude-code, codex-cli, or pi)\n' "$agent" >&2
+      return 2
+      ;;
+  esac
+
+  mkdir -p "$target_dir"
+
+  local source name link expected current
+  for source in "$managed_home/.agents/skills"/*; do
+    [[ -d "$source" ]] || continue
+    name="${source##*/}"
+    link="$target_dir/$name"
+    expected="../../.agents/skills/$name"
+
+    if [[ -L "$link" ]]; then
+      current="$(readlink "$link")"
+      if [[ "$current" == "$expected" ]]; then
+        continue
+      fi
+      printf 'Updating %s -> %s\n' "$link" "$expected"
+      ln -sfn "$expected" "$link"
+    elif [[ -e "$link" ]]; then
+      printf 'Refusing to replace non-symlink: %s\n' "$link" >&2
+      return 1
+    else
+      printf 'Linking %s -> %s\n' "$link" "$expected"
+      ln -s "$expected" "$link"
+    fi
+  done
+
+  # Remove links created by this command when their central skill is gone.
+  for link in "$target_dir"/*; do
+    [[ -L "$link" ]] || continue
+    name="${link##*/}"
+    current="$(readlink "$link")"
+    if [[ "$current" == "../../.agents/skills/$name" && ! -e "$managed_home/.agents/skills/$name" ]]; then
+      printf 'Removing stale link %s\n' "$link"
+      rm "$link"
+    fi
+  done
+
+  printf 'Synced skills for %s.\n' "$agent"
+}
+
 usage() {
   cat <<'EOF'
 Usage: skills <command> [arguments]
@@ -20,6 +127,7 @@ Commands:
   add <source> [options] Add skills from a path, URL, or GitHub repository
   list, ls               List centrally managed global skills
   update [skills...]     Update all skills, or only the named skills
+  sync <agent> [...]     Configure skills for claude-code, codex-cli, or pi
   help                   Show this help
 EOF
 }
@@ -36,11 +144,26 @@ case "${1:-help}" in
     ;;
   list|ls)
     shift
-    run_skills_cli list --global "$@"
+    if [[ $# -ne 0 ]]; then
+      printf 'Usage: skills list\n' >&2
+      exit 2
+    fi
+    list_skills
     ;;
   update|upgrade)
     shift
     run_skills_cli update --global --yes "$@"
+    (cd "$repo_root" && stow -R home)
+    ;;
+  sync)
+    shift
+    if [[ $# -eq 0 ]]; then
+      printf 'Usage: skills sync <claude-code|codex-cli|pi> [...]\n' >&2
+      exit 2
+    fi
+    for agent in "$@"; do
+      sync_agent "$agent"
+    done
     (cd "$repo_root" && stow -R home)
     ;;
   help|-h|--help)
