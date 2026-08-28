@@ -83,6 +83,8 @@ cask "font-meslo-lg-nerd-font"
 cask "ghostty"
 # Reverse proxy, secure introspectable tunnels to localhost
 cask "ngrok"
+# Move and resize windows using keyboard shortcuts or snap areas
+cask "rectangle"
 # Music streaming service
 cask "spotify"
 # Multiplayer code editor
