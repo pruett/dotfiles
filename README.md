@@ -2,36 +2,43 @@
 
 ## New machine setup
 
-1. homebrew
-2. git
-3. ssh
-4. clone and install dotfiles
-
-## Installation
+On a brand new Mac, run:
 
 ```bash
-$ curl https://raw.githubusercontent.com/pruett/dotfiles/master/install | sh
+curl -fsSL https://raw.githubusercontent.com/pruett/dotfiles/main/bootstrap | bash
 ```
 
-## Install Homebrew (and formulae)
+The [`bootstrap`](bootstrap) script is idempotent (safe to re-run) and handles everything needed to install these dotfiles *and* push changes back to this repo:
 
-Visit https://brew.sh/ and install Homebrew
+1. Installs Xcode Command Line Tools
+2. Installs [Homebrew](https://brew.sh/)
+3. Installs core tools (`git`, `gh`, `stow`)
+4. Authenticates with GitHub via `gh auth login` (SSH key generated and uploaded for you)
+5. Clones this repo to `~/.dotfiles` over SSH (or pulls if already present)
+6. Installs all formulae from the [Brewfile](Brewfile) via `brew bundle`
+7. Prompts for your git identity and writes it to the gitignored `git/.gitconfig.local`
+8. Symlinks every package with [GNU Stow](https://www.gnu.org/software/stow/), backing up any conflicting existing files to `<file>.pre-dotfiles`
 
-Next, install homebrew formulae defined in Brewfile
+Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checklist.
+
+## Manual pieces (reference)
+
+Everything below is done automatically by `bootstrap`, but documented here for one-off use.
+
+### Homebrew formulae
 
 ```bash
-$ brew bundle
+$ cd ~/.dotfiles && brew bundle
 ```
 
-## Setup dotfile symlinks with `stow`
-
-Use [GNU Stow](https://www.gnu.org/software/stow/) to manage our symlinks:
+### Dotfile symlinks with `stow`
 
 ```bash
-$ brew install stow
 # Loop over directories and run `stow` to enable respective dotfile symlinking
 $ cd ~/.dotfiles && find . -not -path '*/\.*' -maxdepth 1 -mindepth 1 -type d | sed -e 's/^\.\///'| xargs -I % sh -c 'stow %'
 # Remove stow link anytime with stow -D <directory>
 ```
 
-Finally, [set up git](git/README.md)
+### Git
+
+See [git/README.md](git/README.md) for SSH/GPG key setup and `.gitconfig.local` details.

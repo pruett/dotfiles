@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+#
+# Bootstrap a brand new macOS machine with these dotfiles.
+#
+# Usage (on a fresh machine):
+#
+#   curl -fsSL https://raw.githubusercontent.com/pruett/dotfiles/main/bootstrap | bash
+#
+# Safe to re-run at any time; every step is idempotent.
+
+set -euo pipefail
+
+DOTFILES_REPO_SSH="git@github.com:pruett/dotfiles.git"
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+
+# ------------------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------------------
+
+info()    { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+success() { printf '\033[1;32m ok\033[0m %s\n' "$*"; }
+warn()    { printf '\033[1;33m !!\033[0m %s\n' "$*"; }
+fail()    { printf '\033[1;31mERR\033[0m %s\n' "$*" >&2; exit 1; }
+
+# When run via `curl ... | bash`, stdin is the script itself, so interactive
+# prompts must read from the terminal directly.
+TTY=/dev/tty
+[[ -t 0 ]] && TTY=/dev/stdin
+
+# ------------------------------------------------------------------------------
+# Preflight
+# ------------------------------------------------------------------------------
+
+[[ "$(uname -s)" == "Darwin" ]] || fail "This script only supports macOS."
+
+info "Bootstrapping dotfiles into ${DOTFILES_DIR}"
+
+# ------------------------------------------------------------------------------
+# Xcode Command Line Tools (required by git and Homebrew)
+# ------------------------------------------------------------------------------
+
+if ! xcode-select -p >/dev/null 2>&1; then
+  info "Installing Xcode Command Line Tools (a dialog will appear)..."
+  xcode-select --install >/dev/null 2>&1 || true
+  until xcode-select -p >/dev/null 2>&1; do
+    sleep 5
+  done
+fi
+success "Xcode Command Line Tools installed"
+
+# ------------------------------------------------------------------------------
+# Homebrew
+# ------------------------------------------------------------------------------
+
+# Ensure brew is on PATH for both Apple Silicon and Intel installs
+for brew_prefix in /opt/homebrew /usr/local; do
+  [[ -x "${brew_prefix}/bin/brew" ]] && eval "$("${brew_prefix}/bin/brew" shellenv)"
+done
+
+if ! command -v brew >/dev/null 2>&1; then
+  info "Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" <"$TTY"
+  for brew_prefix in /opt/homebrew /usr/local; do
+    [[ -x "${brew_prefix}/bin/brew" ]] && eval "$("${brew_prefix}/bin/brew" shellenv)"
+  done
+fi
+command -v brew >/dev/null 2>&1 || fail "Homebrew installation failed."
+success "Homebrew installed"
+
+# Minimum tooling needed before we can clone and stow; the full Brewfile
+# is installed after the repo is cloned.
+info "Installing core tools (git, gh, stow)..."
+brew list git  >/dev/null 2>&1 || brew install git
+brew list gh   >/dev/null 2>&1 || brew install gh
+brew list stow >/dev/null 2>&1 || brew install stow
+success "Core tools installed"
+
+# ------------------------------------------------------------------------------
+# GitHub authentication (SSH, with push access to the repo)
+# ------------------------------------------------------------------------------
+
+if gh auth status >/dev/null 2>&1; then
+  success "GitHub CLI already authenticated"
+else
+  info "Authenticating with GitHub (this also generates and uploads an SSH key)..."
+  gh auth login --hostname github.com --git-protocol ssh --web <"$TTY"
+fi
+
+# Make sure github.com is a known host so the clone doesn't prompt
+if ! ssh-keygen -F github.com >/dev/null 2>&1; then
+  mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+  ssh-keyscan -t ed25519 github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
+fi
+
+# Verify we can actually talk to GitHub over SSH before cloning
+if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+  success "SSH access to GitHub verified"
+else
+  fail "SSH access to GitHub failed. Run 'gh auth login --git-protocol ssh --web' and ensure an SSH key is added at https://github.com/settings/keys, then re-run this script."
+fi
+
+# ------------------------------------------------------------------------------
+# Clone (or update) the dotfiles repo
+# ------------------------------------------------------------------------------
+
+if [[ -d "${DOTFILES_DIR}/.git" ]]; then
+  info "Dotfiles repo already present; pulling latest..."
+  git -C "$DOTFILES_DIR" pull --ff-only
+elif [[ -e "$DOTFILES_DIR" ]]; then
+  fail "${DOTFILES_DIR} exists but is not a git repo. Move it aside and re-run."
+else
+  info "Cloning ${DOTFILES_REPO_SSH}..."
+  git clone "$DOTFILES_REPO_SSH" "$DOTFILES_DIR"
+fi
+success "Dotfiles repo ready"
+
+cd "$DOTFILES_DIR"
+
+# ------------------------------------------------------------------------------
+# Brewfile
+# ------------------------------------------------------------------------------
+
+info "Installing Brewfile formulae (this can take a while)..."
+brew bundle --file "${DOTFILES_DIR}/Brewfile" || warn "Some Brewfile entries failed; re-run 'brew bundle' later to retry."
+success "Brewfile processed"
+
+# ------------------------------------------------------------------------------
+# Machine-local git identity (.gitconfig.local is gitignored)
+# ------------------------------------------------------------------------------
+
+if [[ ! -f git/.gitconfig.local ]]; then
+  info "Creating git/.gitconfig.local (machine-local git identity)"
+  read -rp "  git user.name: " git_name <"$TTY"
+  read -rp "  git user.email: " git_email <"$TTY"
+  cp git/.gitconfig.local.sample git/.gitconfig.local
+  {
+    echo ""
+    echo "[user]"
+    echo "  name = ${git_name}"
+    echo "  email = ${git_email}"
+  } >> git/.gitconfig.local
+  success "git/.gitconfig.local created (add signing keys there later if needed)"
+else
+  success "git/.gitconfig.local already exists"
+fi
+
+# ------------------------------------------------------------------------------
+# Symlink packages with stow
+# ------------------------------------------------------------------------------
+
+info "Stowing dotfile packages..."
+while IFS= read -r package; do
+  package="${package#./}"
+
+  # Back up any pre-existing files that would block stow (e.g. a default
+  # ~/.zshrc), then link the package. The two sed patterns cover the conflict
+  # message formats used by stow >= 2.4 and older releases respectively.
+  while IFS= read -r conflict; do
+    [[ -n "$conflict" ]] || continue
+    target="$HOME/$conflict"
+    if [[ -e "$target" || -L "$target" ]]; then
+      warn "Backing up existing ${target} -> ${target}.pre-dotfiles"
+      mv "$target" "${target}.pre-dotfiles"
+    fi
+  done < <(stow --no --verbose "$package" 2>&1 \
+             | sed -n \
+                 -e 's/.*over existing target \(.*\) since neither a link nor a directory.*/\1/p' \
+                 -e 's/.*existing target is neither a directory nor owned by stow: //p' \
+             || true)
+
+  stow --restow "$package"
+  success "stowed ${package}"
+done < <(find . -maxdepth 1 -mindepth 1 -type d -not -path '*/.*')
+
+# ------------------------------------------------------------------------------
+# Done
+# ------------------------------------------------------------------------------
+
+cat <<EOF
+
+$(printf '\033[1;32mBootstrap complete!\033[0m')
+
+Next steps:
+  - Open a new terminal so your shell picks up the stowed configs.
+  - Review MACOS.md for the manual System Preferences checklist.
+  - If you sign commits, add your signing key to git/.gitconfig.local.
+
+This machine is cloned via SSH and authenticated with gh, so you can
+commit and push back to ${DOTFILES_REPO_SSH} right away.
+EOF
