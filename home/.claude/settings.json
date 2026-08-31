@@ -11,7 +11,7 @@
       "~/.dotfiles/home/.claude/"
     ]
   },
-  "model": "claude-fable-5",
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "SessionStart": [
       {
