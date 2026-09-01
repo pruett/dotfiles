@@ -6,11 +6,12 @@
     "sessionUrl": false
   },
   "permissions": {
-    "defaultMode": "acceptEdits",
+    "defaultMode": "bypassPermissions",
     "additionalDirectories": [
       "~/.dotfiles"
     ]
   },
+  "skipDangerousModePermissionPrompt": true,
   "hooks": {
     "SessionStart": [
       {
@@ -62,5 +63,6 @@
   "tui": "fullscreen",
   "theme": "dark",
   "editorMode": "vim",
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "model": "opus[1m]"
 }
