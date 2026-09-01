@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+#
+# remap-capslock — interactive wizard to remap Caps Lock per keyboard.
+#
+# Detects connected keyboards and writes the same per-keyboard modifier
+# mapping that System Settings > Keyboard > Modifier Keys does, via:
+#
+#   defaults -currentHost write -g com.apple.keyboard.modifiermapping.<vendor>-<product>-0
+#
+# Usage:
+#
+#   ./remap-capslock
+#
+# Idempotent: re-running and picking the same choice rewrites the same value.
+# Note: macOS reads this mapping on login/replug, so unplug/replug the
+# keyboard (or log out and back in) for a change to take effect.
+
+set -euo pipefail
+
+info()    { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+success() { printf '\033[1;32m ok\033[0m %s\n' "$*"; }
+fail()    { printf '\033[1;31mERR\033[0m %s\n' "$*" >&2; exit 1; }
+
+[[ "$(uname -s)" == "Darwin" ]] || fail "This script only supports macOS."
+
+# HID usage values used by the modifiermapping defaults domain
+# (0x700000000 + HID usage). Dst value for Control matches what the
+# System Settings UI writes.
+readonly SRC_CAPSLOCK=30064771129
+readonly DST_CONTROL=30064771300
+readonly DST_ESCAPE=30064771113
+
+friendly_dst() {
+  case "$1" in
+    "$DST_CONTROL") echo "Control" ;;
+    "$DST_ESCAPE")  echo "Escape" ;;
+    *)              echo "usage value $1" ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------
+# Detect connected keyboards (deduped by vendor-product id)
+# ------------------------------------------------------------------------------
+
+# hidutil columns: VendorID ProductID LocationID UsagePage Usage RegistryID
+# Transport Class <Product...> UserClass Built-In — the product name is
+# every field between Class and the trailing two columns.
+keyboards=()
+while IFS=$'\t' read -r vid_hex pid_hex name; do
+  # hidutil prints hex ids; the defaults key uses decimal
+  keyboards+=("$((vid_hex))-$((pid_hex))"$'\t'"${name}")
+done < <(
+  hidutil list --matching '{"PrimaryUsagePage":1,"PrimaryUsage":6}' \
+    | awk '
+        /^(Services|Devices):/ || /^VendorID/ || NF == 0 { next }
+        {
+          if (seen[$1 "-" $2]++) next
+          name = $9
+          for (i = 10; i <= NF - 2; i++) name = name " " $i
+          printf "%s\t%s\t%s\n", $1, $2, name
+        }'
+)
+
+(( ${#keyboards[@]} > 0 )) || fail "No keyboards detected."
+
+info "Detected keyboards:"
+i=1
+for entry in "${keyboards[@]}"; do
+  ids="${entry%%$'\t'*}"
+  name="${entry#*$'\t'}"
+  printf '  %d) %s  [%s]\n' "$i" "$name" "$ids"
+  i=$((i + 1))
+done
+
+read -rp "Which keyboard? [1] " kb_choice
+kb_choice="${kb_choice:-1}"
+[[ "$kb_choice" =~ ^[0-9]+$ ]] && (( kb_choice >= 1 && kb_choice <= ${#keyboards[@]} )) \
+  || fail "Invalid selection."
+
+entry="${keyboards[$((kb_choice - 1))]}"
+ids="${entry%%$'\t'*}"
+name="${entry#*$'\t'}"
+domain_key="com.apple.keyboard.modifiermapping.${ids}-0"
+
+# ------------------------------------------------------------------------------
+# Show any existing mapping for this keyboard
+# ------------------------------------------------------------------------------
+
+if existing=$(defaults -currentHost read -g "$domain_key" 2>/dev/null); then
+  dst=$(echo "$existing" | sed -n 's/.*HIDKeyboardModifierMappingDst = \([0-9-]*\);.*/\1/p' | head -1)
+  info "Current mapping for '${name}': Caps Lock -> $(friendly_dst "$dst")"
+else
+  info "No custom mapping set for '${name}' yet."
+fi
+
+# ------------------------------------------------------------------------------
+# Choose and apply the mapping
+# ------------------------------------------------------------------------------
+
+cat <<EOF
+What should Caps Lock do on this keyboard?
+  1) Control (default)
+  2) Escape
+  3) Remove custom mapping (restore Caps Lock)
+  4) Quit without changes
+EOF
+read -rp "Choice? [1] " action
+action="${action:-1}"
+
+write_mapping() {
+  local dst="$1"
+  defaults -currentHost write -g "$domain_key" -array "
+    <dict>
+      <key>HIDKeyboardModifierMappingSrc</key><integer>${SRC_CAPSLOCK}</integer>
+      <key>HIDKeyboardModifierMappingDst</key><integer>${dst}</integer>
+    </dict>"
+  success "Caps Lock -> $(friendly_dst "$dst") written for '${name}' (${domain_key})"
+}
+
+case "$action" in
+  1) write_mapping "$DST_CONTROL" ;;
+  2) write_mapping "$DST_ESCAPE" ;;
+  3)
+    if defaults -currentHost delete -g "$domain_key" 2>/dev/null; then
+      success "Custom mapping removed for '${name}'"
+    else
+      info "Nothing to remove — no mapping was set."
+    fi
+    ;;
+  4) info "No changes made."; exit 0 ;;
+  *) fail "Invalid selection." ;;
+esac
+
+echo
+info "Unplug/replug the keyboard (or log out and back in) for the change to take effect."

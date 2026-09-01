@@ -18,7 +18,7 @@
       - [ ] 2606:4700:4700::1001
   - [ ] Keyboard
     - [ ] Modifier Keys… >
-      - [ ] Caps Lock => Control
+      - [ ] Caps Lock => Control — or run the [`./remap-capslock`](remap-capslock) wizard instead of clicking through the UI (per-keyboard; re-run when a new keyboard is connected)
   - [ ] Trackpad
     - [ ] Enable “Tap to click (Tap with one finger)”
     - [ ] More Gestures >
