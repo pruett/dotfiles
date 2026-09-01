@@ -11,6 +11,7 @@
 set -euo pipefail
 
 DOTFILES_REPO_SSH="git@github.com:pruett/dotfiles.git"
+DOTFILES_REPO_HTTPS="https://github.com/pruett/dotfiles.git"
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
 # ------------------------------------------------------------------------------
@@ -27,11 +28,26 @@ fail()    { printf '\033[1;31mERR\033[0m %s\n' "$*" >&2; exit 1; }
 TTY=/dev/tty
 [[ -t 0 ]] && TTY=/dev/stdin
 
+# Assert a command is available after its install step; if not, print how to
+# finish the job manually and stop before touching anything else.
+require_cmd() {
+  local cmd="$1" how="$2"
+  command -v "$cmd" >/dev/null 2>&1 \
+    || fail "'${cmd}' is not available. ${how} Then re-run this script."
+}
+
 # ------------------------------------------------------------------------------
-# Preflight
+# Preflight: OS, curl, network — nothing below runs unless these pass
 # ------------------------------------------------------------------------------
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "This script only supports macOS."
+
+require_cmd curl "curl ships with macOS; if it is missing, install Xcode Command Line Tools with 'xcode-select --install'."
+
+if ! curl -fsSL --connect-timeout 10 https://github.com >/dev/null 2>&1; then
+  fail "Cannot reach github.com. Connect to the internet (and check any VPN/proxy), then re-run this script."
+fi
+success "Preflight passed (macOS, curl, network)"
 
 info "Bootstrapping dotfiles into ${DOTFILES_DIR}"
 
@@ -42,8 +58,14 @@ info "Bootstrapping dotfiles into ${DOTFILES_DIR}"
 if ! xcode-select -p >/dev/null 2>&1; then
   info "Installing Xcode Command Line Tools (a dialog will appear)..."
   xcode-select --install >/dev/null 2>&1 || true
+  info "Waiting for the Command Line Tools installer to finish (Ctrl-C to abort)..."
+  clt_waited=0
   until xcode-select -p >/dev/null 2>&1; do
     sleep 5
+    clt_waited=$((clt_waited + 5))
+    if (( clt_waited >= 1800 )); then
+      fail "Timed out waiting for Xcode Command Line Tools. Install them manually with 'xcode-select --install' (or from https://developer.apple.com/download/all/), then re-run this script."
+    fi
   done
 fi
 success "Xcode Command Line Tools installed"
@@ -58,22 +80,51 @@ for brew_prefix in /opt/homebrew /usr/local; do
 done
 
 if ! command -v brew >/dev/null 2>&1; then
-  info "Installing Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" <"$TTY"
+  info "Installing Homebrew (you may be prompted for your macOS password)..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" <"$TTY" \
+    || fail "Homebrew installation failed. Install it manually per https://brew.sh (requires an admin account), then re-run this script."
   for brew_prefix in /opt/homebrew /usr/local; do
     [[ -x "${brew_prefix}/bin/brew" ]] && eval "$("${brew_prefix}/bin/brew" shellenv)"
   done
 fi
-command -v brew >/dev/null 2>&1 || fail "Homebrew installation failed."
+require_cmd brew "Install Homebrew manually per https://brew.sh (requires an admin account)."
 success "Homebrew installed"
 
-# Minimum tooling needed before we can clone and stow; the full Brewfile
-# is installed after the repo is cloned.
-info "Installing core tools (git, gh, stow)..."
-brew list git  >/dev/null 2>&1 || brew install git
-brew list gh   >/dev/null 2>&1 || brew install gh
-brew list stow >/dev/null 2>&1 || brew install stow
-success "Core tools installed"
+# ------------------------------------------------------------------------------
+# Clone (or update) the dotfiles repo
+#
+# The repo is public, so the initial clone happens over HTTPS with the git that
+# ships with the Command Line Tools — no auth and no extra installs needed yet.
+# The remote is switched to SSH after GitHub authentication below.
+# ------------------------------------------------------------------------------
+
+require_cmd git "git ships with the Xcode Command Line Tools; run 'xcode-select --install'."
+
+if [[ -d "${DOTFILES_DIR}/.git" ]]; then
+  info "Dotfiles repo already present; pulling latest..."
+  git -C "$DOTFILES_DIR" pull --ff-only \
+    || fail "Could not fast-forward ${DOTFILES_DIR}. Resolve the local changes there (commit, stash, or reset), then re-run this script."
+elif [[ -e "$DOTFILES_DIR" ]]; then
+  fail "${DOTFILES_DIR} exists but is not a git repo. Move it aside and re-run."
+else
+  info "Cloning ${DOTFILES_REPO_HTTPS}..."
+  git clone "$DOTFILES_REPO_HTTPS" "$DOTFILES_DIR" \
+    || fail "Clone failed. Check the git error above and re-run this script."
+fi
+success "Dotfiles repo ready"
+
+cd "$DOTFILES_DIR"
+
+# ------------------------------------------------------------------------------
+# Brewfile — installs everything, including the tools the rest of this
+# script depends on (gh, stow)
+# ------------------------------------------------------------------------------
+
+info "Installing Brewfile formulae and casks (this can take a while)..."
+brew bundle --file "${DOTFILES_DIR}/Brewfile" || warn "Some Brewfile entries failed; re-run 'brew bundle' later to retry."
+require_cmd gh   "Run 'brew install gh' manually."
+require_cmd stow "Run 'brew install stow' manually."
+success "Brewfile processed"
 
 # ------------------------------------------------------------------------------
 # GitHub authentication (SSH, with push access to the repo)
@@ -83,46 +134,27 @@ if gh auth status >/dev/null 2>&1; then
   success "GitHub CLI already authenticated"
 else
   info "Authenticating with GitHub (this also generates and uploads an SSH key)..."
-  gh auth login --hostname github.com --git-protocol ssh --web <"$TTY"
+  gh auth login --hostname github.com --git-protocol ssh --web <"$TTY" \
+    || fail "GitHub authentication failed or was cancelled. Run 'gh auth login --git-protocol ssh --web' manually, then re-run this script."
 fi
 
-# Make sure github.com is a known host so the clone doesn't prompt
+# Make sure github.com is a known host so git over SSH doesn't prompt
 if ! ssh-keygen -F github.com >/dev/null 2>&1; then
   mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
   ssh-keyscan -t ed25519 github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
 fi
 
-# Verify we can actually talk to GitHub over SSH before cloning
+# Verify SSH access, then point origin at the SSH remote so pushes work
 if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
   success "SSH access to GitHub verified"
 else
   fail "SSH access to GitHub failed. Run 'gh auth login --git-protocol ssh --web' and ensure an SSH key is added at https://github.com/settings/keys, then re-run this script."
 fi
 
-# ------------------------------------------------------------------------------
-# Clone (or update) the dotfiles repo
-# ------------------------------------------------------------------------------
-
-if [[ -d "${DOTFILES_DIR}/.git" ]]; then
-  info "Dotfiles repo already present; pulling latest..."
-  git -C "$DOTFILES_DIR" pull --ff-only
-elif [[ -e "$DOTFILES_DIR" ]]; then
-  fail "${DOTFILES_DIR} exists but is not a git repo. Move it aside and re-run."
-else
-  info "Cloning ${DOTFILES_REPO_SSH}..."
-  git clone "$DOTFILES_REPO_SSH" "$DOTFILES_DIR"
+if [[ "$(git remote get-url origin)" != "$DOTFILES_REPO_SSH" ]]; then
+  git remote set-url origin "$DOTFILES_REPO_SSH"
+  success "origin remote switched to SSH (${DOTFILES_REPO_SSH})"
 fi
-success "Dotfiles repo ready"
-
-cd "$DOTFILES_DIR"
-
-# ------------------------------------------------------------------------------
-# Brewfile
-# ------------------------------------------------------------------------------
-
-info "Installing Brewfile formulae (this can take a while)..."
-brew bundle --file "${DOTFILES_DIR}/Brewfile" || warn "Some Brewfile entries failed; re-run 'brew bundle' later to retry."
-success "Brewfile processed"
 
 # ------------------------------------------------------------------------------
 # Machine-local git identity (.gitconfig.local is gitignored)
