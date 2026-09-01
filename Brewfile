@@ -68,6 +68,8 @@ brew "oven-sh/bun/bun", trusted: true
 cask "appcleaner"
 # Utility that prevents the system from going to sleep
 cask "caffeine"
+# Claude Code coding agent
+cask "claude-code"
 # OpenAI's coding agent that runs in your terminal
 cask "codex"
 # Coding agent with Devin Cloud integration
