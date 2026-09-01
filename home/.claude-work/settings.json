@@ -6,12 +6,11 @@
     "sessionUrl": false
   },
   "permissions": {
-    "defaultMode": "auto",
+    "defaultMode": "acceptEdits",
     "additionalDirectories": [
       "~/.dotfiles"
     ]
   },
-  "model": "claude-fable-5[1m]",
   "hooks": {
     "SessionStart": [
       {
@@ -19,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
+            "command": "bash \"$HOME/.claude-work/hooks/herdr-agent-state.sh\" session",
             "timeout": 10
           }
         ]
@@ -30,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/worktree_create.sh",
+            "command": "$HOME/.claude-work/hooks/worktree_create.sh",
             "timeout": 120,
             "statusMessage": "Installing worktree dependencies..."
           }
@@ -40,14 +39,13 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh"
+    "command": "~/.claude-work/statusline.sh"
   },
   "enabledPlugins": {
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -62,7 +60,6 @@
   },
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
-  "skipDangerousModePermissionPrompt": true,
   "theme": "dark",
   "editorMode": "vim",
   "agentPushNotifEnabled": true

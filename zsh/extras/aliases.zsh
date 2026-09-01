@@ -30,10 +30,10 @@ alias edit="$EDITOR"
 # ---------
 # Claude Code
 # ---------
-# `cc` runs claude as usual; `ccs` runs it against the snowdrop
-# config profile (its own MCP servers, auth, and settings).
+# `cc` runs claude as usual; `ccw` runs it against the work config
+# profile (its own MCP servers, auth, and settings).
 alias cc="claude"
-alias ccs="CLAUDE_CONFIG_DIR=$HOME/.claude-snowdrop claude"
+alias ccw="CLAUDE_CONFIG_DIR=$HOME/.claude-work claude"
 
 # ---------
 # Homebrew maintenance

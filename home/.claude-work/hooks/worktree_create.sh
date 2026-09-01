@@ -1,0 +1,1 @@
+../../.claude/hooks/worktree_create.sh
