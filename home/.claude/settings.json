@@ -63,6 +63,7 @@
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
+  "theme": "dark",
   "editorMode": "vim",
   "agentPushNotifEnabled": true,
   "autoMode": {
