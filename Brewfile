@@ -24,6 +24,8 @@ brew "gh"
 brew "git"
 # Agent multiplexer that lives in your terminal
 brew "herdr"
+# Postgres C API library (provides psql client)
+brew "libpq"
 # Polyglot runtime manager (asdf rust clone)
 brew "mise"
 # Remote terminal application
@@ -32,8 +34,6 @@ brew "mosh"
 brew "neovim"
 # Open-source, cross-platform JavaScript runtime environment
 brew "node"
-# Open-source, cross-platform JavaScript runtime environment
-brew "node@24"
 # Fast, disk space efficient package manager
 brew "pnpm"
 # Search tool like grep and The Silver Searcher
@@ -86,3 +86,4 @@ cask "spotify"
 cask "zed"
 npm "@earendil-works/pi-coding-agent"
 npm "agent-browser"
+npm "vercel"
