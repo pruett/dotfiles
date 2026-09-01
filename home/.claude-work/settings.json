@@ -11,7 +11,7 @@
       "~/.dotfiles"
     ]
   },
-  "skipDangerousModePermissionPrompt": true,
+  "model": "opus[1m]",
   "hooks": {
     "SessionStart": [
       {
@@ -61,8 +61,8 @@
   },
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
+  "skipDangerousModePermissionPrompt": true,
   "theme": "dark",
   "editorMode": "vim",
-  "agentPushNotifEnabled": true,
-  "model": "opus[1m]"
+  "agentPushNotifEnabled": true
 }
