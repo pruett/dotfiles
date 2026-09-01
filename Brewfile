@@ -1,10 +1,7 @@
 tap "hashicorp/tap"
-tap "nikitabobko/tap"
 tap "oven-sh/bun"
 # Official Amazon AWS command-line interface
 brew "awscli"
-# Microsoft Azure CLI 2.0
-brew "azure-cli"
 # Clone of cat(1) with syntax highlighting and Git integration
 brew "bat"
 # Cloudflare Tunnel client (formerly Argo Tunnel)
@@ -67,8 +64,6 @@ brew "zsh-vi-mode"
 brew "hashicorp/tap/terraform", trusted: true
 # Incredibly fast JavaScript runtime, bundler, transpiler and package manager - all in one.
 brew "oven-sh/bun/bun", trusted: true
-# AeroSpace is an i3-like tiling window manager for macOS
-cask "nikitabobko/tap/aerospace", trusted: true
 # Application uninstaller
 cask "appcleaner"
 # Utility that prevents the system from going to sleep
@@ -91,4 +86,3 @@ cask "spotify"
 cask "zed"
 npm "@earendil-works/pi-coding-agent"
 npm "agent-browser"
-npm "hunkdiff"
