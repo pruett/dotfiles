@@ -178,6 +178,6 @@
     "dark": "One Dark",
   },
   "cursor_blink": false,
-  "soft_wrap": "preferred_line_length",
+  "soft_wrap": "prefer_line",
   "use_system_window_tabs": true,
 }
