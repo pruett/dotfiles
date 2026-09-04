@@ -4,9 +4,9 @@
 # Modular ZSH configuration managed by GNU Stow
 #
 # Load order:
-#   1. PATH management (custom binary paths)
+#   1. PATH management (Homebrew + custom binary paths)
 #   2. Dependency check (validates required tools)
-#   3. Homebrew environment
+#   3. Homebrew zsh functions (fpath)
 #   4. FZF integration (fuzzy finder)
 #   5. zsh-vi-mode plugin (defers FZF & fzf-tab keybindings via zvm_after_init)
 #   6. Aliases
@@ -33,9 +33,7 @@ source $DOTFILES/zsh/extras/depcheck.zsh
 # --------
 # Homebrew
 # --------
-eval $(/opt/homebrew/bin/brew shellenv)
-
-# brew shellenv only adds site-functions, not the core functions dir containing
+# brew shellenv runs in path.zsh. It only adds site-functions, not the core functions dir containing
 # is-at-least, add-zsh-hook, compinit, bashcompinit, etc. Add it explicitly so
 # plugins loaded below can find these. typeset -U prevents duplicates on reload.
 fpath=(/opt/homebrew/share/zsh/functions $fpath)
@@ -111,9 +109,7 @@ fi
 # --------
 # gcloud
 # --------
-# The next line updates PATH for the Google Cloud SDK.
-if [ -f '/Users/kevinpruett/google-cloud-sdk/path.zsh.inc' ]; then . '/Users/kevinpruett/google-cloud-sdk/path.zsh.inc'; fi
-
+# PATH entry for the SDK lives in path.zsh.
 # The next line enables shell command completion for gcloud.
 if [ -f '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc'; fi
 

@@ -1,2 +1,8 @@
 [tools]
 ruby = "3.4"
+
+[settings]
+# Keep the shims dir off PATH. With this on, `mise activate` prepends
+# ~/.local/share/mise/shims so missing tools can auto-install, which makes
+# every node/npx call go through mise even in dirs with no mise config.
+not_found_auto_install = false
