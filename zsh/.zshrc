@@ -15,8 +15,9 @@
 #   9. Autosuggestions
 #   10. Tab completions (zstyles only - fzf-tab loaded in zvm_after_init)
 #   11. Zoxide (smart cd)
-#   12. Local config (optional, gitignored)
-#   13. Starship prompt
+#   12. GPG (tty for commit-signing passphrase prompts)
+#   13. Local config (optional, gitignored)
+#   14. Starship prompt
 #
 # ========================================
 
@@ -112,6 +113,13 @@ fi
 # PATH entry for the SDK lives in path.zsh.
 # The next line enables shell command completion for gcloud.
 if [ -f '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc'; fi
+
+# --------
+# GPG
+# --------
+# Tells gpg which terminal to use when it needs to prompt for a passphrase
+# (git commit signing). Without this, signing fails with "Inappropriate ioctl".
+export GPG_TTY=$(tty)
 
 # --------
 # Local Config (optionally load gitignored config)

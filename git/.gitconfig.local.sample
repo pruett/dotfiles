@@ -4,11 +4,20 @@
 #
 # To use, duplicate and edit a copy of this file named `.gitconfig.local`
 #
+# GPG commit signing setup (macOS):
+#   brew install gnupg pinentry-mac      # both in Brewfile
+#   gpg --full-generate-key              # email must match GitHub
+#   gpg --list-secret-keys --keyid-format=long   # copy the ID after "sec ed25519/"
+#   gpg --armor --export <key> > key.asc && gh gpg-key add key.asc
+#   GPG_TTY is exported in zsh/.zshrc; gpg-agent.conf points at pinentry-mac.
+#
 # e.g.
 #
 # [user]
 #   name = John Doe
 #   email = doe.john@gmail.com
-#   signingkey = <key> $ gpg --list-secret-keys --keyid-format LONG
+#   signingkey = <key>
 # [commit]
 #   gpgsign = true
+# [tag]
+#   gpgSign = true

@@ -47,6 +47,7 @@ DEPCHECK_DEV_DEPS=(
 DEPCHECK_OPTIONAL_DEPS=(
     "gh:GitHub CLI"
     "jq:JSON processor"
+    "gpg:GnuPG (git commit signing)"
 )
 
 # ----------------------------------------
