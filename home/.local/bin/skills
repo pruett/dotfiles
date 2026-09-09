@@ -8,8 +8,11 @@ real_home="$HOME"
 npm_cache="${npm_config_cache:-$real_home/.npm}"
 
 run_skills_cli() {
+  # The skills CLI stores its global lock at $XDG_STATE_HOME/skills/.skill-lock.json
+  # when that variable is set. Clear it so the lock resolves to
+  # $managed_home/.agents/.skill-lock.json and stays tracked in this repo.
   npm_config_cache="$npm_cache" HOME="$managed_home" \
-    command npx --yes skills "$@"
+    command env -u XDG_STATE_HOME npx --yes skills "$@"
 }
 
 list_skills() {
@@ -70,12 +73,16 @@ sync_agent() {
       agent="claude-code"
       target_dir="$managed_home/.claude/skills"
       ;;
+    claude-work|work)
+      agent="claude-work"
+      target_dir="$managed_home/.claude-work/skills"
+      ;;
     codex|codex-cli|openai-codex|pi)
       printf '%s already reads skills from ~/.agents/skills; nothing to sync.\n' "$agent"
       return
       ;;
     *)
-      printf 'Unknown agent: %s (expected claude-code, codex-cli, or pi)\n' "$agent" >&2
+      printf 'Unknown agent: %s (expected claude-code, claude-work, codex-cli, or pi)\n' "$agent" >&2
       return 2
       ;;
   esac
@@ -127,7 +134,7 @@ Commands:
   add <source> [options] Add skills from a path, URL, or GitHub repository
   list, ls               List centrally managed global skills
   update [skills...]     Update all skills, or only the named skills
-  sync <agent> [...]     Configure skills for claude-code, codex-cli, or pi
+  sync <agent> [...]     Configure skills for claude-code, claude-work, codex-cli, or pi
   help                   Show this help
 EOF
 }
@@ -158,7 +165,7 @@ case "${1:-help}" in
   sync)
     shift
     if [[ $# -eq 0 ]]; then
-      printf 'Usage: skills sync <claude-code|codex-cli|pi> [...]\n' >&2
+      printf 'Usage: skills sync <claude-code|claude-work|codex-cli|pi> [...]\n' >&2
       exit 2
     fi
     for agent in "$@"; do
