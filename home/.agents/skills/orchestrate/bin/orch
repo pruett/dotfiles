@@ -1,0 +1,430 @@
+#!/usr/bin/env bash
+# orch — ledger and headless-worker runner for an orchestrator run.
+# One ledger.json per run; every mutation is an atomic tmp+mv write. The orchestrator is the only writer.
+# Workers deliver a report; orch files it under results/<id>.md and lifts its Summary into the ledger.
+set -euo pipefail
+
+SKILL_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
+HARNESSES="${ORCH_HARNESSES:-$SKILL_DIR/harnesses.json}"
+TAB=$'\t'
+
+usage() {
+  cat <<'USAGE'
+Usage: orch <command> [args]
+
+Run
+  orch init "<mission>" [--root DIR] [--slug SLUG]    create ROOT/.orchestrator/runs/<run_id>, point ROOT/.orchestrator/current at it
+  orch harnesses                                     which harnesses are installed, and which one hosts this session
+  orch status [--json]                               one line per task; the orchestrator's whole view of the fleet
+  orch path [run|results|workers|ledger]             print the resolved run dir or a path within it
+  orch finish                                        mark the run finished (refuses while tasks run)
+
+Tasks (queued -> running -> done | failed | killed)
+  orch add <id> --title TEXT (--prompt TEXT | --prompt-file F) [--cwd DIR] [--kind research|change|verify] [--mode read-only|edit] [--depends-on a,b] [--bound TEXT]
+  orch drop <id>                                     remove a queued task (refuses if another task depends on it)
+  orch prompt <id>                                   render the full worker prompt (header + task + report contract)
+  orch spawn <id> --harness NAME [--model M]         launch a headless worker in the task's cwd, record its pid
+  orch wait [--any|--all] [--timeout SECS]           block until workers exit; prints "id exit=N"; exit 124 on timeout
+  orch reap                                          file exited workers' reports under results/, mark done/failed
+  orch done <id> --summary "TEXT"                    manual completion when results/<id>.md exists but reap could not lift it
+  orch fail <id> --summary "TEXT"
+  orch kill <id> [--reason TEXT]                     kill the worker's process tree; keep any partial report
+  orch note <id> "TEXT"
+  orch next                                          queued tasks whose depends_on are all done
+  orch running                                       "id  harness  pid" for running tasks
+  orch result <id>                                   cat results/<id>.md
+  orch schema                                        ledger field reference
+
+Resolution: $ORCH_RUN, else nearest .orchestrator/current walking up from $PWD.
+Harness adapters: $ORCH_HARNESSES or <skill>/harnesses.json.
+USAGE
+}
+
+schema() {
+  cat <<'SCHEMA'
+{
+  "run_id": "2026-09-09-1530-slug", "mission": "text", "root": "/abs/path", "status": "active|finished",
+  "host_harness": "claude|codex|pi|null", "created_at": "iso", "updated_at": "iso",
+  "tasks": {
+    "<id>": {
+      "id": "<id>", "title": "text", "cwd": "/abs/dir", "kind": "research|change|verify", "mode": "read-only|edit",
+      "bound": "stop condition text", "task_file": "workers/<id>.task.md",
+      "status": "queued|running|done|failed|killed",
+      "harness": "claude|codex|pi|null", "handle": "pid|null", "model": "string|null",
+      "session_id": "harness session for resume|null", "exit_code": 0,
+      "depends_on": ["<id>"], "result_file": "results/<id>.md", "summary": "<= 3 lines lifted from the report",
+      "created_at": "iso", "started_at": "iso|null", "finished_at": "iso|null",
+      "notes": [{"at": "iso", "text": "..."}]
+    }
+  }
+}
+SCHEMA
+}
+
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+die() { printf 'orch: %s\n' "$*" >&2; exit 1; }
+command -v jq >/dev/null || die "jq is required"
+
+resolve_run() {
+  if [[ -n "${ORCH_RUN:-}" ]]; then RUN="$ORCH_RUN"; return; fi
+  local d="$PWD"
+  while :; do
+    if [[ -e "$d/.orchestrator/current" ]]; then RUN="$(cd "$d/.orchestrator/current" && pwd -P)"; return; fi
+    [[ "$d" == "/" ]] && break
+    d="$(dirname "$d")"
+  done
+  die "no active run: run 'orch init' or set ORCH_RUN"
+}
+load() { resolve_run; LEDGER="$RUN/ledger.json"; [[ -f "$LEDGER" ]] || die "missing $LEDGER"; WORKERS="$RUN/workers"; RESULTS="$RUN/results"; mkdir -p "$WORKERS" "$RESULTS"; }
+
+write() { # write <jq-filter> [jq args...]
+  local filter="$1"; shift
+  local tmp; tmp="$(mktemp "$RUN/.ledger.XXXXXX")"
+  jq --arg now "$(now)" "$@" "$filter | .updated_at = \$now" "$LEDGER" >"$tmp" && mv -f "$tmp" "$LEDGER"
+}
+task_exists() { jq -e --arg id "$1" '.tasks[$id]' "$LEDGER" >/dev/null 2>&1; }
+tget() { jq -r --arg id "$1" ".tasks[\$id].$2 // empty" "$LEDGER"; }
+lget() { jq -r ".$1 // empty" "$LEDGER"; }
+
+host_harness() {
+  local name var
+  while IFS="$TAB" read -r name var; do
+    if [[ -n "${!var:-}" ]]; then printf '%s\n' "$name"; return; fi
+  done < <(jq -r 'to_entries[] | select(.key|startswith("_")|not) | "\(.key)\t\(.value.detect_env)"' "$HARNESSES")
+  return 0
+}
+
+# ---------------------------------------------------------------- run
+cmd_init() {
+  local mission="${1:-}"; shift || true
+  [[ -n "$mission" ]] || die "init needs a mission string"
+  local root="$PWD" slug=""
+  while [[ $# -gt 0 ]]; do case "$1" in
+    --root) root="$(cd "$2" && pwd -P)"; shift 2 ;;
+    --slug) slug="$2"; shift 2 ;;
+    *) die "unknown flag $1" ;; esac; done
+  [[ -n "$slug" ]] || slug="$(printf '%s' "$mission" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40)"
+  local run_id; run_id="$(date +%Y-%m-%d-%H%M)-$slug"
+  RUN="$root/.orchestrator/runs/$run_id"
+  mkdir -p "$RUN/results" "$RUN/workers"
+  jq -n --arg run_id "$run_id" --arg mission "$mission" --arg root "$root" --arg now "$(now)" --arg host "$(host_harness)" '
+    {run_id: $run_id, mission: $mission, root: $root, status: "active", host_harness: ($host|select(.!="")),
+     created_at: $now, updated_at: $now, tasks: {}}' >"$RUN/ledger.json"
+  ln -sfn "runs/$run_id" "$root/.orchestrator/current"
+  printf '%s\n' "$RUN"
+}
+
+cmd_harnesses() {
+  local host; host="$(host_harness)"
+  local name bin notes inst h
+  printf '%-8s %-10s %-9s %s\n' HARNESS INSTALLED HOST NOTES
+  while IFS="$TAB" read -r name bin notes; do
+    inst="no"; command -v "$bin" >/dev/null && inst="yes"
+    h="-"; [[ "$name" == "$host" ]] && h="this one"
+    printf '%-8s %-10s %-9s %s\n' "$name" "$inst" "$h" "$notes"
+  done < <(jq -r 'to_entries[] | select(.key|startswith("_")|not) | "\(.key)\t\(.value.bin)\t\(.value.notes)"' "$HARNESSES")
+}
+
+cmd_status() {
+  load
+  if [[ "${1:-}" == "--json" ]]; then cat "$LEDGER"; return; fi
+  jq -r '"run: \(.run_id)  status: \(.status)  host: \(.host_harness // "-")  root: \(.root)", "mission: \(.mission)", ""' "$LEDGER"
+  { printf 'STATUS\tID\tKIND\tHARNESS\tPID\tDEPENDS\tAGE\tSUMMARY\n'
+    jq -r --arg now "$(now)" '
+      def age(a): if a == null then "-" else
+        ((($now|fromdateiso8601) - (a|fromdateiso8601)) as $s |
+         if $s < 90 then "\($s)s" elif $s < 5400 then "\($s/60|floor)m" else "\($s/3600|floor)h" end) end;
+      .tasks[] | [ .status, .id, .kind, (.harness // "-"), (.handle // "-"), ((.depends_on|join(",")) | if .=="" then "-" else . end),
+                   (if .status=="running" then age(.started_at) elif .finished_at then age(.finished_at) else age(.created_at) end),
+                   ((.summary // "") | split("\n")[0] | .[0:100]) ] | @tsv' "$LEDGER"
+  } | column -t -s "$TAB"
+  jq -r '[.tasks[].status] | group_by(.) | map("\(.[0])=\(length)") | join("  ") | "\n" + .' "$LEDGER"
+}
+
+cmd_path() {
+  load
+  case "${1:-run}" in
+    run) printf '%s\n' "$RUN" ;; results) printf '%s\n' "$RESULTS" ;; workers) printf '%s\n' "$WORKERS" ;; ledger) printf '%s\n' "$LEDGER" ;;
+    *) die "path takes run|results|workers|ledger" ;;
+  esac
+}
+
+cmd_finish() {
+  load
+  local live; live="$(jq -r '[.tasks[] | select(.status=="running")] | length' "$LEDGER")"
+  [[ "$live" == "0" ]] || die "$live task(s) still running; reap, wait, or kill them first"
+  write '.status="finished"'
+  printf 'run finished: %s\n' "$RUN"
+}
+
+# ---------------------------------------------------------------- tasks
+cmd_add() {
+  load
+  local id="${1:-}"; shift || true
+  [[ "$id" =~ ^[a-z0-9][a-z0-9_-]{0,47}$ ]] || die "id must match [a-z0-9][a-z0-9_-]{0,47}"
+  task_exists "$id" && die "task $id already exists"
+  local title="" cwd="" kind="research" mode="" deps="" bound="the first confirmed answer" prompt="" prompt_file=""
+  cwd="$(lget root)"
+  while [[ $# -gt 0 ]]; do case "$1" in
+    --title) title="$2"; shift 2 ;;
+    --cwd) cwd="$2"; shift 2 ;;
+    --kind) kind="$2"; shift 2 ;;
+    --mode) mode="$2"; shift 2 ;;
+    --depends-on) deps="$2"; shift 2 ;;
+    --bound) bound="$2"; shift 2 ;;
+    --prompt) prompt="$2"; shift 2 ;;
+    --prompt-file) prompt_file="$2"; shift 2 ;;
+    *) die "unknown flag $1" ;; esac; done
+  [[ -n "$title" ]] || die "add needs --title"
+  [[ "$kind" =~ ^(research|change|verify)$ ]] || die "kind must be research|change|verify"
+  if [[ -z "$mode" ]]; then if [[ "$kind" == "change" ]]; then mode="edit"; else mode="read-only"; fi; fi
+  [[ "$mode" =~ ^(read-only|edit)$ ]] || die "mode must be read-only|edit"
+  [[ -d "$cwd" ]] || die "cwd does not exist: $cwd"
+  cwd="$(cd "$cwd" && pwd -P)"
+  if [[ -n "$prompt_file" ]]; then cp "$prompt_file" "$WORKERS/$id.task.md"
+  elif [[ -n "$prompt" ]]; then printf '%s\n' "$prompt" >"$WORKERS/$id.task.md"
+  else die "add needs --prompt or --prompt-file (the task body the worker will receive)"; fi
+  write '.tasks[$id] = {id:$id, title:$title, cwd:$cwd, kind:$kind, mode:$mode, bound:$bound, task_file:("workers/"+$id+".task.md"),
+                        status:"queued", harness:null, handle:null, model:null, session_id:null, exit_code:null,
+                        depends_on:($deps|split(",")|map(select(.!=""))), result_file:("results/"+$id+".md"), summary:null,
+                        created_at:$now, started_at:null, finished_at:null, notes:[]}' \
+        --arg id "$id" --arg title "$title" --arg cwd "$cwd" --arg kind "$kind" --arg mode "$mode" --arg deps "$deps" --arg bound "$bound"
+  printf '%s queued (%s, %s) -> %s\n' "$id" "$kind" "$mode" "$RESULTS/$id.md"
+}
+
+# The single source of truth for what a worker is told. The worker's final message is the report; orch files it.
+cmd_prompt() {
+  load
+  local id="${1:-}"; shift || true
+  task_exists "$id" || die "unknown task $id"
+  [[ $# -eq 0 ]] || die "unknown flag $1"
+  local mode mode_line; mode="$(tget "$id" mode)"
+  if [[ "$mode" == "edit" ]]; then mode_line="You may edit files inside that directory. Commit nothing."
+  else mode_line="Read-only: change no files inside that directory."; fi
+  cat <<P
+You are a worker for orchestrator run "$(lget run_id)". Mission: $(lget mission)
+Your task ($id): $(tget "$id" title)
+Work only inside $(tget "$id" cwd). $mode_line
+Stop after: $(tget "$id" bound)
+
+## Task
+$(cat "$WORKERS/$id.task.md")
+
+## Report format
+Markdown with these sections, in order: "## Summary" (at most 3 lines, the answer itself), "## Answer", "## Evidence" (file:line references), "## Open questions".
+
+## Delivery
+Your final message is the report. Output only the report, nothing before or after it.
+P
+}
+
+cmd_drop() {
+  load
+  local id="${1:-}"
+  task_exists "$id" || die "unknown task $id"
+  [[ "$(tget "$id" status)" == "queued" ]] || die "task $id is $(tget "$id" status); only queued tasks can be dropped (use kill)"
+  local dependents; dependents="$(jq -r --arg id "$id" '[.tasks[] | select(.depends_on | index($id)) | .id] | join(",")' "$LEDGER")"
+  [[ -z "$dependents" ]] || die "$dependents depend(s) on $id; drop or re-add them first"
+  write 'del(.tasks[$id])' --arg id "$id"
+  rm -f "$WORKERS/$id.task.md"
+  printf '%s dropped\n' "$id"
+}
+
+
+# Render a harness argv with token substitution, one NUL-terminated argument per token.
+render_argv() { # <harness> <argv|resume_argv> <id> <model> <prompt> [<session_id>]
+  local h="$1" key="$2" id="$3" model="$4" prompt="$5" sid="${6:-}"
+  jq -j --arg h "$h" --arg key "$key" --arg id "$id" --arg model "$model" --arg prompt "$prompt" --arg sid "$sid" \
+        --arg cwd "$(tget "$id" cwd)" --arg workdir "$WORKERS" --arg run_id "$(lget run_id)" --arg mode "$(tget "$id" mode)" '
+    .[$h] as $a
+    | (if $key == "argv" then ($a.argv + (if $model != "" then $a.model_argv else [] end) + ($a.modes[$mode] // []))
+       else $a.resume_argv end)
+    | map(gsub("\\{prompt\\}"; $prompt) | gsub("\\{model\\}"; $model) | gsub("\\{cwd\\}"; $cwd) | gsub("\\{workdir\\}"; $workdir)
+          | gsub("\\{id\\}"; $id) | gsub("\\{run_id\\}"; $run_id) | gsub("\\{session_id\\}"; $sid))
+    | .[] | . + "\u0000"' "$HARNESSES"
+}
+
+cmd_spawn() {
+  load
+  local id="${1:-}"; shift || true
+  task_exists "$id" || die "unknown task $id"
+  [[ "$(tget "$id" status)" == "queued" ]] || die "task $id is $(tget "$id" status), not queued"
+  local harness="" model=""
+  while [[ $# -gt 0 ]]; do case "$1" in
+    --harness) harness="$2"; shift 2 ;; --model) model="$2"; shift 2 ;; *) die "unknown flag $1" ;; esac; done
+  [[ -n "$harness" ]] || die "spawn needs --harness (see 'orch harnesses')"
+  jq -e --arg h "$harness" '.[$h]' "$HARNESSES" >/dev/null || die "unknown harness $harness"
+  local bin; bin="$(jq -r --arg h "$harness" '.[$h].bin' "$HARNESSES")"
+  command -v "$bin" >/dev/null || die "$bin is not installed"
+  local prompt; prompt="$(cmd_prompt "$id")"
+  printf '%s\n' "$prompt" >"$WORKERS/$id.prompt.md"
+  render_argv "$harness" argv "$id" "$model" "$prompt" >"$WORKERS/$id.argv"
+  local -a env_args=()
+  local v
+  while IFS= read -r v; do [[ -n "$v" ]] && env_args+=(-u "$v"); done < <(jq -r --arg h "$harness" '.[$h].unset_env[]?' "$HARNESSES")
+  # env: KEY=VALUE pairs the harness needs; {home} expands to $HOME. The claude entry uses this to route through the work profile like the `ccw` alias.
+  while IFS= read -r v; do [[ -n "$v" ]] && env_args+=("${v/\{home\}/$HOME}"); done < <(jq -r --arg h "$harness" '.[$h].env // {} | to_entries[] | "\(.key)=\(.value)"' "$HARNESSES")
+  rm -f "$WORKERS/$id.exit" "$WORKERS/$id.out" "$WORKERS/$id.err" "$WORKERS/$id.reply.md"
+  local cwd; cwd="$(tget "$id" cwd)"
+  # Detached supervisor: runs the harness in cwd with stdin closed, then records the exit code.
+  nohup env ${env_args[@]+"${env_args[@]}"} bash -c '
+    cd "$1" || exit 97
+    argv=(); while IFS= read -r -d "" tok; do argv+=("$tok"); done <"$2"
+    "${argv[@]}" </dev/null >"$3" 2>"$4"; ec=$?
+    printf "%s\n" "$ec" >"$5"' _ "$cwd" "$WORKERS/$id.argv" "$WORKERS/$id.out" "$WORKERS/$id.err" "$WORKERS/$id.exit" >/dev/null 2>&1 &
+  local pid=$!
+  disown "$pid" 2>/dev/null || true
+  write '.tasks[$id] |= (.status="running" | .harness=$h | .handle=$pid | .model=(if $model=="" then null else $model end) | .started_at=$now)' \
+        --arg id "$id" --arg h "$harness" --arg pid "$pid" --arg model "$model"
+  printf '%s running on %s (pid %s) -> %s\n' "$id" "$harness" "$pid" "$WORKERS/$id.out"
+}
+
+pid_alive() { kill -0 "$1" 2>/dev/null; }
+
+# Lift the "## Summary" section (or the first 3 non-empty lines) from a report.
+lift_summary() {
+  local s
+  s="$(awk '/^## Summary/ { insum=1; next } insum && /^## / { exit } insum && NF { print }' "$1" | head -3)"
+  if [[ -z "$s" ]]; then s="$(grep -v '^[[:space:]]*$' "$1" | head -3)"; fi
+  printf '%s' "$s"
+}
+
+file_reply() { # <id> : extract the worker's final message into results/<id>.md; prints 0 on success, 1 otherwise
+  local id="$1" h; h="$(tget "$id" harness)"
+  local src; src="$(jq -r --arg h "$h" '.[$h].reply.source' "$HARNESSES")"
+  local tmp; tmp="$(mktemp "$WORKERS/.reply.XXXXXX")"
+  case "$src" in
+    stdout)
+      local f; f="$(jq -r --arg h "$h" '.[$h].reply.jq // empty' "$HARNESSES")"
+      if [[ -n "$f" ]]; then jq -r "$f // empty" "$WORKERS/$id.out" >"$tmp" 2>/dev/null || true
+      else cat "$WORKERS/$id.out" >"$tmp"; fi ;;
+    file)
+      local p; p="$(jq -r --arg h "$h" --arg workdir "$WORKERS" --arg id "$id" '.[$h].reply.path | gsub("\\{workdir\\}"; $workdir) | gsub("\\{id\\}"; $id)' "$HARNESSES")"
+      if [[ -f "$p" ]]; then cat "$p" >"$tmp"; fi ;;
+  esac
+  if [[ -s "$tmp" ]]; then mv -f "$tmp" "$RESULTS/$id.md"; echo 0; else rm -f "$tmp"; echo 1; fi
+}
+
+extract_session_id() { # <id>
+  local id="$1" h; h="$(tget "$id" harness)"
+  local src; src="$(jq -r --arg h "$h" '.[$h].session_id.source // empty' "$HARNESSES")"
+  case "$src" in
+    stdout) jq -r "$(jq -r --arg h "$h" '.[$h].session_id.jq' "$HARNESSES") // empty" "$WORKERS/$id.out" 2>/dev/null | head -1 ;;
+    literal) jq -r --arg h "$h" --arg id "$id" --arg run_id "$(lget run_id)" '.[$h].session_id.value | gsub("\\{id\\}"; $id) | gsub("\\{run_id\\}"; $run_id)' "$HARNESSES" ;;
+    *) : ;;
+  esac
+}
+
+finish_task() { # <status> <id> <summary> [exit_code]
+  write '.tasks[$id] |= (.status=$status | .summary=$summary | .finished_at=$now | .exit_code=(if $ec=="" then .exit_code else ($ec|tonumber) end))' \
+        --arg id "$2" --arg status "$1" --arg summary "$3" --arg ec "${4:-}"
+  printf '%s %s\n' "$2" "$1"
+}
+
+cmd_reap() {
+  load
+  local any=0 id pid ec sid ok why errtail
+  while IFS="$TAB" read -r id pid; do
+    [[ -n "$id" ]] || continue
+    ec=""
+    if [[ -f "$WORKERS/$id.exit" ]]; then ec="$(cat "$WORKERS/$id.exit")"
+    elif ! pid_alive "$pid"; then ec=98   # supervisor gone without an exit record
+    else continue; fi
+    any=1
+    sid="$(extract_session_id "$id")"
+    [[ -n "$sid" ]] && write '.tasks[$id].session_id=$sid' --arg id "$id" --arg sid "$sid"
+    ok="$(file_reply "$id")"
+    if [[ "$ec" == "0" && "$ok" == "0" ]]; then
+      finish_task done "$id" "$(lift_summary "$RESULTS/$id.md")" "$ec"
+    else
+      why="exit $ec"; [[ "$ok" != "0" ]] && why="$why, no report"
+      errtail="$(tail -c 300 "$WORKERS/$id.err" 2>/dev/null | tr '\n' ' ')"
+      finish_task failed "$id" "$why${errtail:+: $errtail}" "$ec"
+    fi
+  done < <(jq -r '.tasks[] | select(.status=="running") | [.id, .handle] | @tsv' "$LEDGER")
+  [[ $any -eq 1 ]] || printf 'nothing to reap\n'
+}
+
+cmd_wait() {
+  load
+  local mode="any" timeout=3600
+  while [[ $# -gt 0 ]]; do case "$1" in
+    --any) mode=any; shift ;; --all) mode=all; shift ;; --timeout) timeout="$2"; shift 2 ;; *) die "unknown flag $1" ;; esac; done
+  local start; start=$(date +%s)
+  local running exited total id pid seen=" "
+  while :; do
+    exited=0; total=0
+    running="$(jq -r '.tasks[] | select(.status=="running") | [.id, .handle] | @tsv' "$LEDGER")"
+    [[ -n "$running" ]] || { printf 'no workers running\n'; return 0; }
+    while IFS="$TAB" read -r id pid; do
+      total=$((total+1))
+      if [[ -f "$WORKERS/$id.exit" ]] || ! pid_alive "$pid"; then
+        exited=$((exited+1))
+        if [[ "$seen" != *" $id "* ]]; then seen="$seen$id "; printf "%s exit=%s\n" "$id" "$(cat "$WORKERS/$id.exit" 2>/dev/null || echo 98)"; fi
+      fi
+    done <<<"$running"
+    if [[ "$mode" == any && $exited -gt 0 ]] || [[ "$mode" == all && $exited -eq $total ]]; then return 0; fi
+    if (( $(date +%s) - start >= timeout )); then printf 'timeout after %ss\n' "$timeout"; return 124; fi
+    sleep 5
+  done
+}
+
+cmd_done() {
+  load
+  local id="${1:-}"; shift || true
+  task_exists "$id" || die "unknown task $id"
+  local summary=""
+  while [[ $# -gt 0 ]]; do case "$1" in --summary) summary="$2"; shift 2 ;; *) die "unknown flag $1" ;; esac; done
+  [[ -n "$summary" ]] || die "done needs --summary"
+  [[ -s "$RESULTS/$id.md" ]] || die "results/$id.md is missing or empty; put the report there first, or use 'orch fail'"
+  finish_task done "$id" "$summary"
+}
+
+cmd_fail() {
+  load
+  local id="${1:-}"; shift || true
+  task_exists "$id" || die "unknown task $id"
+  local summary=""
+  while [[ $# -gt 0 ]]; do case "$1" in --summary) summary="$2"; shift 2 ;; *) die "unknown flag $1" ;; esac; done
+  [[ -n "$summary" ]] || die "fail needs --summary"
+  finish_task failed "$id" "$summary"
+}
+
+cmd_kill() {
+  load
+  local id="${1:-}"; shift || true
+  task_exists "$id" || die "unknown task $id"
+  local reason="killed by orchestrator"
+  while [[ $# -gt 0 ]]; do case "$1" in --reason) reason="$2"; shift 2 ;; *) die "unknown flag $1" ;; esac; done
+  [[ "$(tget "$id" status)" == "running" ]] || die "task $id is $(tget "$id" status), not running"
+  local pid; pid="$(tget "$id" handle)"
+  if pid_alive "$pid"; then
+    pkill -TERM -P "$pid" 2>/dev/null || true; kill -TERM "$pid" 2>/dev/null || true; sleep 1
+    if pid_alive "$pid"; then pkill -KILL -P "$pid" 2>/dev/null || true; kill -KILL "$pid" 2>/dev/null || true; fi
+  fi
+  [[ -s "$RESULTS/$id.md" ]] || file_reply "$id" >/dev/null || true
+  [[ -s "$RESULTS/$id.md" ]] && reason="$reason (partial report kept)"
+  finish_task killed "$id" "$reason"
+}
+
+cmd_note() {
+  load
+  local id="${1:-}" text="${2:-}"
+  task_exists "$id" || die "unknown task $id"
+  [[ -n "$text" ]] || die "note needs text"
+  write '.tasks[$id].notes += [{at:$now, text:$text}]' --arg id "$id" --arg text "$text"
+}
+
+cmd_next() { load; jq -r '.tasks as $t | $t[] | select(.status=="queued") | select(all(.depends_on[]; $t[.].status=="done")) | .id' "$LEDGER"; }
+cmd_running() { load; jq -r '.tasks[] | select(.status=="running") | [.id, (.harness // "-"), .handle] | @tsv' "$LEDGER"; }
+cmd_result() { load; local id="${1:-}"; [[ -n "$id" ]] || die "result needs an id"; cat "$RESULTS/$id.md"; }
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  init) cmd_init "$@" ;; harnesses) cmd_harnesses ;; status) cmd_status "$@" ;; path) cmd_path "$@" ;; finish) cmd_finish "$@" ;;
+  add) cmd_add "$@" ;; drop) cmd_drop "$@" ;; prompt) cmd_prompt "$@" ;; spawn) cmd_spawn "$@" ;;
+  wait) cmd_wait "$@" ;; reap) cmd_reap "$@" ;; done) cmd_done "$@" ;; fail) cmd_fail "$@" ;; kill) cmd_kill "$@" ;;
+  note) cmd_note "$@" ;; next) cmd_next ;; running) cmd_running ;; result) cmd_result "$@" ;;
+  schema) schema ;; help|-h|--help) usage ;;
+  *) die "unknown command $cmd (try 'orch help')" ;;
+esac

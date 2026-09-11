@@ -1,0 +1,157 @@
+{
+  "_doc": "Harness adapters for `orch spawn`. argv tokens: {prompt} {model} {cwd} {workdir} {id} {run_id} {session_id}. `detect_env` names a variable the harness sets in sessions it hosts. `reply` says where the worker's final message lands after the process exits. `env` holds KEY=VALUE pairs exported to the worker; {home} expands to $HOME.",
+  "claude": {
+    "bin": "claude",
+    "detect_env": "CLAUDECODE",
+    "argv": [
+      "claude",
+      "-p",
+      "--output-format",
+      "json",
+      "{prompt}"
+    ],
+    "model_argv": [
+      "--model",
+      "{model}"
+    ],
+    "modes": {
+      "read-only": [
+        "--permission-mode",
+        "dontAsk",
+        "--allowedTools",
+        "Read",
+        "Glob",
+        "Grep",
+        "WebFetch",
+        "Bash(rg:*)",
+        "Bash(grep:*)",
+        "Bash(ls:*)",
+        "Bash(cat:*)",
+        "Bash(head:*)",
+        "Bash(tail:*)",
+        "Bash(sed -n:*)",
+        "Bash(find:*)",
+        "Bash(wc:*)",
+        "Bash(git log:*)",
+        "Bash(git show:*)",
+        "Bash(git diff:*)",
+        "Bash(git blame:*)",
+        "Bash(git status:*)"
+      ],
+      "edit": [
+        "--permission-mode",
+        "auto"
+      ]
+    },
+    "unset_env": [
+      "CLAUDECODE",
+      "CLAUDE_CODE_SESSION_ID",
+      "CLAUDE_CODE_CHILD_SESSION",
+      "CLAUDE_CODE_ENTRYPOINT"
+    ],
+    "reply": {
+      "source": "stdout",
+      "jq": ".result"
+    },
+    "session_id": {
+      "source": "stdout",
+      "jq": ".session_id"
+    },
+    "resume_argv": [
+      "claude",
+      "-p",
+      "--output-format",
+      "json",
+      "--resume",
+      "{session_id}",
+      "{prompt}"
+    ],
+    "notes": "Runs through the work profile (CLAUDE_CONFIG_DIR={home}/.claude-work), the same routing as the ccw alias; drop the env entry to inherit the caller profile instead. read-only is enforced by the tool allowlist; edit uses the same auto mode as the interactive profile.",
+    "env": {
+      "CLAUDE_CONFIG_DIR": "{home}/.claude-work"
+    }
+  },
+  "codex": {
+    "bin": "codex",
+    "detect_env": "CODEX_SANDBOX",
+    "argv": [
+      "codex",
+      "exec",
+      "--skip-git-repo-check",
+      "--json",
+      "-o",
+      "{workdir}/{id}.reply.md",
+      "{prompt}"
+    ],
+    "model_argv": [
+      "-m",
+      "{model}"
+    ],
+    "modes": {
+      "read-only": [
+        "-s",
+        "read-only"
+      ],
+      "edit": [
+        "-s",
+        "workspace-write"
+      ]
+    },
+    "unset_env": [],
+    "reply": {
+      "source": "file",
+      "path": "{workdir}/{id}.reply.md"
+    },
+    "session_id": {
+      "source": "stdout",
+      "jq": "select(.type==\"thread.started\") | .thread_id"
+    },
+    "resume_argv": [
+      "codex",
+      "exec",
+      "resume",
+      "--skip-git-repo-check",
+      "--json",
+      "-o",
+      "{workdir}/{id}.reply.md",
+      "{session_id}",
+      "{prompt}"
+    ],
+    "notes": "Sandbox modes are OS-enforced. workspace-write confines edits to cwd."
+  },
+  "pi": {
+    "bin": "pi",
+    "detect_env": "PI_SESSION",
+    "argv": [
+      "pi",
+      "-p",
+      "--session-id",
+      "{id}-{run_id}",
+      "{prompt}"
+    ],
+    "model_argv": [
+      "--model",
+      "{model}"
+    ],
+    "modes": {
+      "read-only": [],
+      "edit": []
+    },
+    "unset_env": [],
+    "reply": {
+      "source": "stdout"
+    },
+    "session_id": {
+      "source": "literal",
+      "value": "{id}-{run_id}"
+    },
+    "resume_argv": [
+      "pi",
+      "-p",
+      "--session-id",
+      "{session_id}",
+      "{prompt}"
+    ],
+    "notes": "pi has no sandbox flag; read-only is prompt-enforced only. Session id is chosen by orch so resume is deterministic."
+  }
+}
