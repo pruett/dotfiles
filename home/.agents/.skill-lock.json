@@ -288,6 +288,36 @@
       "skillFolderHash": "b6ce4dcdc378492f9acd55a4e56ae111204b4f11",
       "installedAt": "2026-09-03T14:43:07.379Z",
       "updatedAt": "2026-09-03T14:43:07.379Z"
+    },
+    "plannotator-annotate": {
+      "source": "backnotprop/plannotator",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/backnotprop/plannotator.git",
+      "ref": "main",
+      "skillPath": "apps/skills/claude/plannotator-annotate/SKILL.md",
+      "skillFolderHash": "bbb70234bb2288894302b98cef372418ede0c145",
+      "installedAt": "2026-09-11T16:45:28.215Z",
+      "updatedAt": "2026-09-11T16:45:28.215Z"
+    },
+    "plannotator-last": {
+      "source": "backnotprop/plannotator",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/backnotprop/plannotator.git",
+      "ref": "main",
+      "skillPath": "apps/skills/claude/plannotator-last/SKILL.md",
+      "skillFolderHash": "7bbaba5fbf4cc0a58a6cad65103c6d821407fa51",
+      "installedAt": "2026-09-11T16:45:28.219Z",
+      "updatedAt": "2026-09-11T16:45:28.219Z"
+    },
+    "plannotator-review": {
+      "source": "backnotprop/plannotator",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/backnotprop/plannotator.git",
+      "ref": "main",
+      "skillPath": "apps/skills/claude/plannotator-review/SKILL.md",
+      "skillFolderHash": "fab730375e2d92765d1478152cdb5baba2ca40f1",
+      "installedAt": "2026-09-11T16:45:28.220Z",
+      "updatedAt": "2026-09-11T16:45:28.220Z"
     }
   },
   "dismissed": {}
