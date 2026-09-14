@@ -6,3 +6,5 @@ lazy-lock.json
 git/.gitconfig.local
 deno/.deno/bin/*
 zsh/extras/.zshrc.local.zsh
+
+home/.config/cloudflared/token.local

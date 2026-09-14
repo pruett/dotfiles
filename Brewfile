@@ -74,6 +74,8 @@ cask "appcleaner"
 cask "caffeine"
 # Claude Code coding agent
 cask "claude-code"
+# Cloudflare WARP client (1.1.1.1 / Zero Trust); on a machine where the app was installed by hand: brew install --cask --adopt cloudflare-warp
+cask "cloudflare-warp"
 # OpenAI's coding agent that runs in your terminal
 cask "codex"
 # Coding agent with Devin Cloud integration

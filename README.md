@@ -41,3 +41,7 @@ $ cd ~/.dotfiles && find . -not -path '*/\.*' -maxdepth 1 -mindepth 1 -type d | 
 ### Git
 
 See [git/README.md](git/README.md) for SSH/GPG key setup and `.gitconfig.local` details.
+
+### Cloudflare Tunnel
+
+See [home/.config/cloudflared/README.md](home/.config/cloudflared/README.md). The tunnel runs as a root LaunchDaemon, so it is not stowed; `cloudflared-tunnel install` (needs the gitignored `token.local`) writes it into place, and `cloudflared-tunnel status` checks it end to end.

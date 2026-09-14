@@ -216,6 +216,8 @@ Next steps:
   - Open a new terminal so your shell picks up the stowed configs.
   - Review MACOS.md for the manual System Preferences checklist.
   - If you sign commits, add your signing key to git/.gitconfig.local.
+  - For the Cloudflare Tunnel, save the connector token to
+    ~/.config/cloudflared/token.local and run cloudflared-tunnel install.
 
 This machine is cloned via SSH and authenticated with gh, so you can
 commit and push back to ${DOTFILES_REPO_SSH} right away.
