@@ -24,8 +24,9 @@ show_agent_labels_on_pane_borders = true
 # Ask for a workspace name before interactive creation instead of auto-naming.
 prompt_new_workspace_name = true
 
+status_indicators = "symbols"
 [ui.toast]
-delivery = "off"
+delivery = "system"
 
 [theme]
 name = "nord"
