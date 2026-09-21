@@ -34,18 +34,6 @@
           }
         ]
       }
-    ],
-    "WorktreeCreate": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/worktree_create.sh",
-            "timeout": 300,
-            "statusMessage": "Setting up worktree (env, deps, sync)..."
-          }
-        ]
-      }
     ]
   },
   "statusLine": {
