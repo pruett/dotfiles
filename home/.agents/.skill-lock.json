@@ -318,6 +318,15 @@
       "skillFolderHash": "fab730375e2d92765d1478152cdb5baba2ca40f1",
       "installedAt": "2026-09-11T16:45:28.220Z",
       "updatedAt": "2026-09-11T16:45:28.220Z"
+    },
+    "visual-pr": {
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git",
+      "skillPath": "plugins/visual-pr/skills/visual-pr/SKILL.md",
+      "skillFolderHash": "2104d685d33ba9594a4dfe13241f0f7f02190401",
+      "installedAt": "2026-09-21T20:44:20.324Z",
+      "updatedAt": "2026-09-21T20:44:20.324Z"
     }
   },
   "dismissed": {}
