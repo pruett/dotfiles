@@ -94,5 +94,8 @@ trust_level = "trusted"
 [projects."/Users/kevinpruett/work/suppco/backend"]
 trust_level = "trusted"
 
+[projects."/Users/kevinpruett/work/suppco/web"]
+trust_level = "trusted"
+
 [tui.model_availability_nux]
-gpt-6-astra = 1
+gpt-6-astra = 2
