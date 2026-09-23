@@ -22,3 +22,9 @@ keybind = ctrl+left_bracket=text:\x1b
 
 # Notifications
 desktop-notifications = true
+
+# Secure input
+# Don't auto-enable macOS Secure Keyboard Entry on password prompts. When it
+# gets stuck on, it blocks global hotkeys in other apps (e.g. Rectangle).
+# Enable manually via Ghostty > Secure Keyboard Entry when needed.
+macos-auto-secure-input = false
