@@ -2,7 +2,7 @@
 // verify-suppco — deterministic CLI that boots and drives the SuppCo app (Rails backend + SvelteKit web) and its iOS shell.
 // Run through bin/verify-suppco (mise shim). State, logs, auth and screenshots live in <suppco>/.verify-suppco/.
 //
-// Verbs: doctor · up · dev · code · down · status · logs · jobs · login · api · shot · open · pw · trace · rails · sql · db · throttle · env · ios
+// Verbs: doctor · up · dev · code · down · status · logs · jobs · login · api · shot · open · pw · trace · report · rails · sql · db · throttle · env · ios
 // `verify-suppco help` prints the full reference. Every verb exits 0 on success, 1 on failure, 2 on usage error.
 
 import fs from 'node:fs';
@@ -33,6 +33,7 @@ const P = {
   traces: path.join(STATE, 'traces'),
   browser: path.join(STATE, 'browser'),
   videos: path.join(STATE, 'videos'),   // recordings; `down` never removes it
+  reports: path.join(STATE, 'reports'), // `report` markdown
 };
 for (const d of Object.values(P)) if (!d.endsWith('.json')) fs.mkdirSync(d, { recursive: true });
 const USER_CWD = process.env.VERIFY_CWD || process.cwd();
@@ -1278,6 +1279,100 @@ async function cmdTrace(argv) {
   process.exit(r.code);
 }
 
+// -------------------------------------------------------------- report -----
+const STAMP_RE = /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/;
+/** `2026-09-23T20-35-01-123Z…` (a stamp() prefix) → Date, else null. */
+function stampDate(s) {
+  const m = STAMP_RE.exec(s);
+  return m ? new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`) : null;
+}
+const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const md = (s) => `\`${String(s).replace(/`/g, "'").replace(/\s+/g, ' ').slice(0, 300)}\``;
+
+/**
+ * Evidence runs, newest first: one per `*.run.json` (CLI-7) plus, for files no run.json claims, one per stamp prefix.
+ * Each is `{ time, verb, argv, exitCode, feature, runFile, artifacts }`.
+ */
+function evidenceRuns() {
+  const runs = [], claimed = new Set();
+  for (const dir of [P.shots, P.traces, P.videos]) {
+    for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.run.json')).sort()) {
+      const runFile = path.join(dir, f), rec = readJson(runFile);
+      if (!rec) continue;
+      const artifacts = (rec.artifacts || []).filter((a) => fs.existsSync(a));
+      artifacts.forEach((a) => claimed.add(path.resolve(a)));
+      runs.push({ time: new Date(rec.startedAt), verb: rec.verb, argv: rec.argv || [], exitCode: rec.exitCode, feature: rec.feature ?? null, runFile, artifacts });
+    }
+  }
+  const orphans = new Map();
+  for (const dir of [P.shots, P.traces, P.videos]) {
+    for (const f of fs.readdirSync(dir).sort()) {
+      const file = path.join(dir, f);
+      if (f.endsWith('.run.json') || claimed.has(file) || !fs.statSync(file).isFile()) continue;
+      const key = STAMP_RE.exec(f)?.[0] ?? f;
+      if (!orphans.has(key)) orphans.set(key, { time: stampDate(f) ?? fs.statSync(file).mtime, verb: null, argv: null, exitCode: null, feature: null, runFile: null, artifacts: [] });
+      orphans.get(key).artifacts.push(file);
+    }
+  }
+  runs.push(...orphans.values());
+  return runs.sort((a, b) => b.time - a.time || String(a.runFile ?? a.artifacts[0]).localeCompare(String(b.runFile ?? b.artifacts[0])));
+}
+
+/** Summary lines for one screenshot sidecar: entry point, final URL, status/badges, errors. */
+function sidecarLines(sidecar, rec) {
+  const lines = [];
+  if (rec.device) lines.push(`simulator ${md(rec.device)}${rec.target ? ` · target ${md(rec.target)}` : ''}`);
+  const entry = rec.requested ?? rec.target;
+  if (entry) lines.push(`entry point ${md(entry)}`);
+  const final = rec.url ?? rec.origin;
+  if (final) lines.push(`final URL ${md(final)}${rec.title ? ` · ${md(rec.title)}` : ''}`);
+  const badges = [rec.status != null && `status ${rec.status}`, rec.redirected && '**REDIRECTED**', rec.errorPage && '**ERROR PAGE**'].filter(Boolean);
+  if (badges.length) lines.push(badges.join(' · '));
+  const n = rec.network || {};
+  const errors = [
+    ...(n.pageErrors || []).map((e) => `page error ${md(e)}`),
+    ...(n.console || []).filter((m) => m.type === 'error').map((m) => `console ${md(m.text)}`),
+    ...(n.failed || []).map((r) => `failed ${md(`${r.status || r.failed} ${r.method} ${r.url}`)}`),
+  ];
+  lines.push(errors.length ? `errors (${errors.length}):` : 'errors: none');
+  return [`- ${md(path.basename(sidecar))}`, ...lines.map((l) => `  - ${l}`), ...errors.map((e) => `    - ${e}`)];
+}
+
+/** CLI-10 / EV-7: the markdown the GUI's "Export report" writes; links are relative to the report's directory. */
+function renderReport(runs, { feature, since, outDir }) {
+  const link = (f) => {
+    const rel = path.relative(outDir, f).split(path.sep).join('/');
+    return `[${path.basename(f)}](${encodeURI(rel).replace(/[()]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`)})`;
+  };
+  const filters = [feature && `feature ${md(feature)}`, since && `since ${md(since.toISOString())}`].filter(Boolean);
+  const out = ['# verify-suppco evidence report', '', `- Filters: ${filters.length ? filters.join(' · ') : 'none'}`,
+    `- Runs: ${runs.length} · artifacts: ${runs.reduce((n, r) => n + r.artifacts.length, 0)}`];
+  for (const r of runs) {
+    const title = r.verb ? `${r.verb}${r.argv.length ? ` ${md(r.argv.join(' '))}` : ''}` : 'artifacts without run.json';
+    out.push('', `## ${r.time.toISOString()} · ${title}`, '');
+    if (r.verb) out.push(`- Feature: ${r.feature ? md(r.feature) : '-'}`, `- Exit: ${r.exitCode ?? '-'}`, `- Run: ${link(r.runFile)}`);
+    const sidecars = r.artifacts.filter((a) => a.endsWith('.json') && r.artifacts.includes(a.replace(/\.json$/, '.png')));
+    for (const s of sidecars) { const rec = readJson(s); if (rec) out.push(...sidecarLines(s, rec)); }
+    out.push('- Artifacts:', ...r.artifacts.map((a) => `  - ${link(a)}`));
+  }
+  return out.join('\n') + '\n';
+}
+
+async function cmdReport(argv) {
+  const { flags } = parseArgs(argv, { feature: 'str', since: 'str', out: 'str' });
+  let since = null;
+  if (flags.since) {
+    since = stampDate(flags.since) ?? new Date(flags.since);
+    if (Number.isNaN(since.getTime())) fail(`--since needs an ISO time or a <stamp> prefix, got ${flags.since}`, 2);
+  }
+  const runs = evidenceRuns().filter((r) => (!flags.feature || r.feature === flags.feature) && (!since || r.time >= since));
+  const file = flags.out ? userPath(flags.out) : path.join(P.reports, `${stamp()}.md`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, renderReport(runs, { feature: flags.feature, since, outDir: path.dirname(file) }));
+  ok(`report: ${runs.length} run(s) → ${path.relative(USER_CWD, file)}`);
+  out(`${file}\n`);
+}
+
 // ---------------------------------------------------------- rails / sql ----
 async function cmdRails(argv) {
   const { flags, rest } = parseArgs(argv, { file: 'str', '-f': 'file', ...CFG_FLAGS });
@@ -1607,6 +1702,8 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
   shot/pw --video records .verify-suppco/videos/<stamp>-<slug>[-<user>].webm (path as \`video\` in the result); every shot/pw
   run writes <stamp>-<slug>[-<user>].run.json next to its output (verb, argv, startedAt, exitCode, artifacts, feature=$VERIFY_FEATURE)
   verify-suppco trace [file.zip]                 open the Playwright trace viewer (latest trace by default)
+  verify-suppco report [--feature id] [--since ts] [--out f.md]
+                                                          markdown of the evidence (runs newest first, links + sidecar summaries) → .verify-suppco/reports/<stamp>.md
 
   verify-suppco rails '<ruby>' | -f file.rb      bin/rails runner against the current --db
   verify-suppco sql '<query>' [--csv] | -f file.sql      psql against the current --db
@@ -1644,7 +1741,7 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
 const [cmd, ...argv] = process.argv.slice(2);
 const table = {
   doctor: cmdDoctor, up: cmdUp, dev: cmdDev, code: cmdCode, down: cmdDown, status: cmdStatus, logs: cmdLogs, jobs: cmdJobs,
-  login: cmdLogin, api: cmdApi, shot: cmdShot, open: cmdOpen, pw: cmdPw, trace: cmdTrace,
+  login: cmdLogin, api: cmdApi, shot: cmdShot, open: cmdOpen, pw: cmdPw, trace: cmdTrace, report: cmdReport,
   rails: cmdRails, sql: cmdSql, db: cmdDb, throttle: cmdThrottle, env: cmdEnv, ios: cmdIos,
   '--version': cmdVersion, help: () => out(HELP), '--help': () => out(HELP), '-h': () => out(HELP),
 };

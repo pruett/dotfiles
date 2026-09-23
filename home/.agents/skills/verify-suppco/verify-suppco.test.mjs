@@ -330,3 +330,67 @@ test('ios logs: last -n lines of log show filtered by --grep; -f streams log str
   child.kill('SIGTERM');
   await new Promise((res) => child.on('close', res));
 });
+
+// A fixture .verify-suppco/ evidence tree: two shot runs (one per feature), a pw run whose run.json in shots/ lists a trace and
+// a video, and an orphan trace with no run.json. Files are written in place of real captures.
+function evidenceRoot() {
+  const root = tmpRoot(), s = path.join(root, '.verify-suppco');
+  const put = (rel, body = 'x') => { const f = path.join(s, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, typeof body === 'string' ? body : JSON.stringify(body)); return f; };
+  const run = (rel, rec) => put(rel, { argv: [], exitCode: 0, ...rec });
+  const home = ['shots/2026-09-20T10-00-00-000Z-home-today-kevin.png', 'shots/2026-09-20T10-00-00-000Z-home-today-kevin.json'].map((r) => put(r, r.endsWith('.json') ? {
+    requested: '/home/today', url: 'https://localhost:3001/login', redirected: true, title: 'Log in', status: 200, errorPage: false,
+    network: { console: [{ type: 'error', text: 'boom `x`' }, { type: 'warning', text: 'meh' }], pageErrors: ['TypeError: y'], failed: [{ method: 'GET', url: 'https://api.supp.co/api/me', status: 401 }] },
+  } : 'png'));
+  run('shots/2026-09-20T10-00-00-000Z-home-today-kevin.run.json', { verb: 'shot', argv: ['shot', '/home/today', '--as', 'kevin@x.co'], startedAt: '2026-09-20T10:00:00.000Z', artifacts: home, feature: 'home-render' });
+  const odd = ['shots/2026-09-21T09-00-00-000Z-market (a b).png', 'shots/2026-09-21T09-00-00-000Z-market (a b).json'].map((r) => put(r, r.endsWith('.json') ? { requested: '/marketplace', url: 'https://localhost:3001/marketplace', redirected: false, status: 500, errorPage: true, network: { console: [], pageErrors: [], failed: [] } } : 'png'));
+  run('shots/2026-09-21T09-00-00-000Z-market (a b).run.json', { verb: 'shot', argv: ['shot', '/marketplace'], startedAt: '2026-09-21T09:00:00.000Z', exitCode: 1, artifacts: odd, feature: 'marketplace' });
+  const pw = [put('traces/2026-09-22T08-00-00-000Z-flow.zip'), put('videos/2026-09-22T08-00-00-000Z-flow.webm')];
+  run('shots/2026-09-22T08-00-00-000Z-flow.run.json', { verb: 'pw', argv: ['pw', 'flow.mjs', '--video'], startedAt: '2026-09-22T08:00:00.000Z', artifacts: pw, feature: 'home-render' });
+  put('traces/2026-09-19T07-00-00-000Z-old.zip');
+  return root;
+}
+const reportLinks = (file) => [...fs.readFileSync(file, 'utf8').matchAll(/\]\(([^)]+)\)/g)].map((m) => path.resolve(path.dirname(file), decodeURI(m[1]).replace(/%28/g, '(').replace(/%29/g, ')')));
+
+test('report writes reports/<stamp>.md: runs newest first, sidecar summaries, orphans grouped, every link resolves', () => {
+  const root = evidenceRoot();
+  const r = cliIn(root, 'report');
+  assert.equal(r.status, 0, r.stderr);
+  const file = r.stdout.trim();
+  assert.match(path.relative(root, file), /^\.verify-suppco\/reports\/\d{4}-\d{2}-\d{2}T[\d-]+Z\.md$/);
+  const text = fs.readFileSync(file, 'utf8');
+  const heads = text.split('\n').filter((l) => l.startsWith('## '));
+  assert.deepEqual(heads.map((h) => h.slice(3, 27)), ['2026-09-22T08:00:00.000Z', '2026-09-21T09:00:00.000Z', '2026-09-20T10:00:00.000Z', '2026-09-19T07:00:00.000Z']);
+  assert.match(heads[3], /artifacts without run\.json/);
+  assert.match(text, /- Runs: 4 · artifacts: 7/);
+  for (const s of ['entry point `/home/today`', 'final URL `https://localhost:3001/login`', '**REDIRECTED**', '**ERROR PAGE**', 'status 500',
+    "console `boom 'x'`", 'page error `TypeError: y`', 'failed `401 GET https://api.supp.co/api/me`', 'errors (3):', 'errors: none', 'Feature: `home-render`', 'Exit: 1'])
+    assert.ok(text.includes(s), `missing ${s}`);
+  assert.ok(!text.includes('meh'), 'console warnings are not errors');
+  const links = reportLinks(file);
+  assert.equal(links.length, 7 + 3);
+  for (const l of links) assert.ok(fs.existsSync(l), `dangling link ${l}`);
+});
+
+test('report --feature/--since select runs; --out places the file and links stay relative to it; a bad --since exits 2', () => {
+  const root = evidenceRoot();
+  const out = path.join(root, 'elsewhere/r.md');
+  const r = cliIn(root, 'report', '--feature', 'home-render', '--out', out);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), out);
+  const text = fs.readFileSync(out, 'utf8');
+  assert.equal(text.split('\n').filter((l) => l.startsWith('## ')).length, 2);
+  assert.match(text, /- Filters: feature `home-render`/);
+  assert.ok(!text.includes('marketplace') && !text.includes('old.zip'));
+  for (const l of reportLinks(out)) assert.ok(fs.existsSync(l), `dangling link ${l}`);
+  const again = cliIn(root, 'report', '--feature', 'home-render', '--out', out);
+  assert.equal(fs.readFileSync(out, 'utf8'), text, 'same selection → byte-identical output');
+  assert.equal(again.status, 0);
+
+  const since = cliIn(root, 'report', '--since', '2026-09-21T00:00:00Z', '--out', out);
+  assert.equal(since.status, 0, since.stderr);
+  assert.equal(fs.readFileSync(out, 'utf8').split('\n').filter((l) => l.startsWith('## ')).length, 2);
+  const stampSince = cliIn(root, 'report', '--since', '2026-09-22T08-00-00-000Z', '--out', out);
+  assert.equal(stampSince.status, 0, stampSince.stderr);
+  assert.equal(fs.readFileSync(out, 'utf8').split('\n').filter((l) => l.startsWith('## ')).length, 1);
+  assert.equal(cliIn(root, 'report', '--since', 'yesterday-ish').status, 2);
+});

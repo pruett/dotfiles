@@ -83,7 +83,9 @@ is running, against which API/database, and which minted sessions are still fres
 - Side effects: prove them with a read-only second look, `verify-suppco sql '<select>'` or `verify-suppco rails '<ruby>'`,
   never by trusting the UI alone.
 - Evidence survives `down`: nothing under `.verify-suppco/shots`, `traces` or `videos` is removed by teardown. Name the
-  files in your report.
+  files in your report. `verify-suppco report [--feature id] [--since ts] [--out f.md]` writes a markdown summary of that
+  evidence (one section per run, newest first, with relative links and each sidecar's entry point, final URL and errors) to
+  `.verify-suppco/reports/<timestamp>.md` and prints its path.
 
 ## Cleanup
 
