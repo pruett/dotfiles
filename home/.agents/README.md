@@ -25,6 +25,12 @@ skills add https://github.com/herdrdev/herdr --skill herdr
 `skills add` supplies `--global --agent zed --yes` and refreshes the Stow links
 automatically.
 
+Hand-written skills (not in the lockfile) live here too, e.g. `orchestrate`,
+`explain-pr`, `visual-pr` and `verify-suppco`. A skill that ships a CLI exposes it
+through a relative symlink in `home/.local/bin` (`verify-suppco -> ../../.agents/skills/verify-suppco/bin/verify-suppco`)
+so Stow puts it on `PATH`; after adding one, run `skills sync claude claude-work`
+to create the agent links, then `stow -R home`.
+
 `zed` is used as the installer target because its global skill directory is the
 shared `~/.agents/skills` directory. Run `skills sync <agent>` to create one
 relative symlink per skill in an agent-specific location:

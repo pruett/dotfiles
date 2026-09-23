@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# verify-suppco — boots and drives the SuppCo app (backend + web) deterministically.
+# Thin shim: runs verify-suppco.mjs with the web repo's toolchain (Node 22 + pnpm via mise)
+# so Playwright and @auth/core resolve from web/apps/web/node_modules.
+set -euo pipefail
+HERE="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"   # resolve through the ~/.local/bin symlink
+ROOT="${SUPPCO_ROOT:-$HOME/work/suppco}"                                    # backend/, web/ and .verify-suppco/ live here
+export SUPPCO_ROOT="$ROOT"
+export VERIFY_CWD="$PWD"
+if [[ -z "${NODE_EXTRA_CA_CERTS:-}" ]] && command -v mkcert >/dev/null 2>&1; then
+  ca_root="$(mkcert -CAROOT)"
+  if [[ -f "$ca_root/rootCA.pem" ]]; then
+    export NODE_EXTRA_CA_CERTS="$ca_root/rootCA.pem"
+  fi
+fi
+exec mise exec -C "$ROOT/web" -- node "$HERE/verify-suppco.mjs" "$@"
