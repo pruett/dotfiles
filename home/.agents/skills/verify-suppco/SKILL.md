@@ -64,6 +64,7 @@ is running, against which API/database, and which minted sessions are still fres
 | native app against staging / production | `verify-suppco ios --target staging` / `--target prod` (no local web needed) |
 | the native app shows a blank page / old config | `verify-suppco ios sync` (forced re-sync; `up`/`run` skip it when nothing changed), then rebuild |
 | screenshot the **simulator** / list simulators | `verify-suppco ios shot [--device <name\|udid>] [--out f.png] [--json]` → `.verify-suppco/shots/<stamp>-ios-<device>.png` + `.json` sidecar (`device, udid, target, origin`) and `.run.json`; needs a booted simulator. `verify-suppco ios devices --json` → `[{name,udid,state,runtime}]` |
+| record the **simulator** screen / read the app's simulator log | `verify-suppco ios record start [--device <name\|udid>]` … `verify-suppco ios record stop` → `.verify-suppco/videos/<stamp>-ios-<device>.mov` + `.run.json` (`status --json` shows `ios.recording` while live). `verify-suppco ios logs [--grep re] [-n N] [-f]` — last N lines of the app's log (10 min window), or `-f` to stream |
 
 `--api local|staging|prod` picks what the web app talks to (default `prod`: web only; `--api local` boots Rails) and
 `--db dev|prod|staging|<name>` picks the local Postgres database Rails uses. Ports are fixed at :3000/:3001.

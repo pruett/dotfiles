@@ -1050,7 +1050,7 @@ async function gatherStatus() {
     backend: cfg.api === 'local' ? { ...b, url: BACKEND_URL, health: bh, db: cfg.db, pid: s.backend?.pid, log: s.backend?.log } : { state: 'remote', url: t.apiBase },
     web: { ...w, url: WEB_URL, health: wh, apiUrl: `${t.apiBase}/api`, pid: s.web?.pid, log: s.web?.log },
     repos: Object.fromEntries(checkouts(cfg).map((x) => [x.role, { dir: x.dir, missing: !x.exists, ...(gitInfo(x.dir) || {}) }])),
-    sessions, pulls: s.pulls || {}, ios: s.ios,
+    sessions, pulls: s.pulls || {}, ios: iosStatus(s.ios),
     orphans: ['backend', 'web'].flatMap((role) => [...new Set(live.filter((p) => p.role === role).map((p) => p.pgid))]
       .filter((g) => g !== s[role]?.pgid).map((pgid) => ({ role, pgid }))),
   };
@@ -1065,7 +1065,8 @@ async function cmdStatus(argv) {
   line('web', st.web, `api=${st.config.api} → ${st.web.apiUrl}${st.web.pid ? `  pid ${st.web.pid}` : ''}`);
   for (const a of st.sessions) console.log(`session  ${a.email}  ${a.mode}  ${a.api}${a.db ? '/' + a.db : ''}  ${a.fresh ? 'fresh' : 'stale'}${a.expiresAt ? `  (until ${new Date(a.expiresAt * 1000).toLocaleTimeString()})` : ''}`);
   for (const [db, p] of Object.entries(st.pulls)) console.log(`pull     ${db}  ${p.at}  ${Array.isArray(p.tables) ? p.tables.join(',') : p.tables}`);
-  if (st.ios) console.log(`ios      ${st.ios.target.padEnd(8)} loads ${st.ios.origin}  scheme "${IOS.schemes[st.ios.target]}"  synced ${st.ios.syncedAt}  ${path.relative(ROOT, st.ios.webapp)}`);
+  if (st.ios?.recording) console.log(`ios      recording ${st.ios.recording.device} since ${st.ios.recording.startedAt}  pid ${st.ios.recording.pid}  → ${st.ios.recording.file}  (verify-suppco ios record stop)`);
+  if (st.ios?.target) console.log(`ios      ${st.ios.target.padEnd(8)} loads ${st.ios.origin}  scheme "${IOS.schemes[st.ios.target]}"  synced ${st.ios.syncedAt}  ${path.relative(ROOT, st.ios.webapp)}`);
   for (const o of st.orphans) console.log(c(33, `orphan   ${o.role} pgid ${o.pgid} started by verify-suppco but not the current instance — verify-suppco down reaps it`));
 }
 
@@ -1383,7 +1384,7 @@ function iosPreflight() {
   if (!has('pod')) fail('CocoaPods missing — run: brew install cocoapods');
 }
 
-const IOS_FLAGS = { ...CFG_FLAGS, target: 'str', device: 'str', 'no-web': 'bool', takeover: 'bool', out: 'str', json: 'bool' };
+const IOS_FLAGS = { ...CFG_FLAGS, target: 'str', device: 'str', 'no-web': 'bool', takeover: 'bool', out: 'str', json: 'bool', grep: 'str', n: 'str', '-n': 'n', follow: 'bool', '-f': 'follow' };
 const IOS_STEPS = { up: ['sync', 'open'], sync: ['sync'], open: ['open'], run: ['sync', 'run'] };
 /**
  * verify-suppco ios [up|sync|open|run|devices]. The native app is a shell that loads the web app from an origin chosen at
@@ -1391,16 +1392,18 @@ const IOS_STEPS = { up: ['sync', 'open'], sync: ['sync'], open: ['open'], run: [
  */
 async function cmdIos(argv) {
   const sub = argv[0] && !argv[0].startsWith('-') ? argv[0] : 'up';
-  const { flags } = parseArgs(argv[0] === sub ? argv.slice(1) : argv, IOS_FLAGS);
-  // devices and shot only talk to simctl: no Xcode/CocoaPods preflight.
+  const { flags, rest } = parseArgs(argv[0] === sub ? argv.slice(1) : argv, IOS_FLAGS);
+  // devices, shot, record and logs only talk to simctl: no Xcode/CocoaPods preflight.
   if (sub === 'devices') {
     if (flags.json) return out(listSimulators());
     for (const d of iosSimulators()) console.log(`${d.state.padEnd(9)} ${d.udid}  ${d.name}  (${d.runtime})`);
     return;
   }
   if (sub === 'shot') return iosShot(flags);
+  if (sub === 'record') return iosRecord(rest[0], flags);
+  if (sub === 'logs') return iosLogs(flags);
   iosPreflight();
-  if (!IOS_STEPS[sub]) fail('usage: verify-suppco ios [up|sync|open|run|devices|shot] [--target dev|staging|prod] [--tunnel host] [--api-tunnel host] [--device name|udid] [--no-web] [--web <branch|dir>]', 2);
+  if (!IOS_STEPS[sub]) fail('usage: verify-suppco ios [up|sync|open|run|devices|shot|record start|stop|logs] [--target dev|staging|prod] [--tunnel host] [--api-tunnel host] [--device name|udid] [--no-web] [--web <branch|dir>]', 2);
   const tgt = flags.target || readState().ios?.target || 'dev';
   if (!IOS.schemes[tgt]) fail(`--target must be dev|staging|prod (got ${tgt})`, 2);
   // dev target: the shell loads the web app from this Mac through the Cloudflare tunnel (real cert, native sign-in
@@ -1428,7 +1431,7 @@ async function cmdIos(argv) {
       log(`cap sync ios  TARGET=${tgt}${tgt === 'dev' ? `  SUPP_DEV_TUNNEL=${cfg.tunnel}` : ''}  ${path.relative(ROOT, webapp)}  → app loads ${origin}`);
       const r = await mise(webapp, ['pnpm', 'run', 'sync:ios'], { cwd: webapp, env: { TARGET: tgt, SUPP_DEV_TUNNEL: tgt === 'dev' ? cfg.tunnel : '' }, inherit: true });
       if (r.code !== 0) fail(`cap sync ios failed (output above). Podfile paths resolve into ${path.relative(ROOT, dirs(cfg).web)}/node_modules/.pnpm — run pnpm install there if a pod path is missing.`);
-      updateState((s) => { s.ios = { target: tgt, origin, webapp, key, syncedAt: new Date().toISOString() }; });
+      updateState((s) => { s.ios = { ...(s.ios?.recording ? { recording: s.ios.recording } : {}), target: tgt, origin, webapp, key, syncedAt: new Date().toISOString() }; });
       ok(`synced  TARGET=${tgt}  app loads ${origin}`);
     },
     async run() {
@@ -1497,6 +1500,76 @@ async function iosShot(flags) {
   else console.log(`${file}\n${dev.name} (${dev.udid})${result.origin ? `  loads ${result.origin}` : ''}`);
 }
 
+/** status view of state.ios: a recording whose recorder died (reboot, kill -9) is dropped so it never shows as live. */
+function iosStatus(ios) {
+  if (!ios?.recording || alive(ios.recording.pid)) return ios;
+  const { recording, ...rest } = ios;
+  return Object.keys(rest).length ? rest : undefined;
+}
+
+/**
+ * CLI-4: `ios record start|stop [--device d] [--json]`. start detaches `xcrun simctl io <udid> recordVideo --codec h264
+ * videos/<stamp>-ios-<device>.mov` and keeps `{ pid, file, device, udid, startedAt }` in state.json `ios.recording`;
+ * stop sends SIGINT to that process group (simctl finalises the .mov on SIGINT), waits for it, clears the state and
+ * writes `<base>.run.json` beside the video.
+ */
+async function iosRecord(action, flags) {
+  const cur = readState().ios?.recording;
+  if (action === 'start') {
+    if (cur && alive(cur.pid)) fail(`already recording ${cur.device} into ${cur.file} (pid ${cur.pid}) — verify-suppco ios record stop`);
+    const dev = pickSimulator(iosSimulators(), flags.device, { booted: true });
+    const file = path.join(P.videos, `${stamp()}-ios-${slugify(dev.name)}.mov`);
+    const d = detach('ios-record', 'xcrun', ['simctl', 'io', dev.udid, 'recordVideo', '--codec', 'h264', file]);
+    await sleep(500);
+    if (!alive(d.pid)) fail(`simctl recordVideo exited at once:\n${tailLog(d.log, 20)}`);
+    const recording = { pid: d.pid, file, device: dev.name, udid: dev.udid, startedAt: d.startedAt };
+    updateState((s) => { (s.ios ??= {}).recording = recording; });
+    return flags.json ? out(recording) : console.log(`recording ${dev.name} → ${file}\nstop with: verify-suppco ios record stop`);
+  }
+  if (action !== 'stop') fail('usage: verify-suppco ios record start|stop [--device name|udid] [--json]', 2);
+  if (!cur) fail('not recording — verify-suppco ios record start');
+  if (alive(cur.pid)) { try { process.kill(-cur.pid, 'SIGINT'); } catch { process.kill(cur.pid, 'SIGINT'); } }
+  const gone = await waitFor(async () => !alive(cur.pid), { timeoutMs: 20000, everyMs: 100, label: 'the recorder to finalise the .mov' }).catch(() => false);
+  if (!gone) { try { process.kill(-cur.pid, 'SIGKILL'); } catch { /* gone */ } }
+  updateState((s) => { if (s.ios) { delete s.ios.recording; if (!Object.keys(s.ios).length) delete s.ios; } });
+  const bytes = fs.existsSync(cur.file) ? fs.statSync(cur.file).size : 0;
+  const exitCode = gone && bytes > 0 ? 0 : 1;
+  writeRun(P.videos, path.basename(cur.file, '.mov'), { verb: 'ios', startedAt: new Date(cur.startedAt), exitCode, artifacts: exitCode ? [] : [cur.file] });
+  if (exitCode) fail(`recording did not finalise (${gone ? `${bytes} bytes` : 'recorder ignored SIGINT, killed'}):\n${tailLog(path.join(P.logs, 'ios-record.log'), 20)}`);
+  const result = { ...cur, stoppedAt: new Date().toISOString(), bytes };
+  delete result.pid;
+  if (flags.json) out(result); else console.log(`${cur.file}  (${bytes} bytes, ${cur.device})`);
+}
+
+/**
+ * CLI-5: `ios logs [--device d] [--grep re] [-n N] [-f]` — the app's unified log on a booted simulator
+ * (`simctl spawn <udid> log …` with predicate processImagePath contains "App"). -f follows `log stream` until killed;
+ * without it, the last N (default 80) lines of `log show --last 10m`. --grep is a JS regex applied line by line.
+ */
+async function iosLogs(flags) {
+  const dev = pickSimulator(iosSimulators(), flags.device, { booted: true });
+  const n = Number(flags.n || 80);
+  if (!Number.isInteger(n) || n < 1) fail(`-n must be a positive integer (got ${flags.n})`, 2);
+  let re = null;
+  try { re = flags.grep ? new RegExp(flags.grep) : null; } catch (e) { fail(`--grep: ${e.message}`, 2); }
+  const predicate = 'processImagePath contains "App"';
+  const args = ['simctl', 'spawn', dev.udid, 'log', flags.follow ? 'stream' : 'show', ...(flags.follow ? [] : ['--last', '10m']), '--style', 'compact', '--predicate', predicate];
+  const child = spawn('xcrun', args, { stdio: ['ignore', 'pipe', 'inherit'] });
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { child.kill(sig); process.exit(0); });
+  const kept = []; let buf = '';
+  const line = (l) => {
+    if (re && !re.test(l)) return;
+    if (flags.follow) process.stdout.write(l + '\n');
+    else { kept.push(l); if (kept.length > n) kept.shift(); }
+  };
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (d) => { buf += d; const parts = buf.split('\n'); buf = parts.pop(); parts.forEach(line); });
+  const code = await new Promise((resolve) => { child.on('error', (e) => { console.error(e.message); resolve(127); }); child.on('close', (c) => resolve(c ?? 1)); });
+  if (buf) line(buf);
+  if (kept.length) process.stdout.write(kept.join('\n') + '\n');
+  process.exit(code);
+}
+
 // ------------------------------------------------------------- version -----
 /** `x.y.z (sha)`: the semver from the skill dir's package.json plus the checkout's short sha (`unknown` outside git). */
 function cmdVersion() {
@@ -1549,6 +1622,10 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
   verify-suppco ios sync | open | devices [--json]   just sync, just open App.xcworkspace, list simulators ({name,udid,state,runtime})
   verify-suppco ios shot [--device name|udid] [--out f.png] [--json]
                                                           simulator screenshot → .verify-suppco/shots/<stamp>-ios-<device>.png + .json sidecar
+  verify-suppco ios record start|stop [--device name|udid] [--json]
+                                                          simulator video → .verify-suppco/videos/<stamp>-ios-<device>.mov (state.json ios.recording while live)
+  verify-suppco ios logs [--device name|udid] [--grep re] [-n N] [-f]
+                                                          the app's simulator log (last N lines of 10 min, or -f to stream)
 
   --api   where the web app points: local (boot Rails on :3000) | staging | prod (api.supp.co, real data, real login)
   --db    which local Postgres database Rails uses: dev = api_development (seed data) | prod = api_prod_mirror | staging = api_staging_mirror | any name

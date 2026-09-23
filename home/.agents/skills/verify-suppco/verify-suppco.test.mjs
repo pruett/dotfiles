@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -226,6 +226,9 @@ ${JSON.stringify(devices)}
 JSON
   ;;
   "simctl io "*" screenshot "*) ${screenshotFails ? 'echo "Invalid device state" >&2; exit 1' : 'for f; do :; done; printf png > "$f"'} ;;
+  "simctl io "*" recordVideo --codec h264 "*) for f; do :; done; trap 'printf mov > "$f"; exit 0' INT; while :; do sleep 0.05; done ;;
+  "simctl spawn "*" log show "*) for i in 1 2 3 4 5; do echo "App[1:$i] line $i"; done; echo "App[1:9] GET /boom" ;;
+  "simctl spawn "*" log stream "*) echo "App[1:1] streamed GET /a"; echo "App[1:2] streamed POST /b"; while :; do sleep 0.05; done ;;
   *) exit 64 ;;
 esac
 `, { mode: 0o755 });
@@ -277,4 +280,53 @@ test('ios shot --device/--out: by name or udid; a shut-down or unknown device an
   const [{ rec }] = runJsons(path.join(broken, '.verify-suppco/shots'));
   assert.equal(rec.exitCode, 1);
   assert.deepEqual(rec.artifacts, []);
+});
+
+const iosEnv = (root) => ({ ...process.env, PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`, SUPPCO_ROOT: root, SUPP_DEV_TUNNEL: '', VERIFY_CWD: root });
+const statusIos = (root) => { const r = iosCli(root, 'status', '--json'); assert.equal(r.status, 0, r.stderr); return JSON.parse(r.stdout).ios; };
+
+test('ios record start|stop: pid in state.json ios.recording only while live, SIGINT finalises a .mov in videos/ with a run.json', () => {
+  const root = xcrunRoot();
+  const start = iosCli(root, 'ios', 'record', 'start', '--json');
+  assert.equal(start.status, 0, start.stderr);
+  const rec = JSON.parse(start.stdout);
+  assert.match(path.basename(rec.file), /^\d{4}-\d\d-\d\dT[\d-]+Z-ios-iPhone-16\.mov$/);
+  assert.equal(path.dirname(rec.file), path.join(root, '.verify-suppco/videos'));
+  assert.deepEqual(statusIos(root).recording, rec);
+  assert.equal(statusIos(root).target, 'dev', 'sync state is kept beside the recording');
+  assert.match(fs.readFileSync(path.join(root, 'xcrun.log'), 'utf8'), new RegExp(`^simctl io AAAA-1111 recordVideo --codec h264 ${rec.file}$`, 'm'));
+  assert.equal(iosCli(root, 'ios', 'record', 'start').status, 1, 'a second start is refused');
+  const stop = iosCli(root, 'ios', 'record', 'stop', '--json');
+  assert.equal(stop.status, 0, stop.stderr);
+  const done = JSON.parse(stop.stdout);
+  assert.equal(done.file, rec.file);
+  assert.ok(fs.statSync(rec.file).size > 0 && done.bytes > 0);
+  assert.equal(statusIos(root).recording, undefined);
+  assert.equal(statusIos(root).target, 'dev');
+  assert.throws(() => process.kill(rec.pid, 0));
+  const [{ rec: run }] = runJsons(path.join(root, '.verify-suppco/videos'));
+  assert.deepEqual([run.verb, run.exitCode, run.artifacts], ['ios', 0, [rec.file]]);
+  const again = iosCli(root, 'ios', 'record', 'stop');
+  assert.equal(again.status, 1);
+  assert.match(again.stderr, /not recording/);
+  assert.equal(iosCli(root, 'ios', 'record', 'pause').status, 2);
+});
+
+test('ios logs: last -n lines of log show filtered by --grep; -f streams log stream until killed', async () => {
+  const root = xcrunRoot();
+  const r = iosCli(root, 'ios', 'logs', '-n', '2');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(lines(r).filter(Boolean), ['App[1:5] line 5', 'App[1:9] GET /boom']);
+  assert.match(fs.readFileSync(path.join(root, 'xcrun.log'), 'utf8'), /^simctl spawn AAAA-1111 log show --last 10m --style compact --predicate processImagePath contains "App"$/m);
+  assert.deepEqual(lines(iosCli(root, 'ios', 'logs', '--grep', 'line [24]')).filter(Boolean), ['App[1:2] line 2', 'App[1:4] line 4']);
+  assert.equal(iosCli(root, 'ios', 'logs', '--grep', '(').status, 2);
+  const child = spawn(process.execPath, [cli, 'ios', 'logs', '-f', '--grep', 'POST'], { env: iosEnv(root) });
+  let got = '';
+  child.stdout.on('data', (d) => (got += d));
+  const deadline = Date.now() + 5000;
+  while (!got.includes('\n') && Date.now() < deadline) await new Promise((res) => setTimeout(res, 50));
+  assert.equal(got, 'App[1:2] streamed POST /b\n');
+  assert.equal(child.exitCode, null, 'still streaming');
+  child.kill('SIGTERM');
+  await new Promise((res) => child.on('close', res));
 });
