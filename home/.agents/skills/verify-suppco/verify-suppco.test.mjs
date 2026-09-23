@@ -81,3 +81,20 @@ test('a remembered --web checkout that no longer exists is refused by name, and 
   assert.doesNotMatch(fixed.stdout.split('\n')[0], /webDir/);
   function root0() { return path.join(os.tmpdir(), 'verify-suppco-test-nowhere'); }
 });
+
+test('--version prints the package.json semver and the checkout short sha', () => {
+  const r = cliRun('--version');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^\d+\.\d+\.\d+ \([0-9a-f]{7,}\)\n$/);
+});
+
+test('doctor --json prints the rows array (with an ffmpeg row) and creates the videos dir', () => {
+  const root = tmpRoot();
+  const r = cliIn(root, 'doctor', '--json');
+  const rows = JSON.parse(r.stdout);
+  assert.ok(Array.isArray(rows) && rows.length >= 15, `only ${rows.length} rows`);
+  for (const row of rows) assert.deepEqual(Object.keys(row).sort(), ['detail', 'fix', 'name', 'status']);
+  const ff = rows.find((x) => x.name === 'ffmpeg (recordings → mp4)');
+  assert.ok(ff && ['ok', 'warn'].includes(ff.status));
+  assert.ok(fs.statSync(path.join(root, '.verify-suppco/videos')).isDirectory());
+});

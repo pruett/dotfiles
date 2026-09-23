@@ -1,0 +1,6 @@
+{
+  "name": "verify-suppco",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Boot and drive the SuppCo app (Rails backend + SvelteKit web) from the terminal"
+}

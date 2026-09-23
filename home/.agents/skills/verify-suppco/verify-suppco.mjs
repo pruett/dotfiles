@@ -32,6 +32,7 @@ const P = {
   env: path.join(STATE, 'env'),
   traces: path.join(STATE, 'traces'),
   browser: path.join(STATE, 'browser'),
+  videos: path.join(STATE, 'videos'),   // recordings; `down` never removes it
 };
 for (const d of Object.values(P)) if (!d.endsWith('.json')) fs.mkdirSync(d, { recursive: true });
 const USER_CWD = process.env.VERIFY_CWD || process.cwd();
@@ -788,7 +789,8 @@ async function cfgFromFlags(f) {
 }
 
 // -------------------------------------------------------------- doctor -----
-async function cmdDoctor() {
+async function cmdDoctor(argv) {
+  const { json } = parseArgs(argv, { json: 'bool' }).flags;
   const cfg = currentConfig();
   const rows = [];
   const add = (name, status, detail = '', fix = '') => rows.push({ name, status, detail, fix });
@@ -828,6 +830,7 @@ async function cmdDoctor() {
   const xc = xcodeDevDir();
   add('xcode (verify-suppco ios)', xc.ok ? 'ok' : 'warn', xc.dir || 'no active developer dir', xc.fix);
   add('cocoapods (verify-suppco ios)', has('pod') ? 'ok' : 'warn', '', 'brew install cocoapods');
+  add('ffmpeg (recordings → mp4)', has('ffmpeg') ? 'ok' : 'warn', has('ffmpeg') ? '' : 'recordings stay .webm', 'brew install ffmpeg');
   if (xc.ok) { const rt = iosRuntimes(); add('ios simulator runtime', rt.length ? 'ok' : 'warn', rt.join(', ') || 'none installed', 'xcodebuild -downloadPlatform iOS'); }
   if (cfg.tunnel) { const st = await httpStatus(`https://${cfg.tunnel}/`, { timeoutMs: 8000 }); add('web tunnel (verify-suppco ios)', st === 200 ? 'ok' : 'warn', `https://${cfg.tunnel}/ → ${st ? `http ${st}` : 'no answer'}`, 'start cloudflared for that host (backend/README.md → Cloudflare Tunnel) and verify-suppco up'); }
   else add('web tunnel (verify-suppco ios)', 'warn', 'none configured', 'verify-suppco up --tunnel <you>-dev.supp.co   (see backend/README.md → Cloudflare Tunnel)');
@@ -836,8 +839,9 @@ async function cmdDoctor() {
     const i = inspect(role, s[role]);
     add(`${role} :${PORTS[role]}`, 'info', i.state === 'down' ? 'free' : `${i.state} (pids ${i.pids.join(',')})`);
   }
+  if (json) console.log(JSON.stringify(rows, null, 2));
   const width = Math.max(...rows.map((r) => r.name.length));
-  for (const r of rows) {
+  if (!json) for (const r of rows) {
     const tag = r.status === 'ok' ? c(32, ' ok ') : r.status === 'warn' ? c(33, 'warn') : r.status === 'info' ? c(36, 'info') : c(31, 'FAIL');
     console.log(`${tag}  ${r.name.padEnd(width)}  ${r.detail}${r.fix && r.status !== 'ok' && r.status !== 'info' ? c(90, `   fix: ${r.fix}`) : ''}`);
   }
@@ -1403,10 +1407,19 @@ async function cmdIos(argv) {
 `);
 }
 
+// ------------------------------------------------------------- version -----
+/** `x.y.z (sha)`: the semver from the skill dir's package.json plus the checkout's short sha (`unknown` outside git). */
+function cmdVersion() {
+  const { version } = JSON.parse(fs.readFileSync(path.join(HERE, 'package.json'), 'utf8'));
+  const r = spawnSync('git', ['-C', HERE, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' });
+  out(`${version} (${r.status === 0 ? r.stdout.trim() : 'unknown'})\n`);
+}
+
 // ---------------------------------------------------------------- help -----
 const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
 
-  verify-suppco doctor                           check prerequisites; prints the fix for anything red
+  verify-suppco doctor [--json]                  check prerequisites; prints the fix for anything red (--json: [{name,status,detail,fix}])
+  verify-suppco --version                        x.y.z (dotfiles short sha)
   verify-suppco up [--api local|staging|prod] [--db dev|prod|<name>] [--as <email>] [--role r] [--real]
                    [--backend <branch|dir>] [--web <branch|dir>] [--migrate] [--tunnel host] [--api-tunnel host]
                    [--takeover] [--no-web] [--no-backend]
@@ -1462,7 +1475,7 @@ const table = {
   doctor: cmdDoctor, up: cmdUp, dev: cmdDev, code: cmdCode, down: cmdDown, status: cmdStatus, logs: cmdLogs, jobs: cmdJobs,
   login: cmdLogin, api: cmdApi, shot: cmdShot, open: cmdOpen, pw: cmdPw, trace: cmdTrace,
   rails: cmdRails, sql: cmdSql, db: cmdDb, throttle: cmdThrottle, env: cmdEnv, ios: cmdIos,
-  help: () => out(HELP), '--help': () => out(HELP), '-h': () => out(HELP),
+  '--version': cmdVersion, help: () => out(HELP), '--help': () => out(HELP), '-h': () => out(HELP),
 };
 if (!cmd || !table[cmd]) { out(HELP); process.exit(cmd ? 2 : 0); }
 try { await table[cmd](argv); } catch (e) { fail(e?.stack || String(e)); }
