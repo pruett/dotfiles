@@ -1357,14 +1357,25 @@ function iosRuntimes() {
   if (r.status !== 0) return [];
   return (JSON.parse(r.stdout || '{}').runtimes || []).filter((x) => x.platform === 'iOS' && x.isAvailable).map((x) => x.name);
 }
-/** Available iOS simulators: [{ udid, name, state, runtime }]; fails when none is installed. */
-function iosSimulators() {
+/** Available iOS simulators: [{ name, udid, state, runtime }]; [] when none (or no xcrun). */
+function listSimulators() {
   const r = spawnSync('xcrun', ['simctl', 'list', 'devices', 'available', '-j'], { encoding: 'utf8' });
-  const sims = r.status !== 0 ? [] : Object.entries(JSON.parse(r.stdout || '{}').devices || {})
+  return r.status !== 0 ? [] : Object.entries(JSON.parse(r.stdout || '{}').devices || {})
     .filter(([rt]) => /iOS/.test(rt))
-    .flatMap(([rt, ds]) => ds.map((d) => ({ udid: d.udid, name: d.name, state: d.state, runtime: rt.replace(/.*SimRuntime\./, '') })));
+    .flatMap(([rt, ds]) => ds.map((d) => ({ name: d.name, udid: d.udid, state: d.state, runtime: rt.replace(/.*SimRuntime\./, '') })));
+}
+/** Like listSimulators, but fails when none is installed. */
+function iosSimulators() {
+  const sims = listSimulators();
   if (!sims.length) fail('no iOS simulator available — run: xcodebuild -downloadPlatform iOS   (or Xcode → Settings → Components)');
   return sims;
+}
+/** `--device name|udid`, else the booted simulator; `booted` refuses one that is not running (simctl io needs it booted). */
+function pickSimulator(sims, device, { booted = false } = {}) {
+  const dev = device ? sims.find((d) => d.udid === device || d.name === device) : sims.find((d) => d.state === 'Booted');
+  if (!dev) fail(device ? `no simulator matches '${device}' — see: verify-suppco ios devices` : 'no booted simulator — start one (verify-suppco ios run, or open -a Simulator) or pass --device name|udid');
+  if (booted && dev.state !== 'Booted') fail(`simulator ${dev.name} is ${dev.state}, not Booted — xcrun simctl boot ${dev.udid}`);
+  return dev;
 }
 function iosPreflight() {
   const xc = xcodeDevDir();
@@ -1372,7 +1383,7 @@ function iosPreflight() {
   if (!has('pod')) fail('CocoaPods missing — run: brew install cocoapods');
 }
 
-const IOS_FLAGS = { ...CFG_FLAGS, target: 'str', device: 'str', 'no-web': 'bool', takeover: 'bool' };
+const IOS_FLAGS = { ...CFG_FLAGS, target: 'str', device: 'str', 'no-web': 'bool', takeover: 'bool', out: 'str', json: 'bool' };
 const IOS_STEPS = { up: ['sync', 'open'], sync: ['sync'], open: ['open'], run: ['sync', 'run'] };
 /**
  * verify-suppco ios [up|sync|open|run|devices]. The native app is a shell that loads the web app from an origin chosen at
@@ -1381,12 +1392,15 @@ const IOS_STEPS = { up: ['sync', 'open'], sync: ['sync'], open: ['open'], run: [
 async function cmdIos(argv) {
   const sub = argv[0] && !argv[0].startsWith('-') ? argv[0] : 'up';
   const { flags } = parseArgs(argv[0] === sub ? argv.slice(1) : argv, IOS_FLAGS);
-  iosPreflight();
+  // devices and shot only talk to simctl: no Xcode/CocoaPods preflight.
   if (sub === 'devices') {
+    if (flags.json) return out(listSimulators());
     for (const d of iosSimulators()) console.log(`${d.state.padEnd(9)} ${d.udid}  ${d.name}  (${d.runtime})`);
     return;
   }
-  if (!IOS_STEPS[sub]) fail('usage: verify-suppco ios [up|sync|open|run|devices] [--target dev|staging|prod] [--tunnel host] [--api-tunnel host] [--device name|udid] [--no-web] [--web <branch|dir>]', 2);
+  if (sub === 'shot') return iosShot(flags);
+  iosPreflight();
+  if (!IOS_STEPS[sub]) fail('usage: verify-suppco ios [up|sync|open|run|devices|shot] [--target dev|staging|prod] [--tunnel host] [--api-tunnel host] [--device name|udid] [--no-web] [--web <branch|dir>]', 2);
   const tgt = flags.target || readState().ios?.target || 'dev';
   if (!IOS.schemes[tgt]) fail(`--target must be dev|staging|prod (got ${tgt})`, 2);
   // dev target: the shell loads the web app from this Mac through the Cloudflare tunnel (real cert, native sign-in
@@ -1419,8 +1433,7 @@ async function cmdIos(argv) {
     },
     async run() {
       const sims = iosSimulators();
-      const dev = flags.device ? sims.find((d) => d.udid === flags.device || d.name === flags.device) : sims.find((d) => d.state === 'Booted') || sims.find((d) => /^iPhone/.test(d.name)) || sims[0];
-      if (!dev) fail(`no simulator matches '${flags.device}' — see: verify-suppco ios devices`);
+      const dev = flags.device ? pickSimulator(sims, flags.device) : sims.find((d) => d.state === 'Booted') || sims.find((d) => /^iPhone/.test(d.name)) || sims[0];
       // Capacitor assumes the scheme is the product name ("App Dev.app"), but Xcode builds "Dev.app".
       // Ask Xcode for the actual product (in parallel with the build), then install and launch that exact bundle.
       const derived = path.join(webapp, 'ios/DerivedData', dev.udid);
@@ -1460,6 +1473,28 @@ async function cmdIos(argv) {
   re-sync     verify-suppco ios sync      after changing capacitor.config.ts, plugins or --target/--tunnel
   targets     --target dev (tunnel to this Mac) | staging (staging.supp.co) | prod (app.supp.co)
 `);
+}
+
+/**
+ * CLI-3: `ios shot [--device d] [--out f.png] [--json]` → `xcrun simctl io <udid> screenshot`, into
+ * shots/<stamp>-ios-<device>.png with a `{ device, udid, target, origin }` sidecar (target/origin from the last sync) and a run.json.
+ */
+async function iosShot(flags) {
+  const startedAt = new Date();
+  const dev = pickSimulator(iosSimulators(), flags.device, { booted: true });
+  const base = `${stamp()}-ios-${slugify(dev.name)}`;
+  const file = flags.out ? userPath(flags.out) : path.join(P.shots, `${base}.png`);
+  const sidecar = file.replace(/\.png$/, '') + '.json';
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const r = await sh('xcrun', ['simctl', 'io', dev.udid, 'screenshot', file]);
+  const exitCode = r.code === 0 && fs.existsSync(file) ? 0 : 1;
+  const ios = readState().ios;
+  const result = { file, device: dev.name, udid: dev.udid, target: ios?.target ?? null, origin: ios?.origin ?? null };
+  if (!exitCode) fs.writeFileSync(sidecar, JSON.stringify(result, null, 2));
+  writeRun(path.dirname(file), base, { verb: 'ios', startedAt, exitCode, artifacts: exitCode ? [] : [file, sidecar] });
+  if (exitCode) fail(`simctl screenshot failed: ${(r.stderr || r.stdout).trim()}`);
+  if (flags.json) out(result);
+  else console.log(`${file}\n${dev.name} (${dev.udid})${result.origin ? `  loads ${result.origin}` : ''}`);
 }
 
 // ------------------------------------------------------------- version -----
@@ -1511,7 +1546,9 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
   verify-suppco ios [up] [--target dev|staging|prod] [--api-tunnel host] [--web <branch|dir>] [--no-web]
                                                           dev: web up behind the tunnel → cap sync ios → open Xcode
   verify-suppco ios run [--device name|udid]     same, then xcodebuild + install the actual app product on a simulator
-  verify-suppco ios sync | open | devices        just sync, just open App.xcworkspace, list simulators
+  verify-suppco ios sync | open | devices [--json]   just sync, just open App.xcworkspace, list simulators ({name,udid,state,runtime})
+  verify-suppco ios shot [--device name|udid] [--out f.png] [--json]
+                                                          simulator screenshot → .verify-suppco/shots/<stamp>-ios-<device>.png + .json sidecar
 
   --api   where the web app points: local (boot Rails on :3000) | staging | prod (api.supp.co, real data, real login)
   --db    which local Postgres database Rails uses: dev = api_development (seed data) | prod = api_prod_mirror | staging = api_staging_mirror | any name

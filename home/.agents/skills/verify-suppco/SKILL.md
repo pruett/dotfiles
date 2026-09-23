@@ -63,6 +63,7 @@ is running, against which API/database, and which minted sessions are still fres
 | native app with **working sign-in** | `verify-suppco ios run --api local --api-tunnel <you>-api.supp.co` — both Cloudflare routes must already reach this Mac (backend README → Cloudflare Tunnel) |
 | native app against staging / production | `verify-suppco ios --target staging` / `--target prod` (no local web needed) |
 | the native app shows a blank page / old config | `verify-suppco ios sync` (forced re-sync; `up`/`run` skip it when nothing changed), then rebuild |
+| screenshot the **simulator** / list simulators | `verify-suppco ios shot [--device <name\|udid>] [--out f.png] [--json]` → `.verify-suppco/shots/<stamp>-ios-<device>.png` + `.json` sidecar (`device, udid, target, origin`) and `.run.json`; needs a booted simulator. `verify-suppco ios devices --json` → `[{name,udid,state,runtime}]` |
 
 `--api local|staging|prod` picks what the web app talks to (default `prod`: web only; `--api local` boots Rails) and
 `--db dev|prod|staging|<name>` picks the local Postgres database Rails uses. Ports are fixed at :3000/:3001.

@@ -204,3 +204,77 @@ test('pw --video adds `video` to the result; run.json lists the script shots and
   assert.equal(failed.rec.exitCode, 1);
   assert.deepEqual(failed.rec.artifacts, []);
 });
+
+// A stand-in `xcrun` on PATH: `simctl list devices available -j` prints two iOS simulators (one booted) and a watchOS one;
+// `simctl io <udid> screenshot <file>` writes the file. Every call is appended to <root>/xcrun.log.
+function xcrunRoot({ screenshotFails = false } = {}) {
+  const root = tmpRoot({ ios: { target: 'dev', origin: 'https://kevin-dev.supp.co' } });
+  const bin = path.join(root, 'bin');
+  fs.mkdirSync(bin);
+  const devices = { devices: {
+    'com.apple.CoreSimulator.SimRuntime.iOS-18-2': [
+      { name: 'iPhone 16', udid: 'AAAA-1111', state: 'Booted', isAvailable: true },
+      { name: 'iPad Air', udid: 'BBBB-2222', state: 'Shutdown', isAvailable: true },
+    ],
+    'com.apple.CoreSimulator.SimRuntime.watchOS-11-2': [{ name: 'Watch', udid: 'CCCC-3333', state: 'Shutdown', isAvailable: true }],
+  } };
+  fs.writeFileSync(path.join(bin, 'xcrun'), `#!/bin/sh
+echo "$@" >> '${root}/xcrun.log'
+case "$*" in
+  "simctl list devices available -j") cat <<'JSON'
+${JSON.stringify(devices)}
+JSON
+  ;;
+  "simctl io "*" screenshot "*) ${screenshotFails ? 'echo "Invalid device state" >&2; exit 1' : 'for f; do :; done; printf png > "$f"'} ;;
+  *) exit 64 ;;
+esac
+`, { mode: 0o755 });
+  return root;
+}
+const iosCli = (root, ...args) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', env: { ...process.env, PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`, SUPPCO_ROOT: root, SUPP_DEV_TUNNEL: '', VERIFY_CWD: root } });
+
+test('ios devices --json prints the iOS simulators as {name,udid,state,runtime}', () => {
+  const r = iosCli(xcrunRoot(), 'ios', 'devices', '--json');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), [
+    { name: 'iPhone 16', udid: 'AAAA-1111', state: 'Booted', runtime: 'iOS-18-2' },
+    { name: 'iPad Air', udid: 'BBBB-2222', state: 'Shutdown', runtime: 'iOS-18-2' },
+  ]);
+});
+
+test('ios shot screenshots the booted simulator into shots/<stamp>-ios-<device>.png with a sidecar and run.json', () => {
+  const root = xcrunRoot();
+  const r = iosCli(root, 'ios', 'shot', '--json');
+  assert.equal(r.status, 0, r.stderr);
+  const result = JSON.parse(r.stdout);
+  const shots = path.join(root, '.verify-suppco/shots');
+  assert.equal(path.dirname(result.file), shots);
+  assert.match(path.basename(result.file), /^\d{4}-\d\d-\d\dT[\d-]+Z-ios-iPhone-16\.png$/);
+  assert.ok(fs.statSync(result.file).size > 0);
+  assert.match(fs.readFileSync(path.join(root, 'xcrun.log'), 'utf8'), new RegExp(`^simctl io AAAA-1111 screenshot ${result.file}$`, 'm'));
+  const sidecar = JSON.parse(fs.readFileSync(result.file.replace(/\.png$/, '.json'), 'utf8'));
+  assert.deepEqual(sidecar, { file: result.file, device: 'iPhone 16', udid: 'AAAA-1111', target: 'dev', origin: 'https://kevin-dev.supp.co' });
+  const [{ rec }] = runJsons(shots);
+  assert.equal(rec.verb, 'ios');
+  assert.deepEqual(rec.argv, ['ios', 'shot', '--json']);
+  assert.equal(rec.exitCode, 0);
+  assert.deepEqual(rec.artifacts, [result.file, result.file.replace(/\.png$/, '.json')]);
+});
+
+test('ios shot --device/--out: by name or udid; a shut-down or unknown device and a simctl failure exit 1', () => {
+  const root = xcrunRoot();
+  const r = iosCli(root, 'ios', 'shot', '--device', 'AAAA-1111', '--out', 'here/a.png');
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(fs.existsSync(path.join(root, 'here/a.png')) && fs.existsSync(path.join(root, 'here/a.json')));
+  const off = iosCli(root, 'ios', 'shot', '--device', 'iPad Air');
+  assert.equal(off.status, 1);
+  assert.match(off.stderr, /iPad Air is Shutdown/);
+  assert.equal(iosCli(root, 'ios', 'shot', '--device', 'nope').status, 1);
+  const broken = xcrunRoot({ screenshotFails: true });
+  const b = iosCli(broken, 'ios', 'shot');
+  assert.equal(b.status, 1);
+  assert.match(b.stderr, /Invalid device state/);
+  const [{ rec }] = runJsons(path.join(broken, '.verify-suppco/shots'));
+  assert.equal(rec.exitCode, 1);
+  assert.deepEqual(rec.artifacts, []);
+});
