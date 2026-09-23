@@ -51,9 +51,6 @@ enabled = true
 [plugins."template-creator@openai-primary-runtime"]
 enabled = true
 
-[plugins."sites@openai-bundled"]
-enabled = true
-
 [plugins."unified-computer-use@openai-bundled"]
 enabled = true
 
@@ -77,8 +74,8 @@ NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = ""
 NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = ""
 NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE = ""
 BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
-BROWSER_USE_CODEX_APP_VERSION = "26.908.70816"
-NODE_REPL_TRUSTED_SERVICES = '{"browser":"/Users/kevinpruett/.codex/plugins/cache/openai-bundled/browser/26.908.70816/scripts/browser-service.mjs","sky":"@oai/sky/service"}'
+BROWSER_USE_CODEX_APP_VERSION = "26.917.62051"
+NODE_REPL_TRUSTED_SERVICES = '{"browser":"/Users/kevinpruett/.codex/plugins/cache/openai-bundled/browser/26.917.62051/scripts/browser-service.mjs","sky":"@oai/sky/service"}'
 SKY_CUA_SERVICE_PATH = "/Users/kevinpruett/.codex/computer-use/Codex Computer Use.app"
 CODEX_CLI_PATH = "/Applications/ChatGPT.app/Contents/Resources/codex"
 
@@ -95,6 +92,9 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [projects."/Users/kevinpruett/work/suppco/web"]
+trust_level = "trusted"
+
+[projects."/Users/kevinpruett/Documents/Codex/2026-09-23/re"]
 trust_level = "trusted"
 
 [tui.model_availability_nux]

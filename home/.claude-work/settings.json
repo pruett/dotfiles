@@ -44,6 +44,7 @@
       }
     }
   },
+  "outputStyle": "Concise",
   "sandbox": {
     "enabled": false
   },
@@ -52,6 +53,5 @@
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark",
   "editorMode": "vim",
-  "agentPushNotifEnabled": true,
-  "outputStyle": "Concise"
+  "agentPushNotifEnabled": true
 }
