@@ -2,7 +2,7 @@
 // verify-suppco — deterministic CLI that boots and drives the SuppCo app (Rails backend + SvelteKit web) and its iOS shell.
 // Run through bin/verify-suppco (mise shim). State, logs, auth and screenshots live in <suppco>/.verify-suppco/.
 //
-// Verbs: doctor · up · dev · code · down · status · logs · jobs · login · api · shot · open · pw · trace · report · rails · sql · db · throttle · env · ios
+// Verbs: doctor · up · dev · code · down · status · logs · jobs · login · api · shot · open · pw · trace · report · gui · rails · sql · db · throttle · env · ios
 // `verify-suppco help` prints the full reference. Every verb exits 0 on success, 1 on failure, 2 on usage error.
 
 import fs from 'node:fs';
@@ -1373,6 +1373,59 @@ async function cmdReport(argv) {
   out(`${file}\n`);
 }
 
+// ------------------------------------------------------------------ gui -----
+// The browser GUI lives in its own repo (github.com/pruett/verify-suppco); every GUI capability is a verb here first.
+const GUI_REPO = 'git@github.com:pruett/verify-suppco.git';
+async function cmdGui(argv) {
+  const { flags, rest } = parseArgs(argv, { port: 'str' });
+  if (rest.length) fail(`gui takes no arguments, got ${rest.join(' ')}`, 2);
+  const port = Number(flags.port ?? 3737);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) fail(`--port needs 1-65535, got ${flags.port}`, 2);
+  const dir = path.resolve(process.env.VERIFY_SUPPCO_GUI || path.join(os.homedir(), 'personal/verify-suppco'));
+  let pkg = null;
+  try { pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')); } catch {}
+  if (pkg?.name !== 'verify-suppco-gui') {
+    console.error(c(31, '✖'), `no verify-suppco GUI checkout at ${dir} (set $VERIFY_SUPPCO_GUI to use another path); clone it:`);
+    out(`git clone ${GUI_REPO} ${dir} && cd ${dir} && pnpm install && pnpm build\n`);
+    process.exit(1);
+  }
+  const url = `http://127.0.0.1:${port}/`;
+  const openBrowser = () => {
+    spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { stdio: 'ignore', detached: true }).on('error', (e) => warn(`could not open a browser: ${e.message}`)).unref();
+  };
+  if ((await httpStatus(`${url}api/health`, { timeoutMs: 2000 })) === 200) {
+    openBrowser();
+    return ok(`GUI already running at ${url}`);
+  }
+  const pnpm = (...args) => ['mise', ['exec', '-C', dir, '--', 'pnpm', ...args]];
+  const setup = [
+    [path.join(dir, 'node_modules'), pnpm('install')],
+    [path.join(dir, 'apps/client/build/index.html'), pnpm('build')],
+  ];
+  for (const [marker, [cmd, args]] of setup) {
+    if (fs.existsSync(marker)) continue;
+    log(`${args.slice(4).join(' ')} in ${dir}`);
+    if (spawnSync(cmd, args, { stdio: 'inherit' }).status !== 0) fail(`pnpm ${args.slice(4).join(' ')} failed in ${dir}`);
+  }
+  // Own process group so Ctrl-C / SIGTERM reach the whole mise → pnpm → tsx chain exactly once.
+  const [cmd, args] = pnpm('start', '--port', String(port));
+  const child = spawn(cmd, args, { cwd: dir, stdio: 'inherit', detached: true });
+  let signalled = false;
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { signalled = true; try { process.kill(-child.pid, sig); } catch {} });
+  const exited = new Promise((res) => child.on('exit', (code, sig) => res({ code, sig })));
+  let done = null;
+  exited.then((r) => (done = r));
+  const ready = await waitFor(async () => done || (await httpStatus(url, { timeoutMs: 1000 })) === 200, { timeoutMs: 60000, everyMs: 250, label: `the GUI at ${url}` }).catch(() => false);
+  if (done || !ready) {
+    if (!done) try { process.kill(-child.pid, 'SIGTERM'); } catch {}
+    fail(`the GUI server did not come up at ${url}`);
+  }
+  ok(`GUI at ${url} (${dir}); Ctrl-C stops it`);
+  openBrowser();
+  const { code } = await exited;
+  process.exit(signalled ? 0 : (code ?? 1));
+}
+
 // ---------------------------------------------------------- rails / sql ----
 async function cmdRails(argv) {
   const { flags, rest } = parseArgs(argv, { file: 'str', '-f': 'file', ...CFG_FLAGS });
@@ -1704,6 +1757,8 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
   verify-suppco trace [file.zip]                 open the Playwright trace viewer (latest trace by default)
   verify-suppco report [--feature id] [--since ts] [--out f.md]
                                                           markdown of the evidence (runs newest first, links + sidecar summaries) → .verify-suppco/reports/<stamp>.md
+  verify-suppco gui [--port N]                   browser GUI for all of this (default :3737): starts $VERIFY_SUPPCO_GUI or ~/personal/verify-suppco
+                                                          (prints the clone command if absent) and opens it; Ctrl-C stops it
 
   verify-suppco rails '<ruby>' | -f file.rb      bin/rails runner against the current --db
   verify-suppco sql '<query>' [--csv] | -f file.sql      psql against the current --db
@@ -1741,7 +1796,7 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
 const [cmd, ...argv] = process.argv.slice(2);
 const table = {
   doctor: cmdDoctor, up: cmdUp, dev: cmdDev, code: cmdCode, down: cmdDown, status: cmdStatus, logs: cmdLogs, jobs: cmdJobs,
-  login: cmdLogin, api: cmdApi, shot: cmdShot, open: cmdOpen, pw: cmdPw, trace: cmdTrace, report: cmdReport,
+  login: cmdLogin, api: cmdApi, shot: cmdShot, open: cmdOpen, pw: cmdPw, trace: cmdTrace, report: cmdReport, gui: cmdGui,
   rails: cmdRails, sql: cmdSql, db: cmdDb, throttle: cmdThrottle, env: cmdEnv, ios: cmdIos,
   '--version': cmdVersion, help: () => out(HELP), '--help': () => out(HELP), '-h': () => out(HELP),
 };

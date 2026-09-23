@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -393,4 +395,49 @@ test('report --feature/--since select runs; --out places the file and links stay
   assert.equal(stampSince.status, 0, stampSince.stderr);
   assert.equal(fs.readFileSync(out, 'utf8').split('\n').filter((l) => l.startsWith('## ')).length, 1);
   assert.equal(cliIn(root, 'report', '--since', 'yesterday-ish').status, 2);
+});
+
+// A stub GUI checkout plus stub `mise` (serves 200 on the requested --port) and `open` (logs the URL) on PATH.
+function guiRoot() {
+  const root = tmpRoot(), gui = path.join(root, 'gui'), bin = path.join(root, 'bin');
+  for (const d of ['node_modules', 'apps/client/build', 'bin']) fs.mkdirSync(path.join(gui, d), { recursive: true });
+  fs.writeFileSync(path.join(gui, 'package.json'), JSON.stringify({ name: 'verify-suppco-gui' }));
+  fs.writeFileSync(path.join(gui, 'apps/client/build/index.html'), '<!doctype html>');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'mise'), `#!/bin/sh
+echo "$@" >> "${root}/mise.log"
+for last; do :; done
+exec "${process.execPath}" -e 'require("http").createServer((q, s) => s.end("ok")).listen(+process.argv[1], "127.0.0.1")' "$last"
+`, { mode: 0o755 });
+  for (const b of ['open', 'xdg-open']) fs.writeFileSync(path.join(bin, b), `#!/bin/sh\necho "$@" >> "${root}/open.log"\n`, { mode: 0o755 });
+  return root;
+}
+const guiEnv = (root, gui = path.join(root, 'gui')) => ({ ...process.env, PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`, SUPPCO_ROOT: root, VERIFY_CWD: root, VERIFY_SUPPCO_GUI: gui });
+const freePort = () => new Promise((res) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => res(port)); }); });
+const httpCode = (url) => new Promise((res) => http.get(url, (r) => { r.resume(); res(r.statusCode); }).on('error', () => res(0)));
+
+test('gui [--port N]: help lists it; starts $VERIFY_SUPPCO_GUI via pnpm start --port N, opens the browser, SIGTERM stops it', async () => {
+  assert.match(cliRun('help').stdout, /^ {2}verify-suppco gui \[--port N\]/m);
+  const root = guiRoot(), port = await freePort(), url = `http://127.0.0.1:${port}/`;
+  const child = spawn(process.execPath, [cli, 'gui', '--port', String(port)], { env: guiEnv(root) });
+  const openLog = path.join(root, 'open.log');
+  const deadline = Date.now() + 10000;
+  while (!fs.existsSync(openLog) && Date.now() < deadline) await new Promise((res) => setTimeout(res, 50));
+  assert.equal(await httpCode(url), 200);
+  assert.equal(fs.readFileSync(openLog, 'utf8'), `${url}\n`);
+  assert.equal(fs.readFileSync(path.join(root, 'mise.log'), 'utf8'), `exec -C ${path.join(root, 'gui')} -- pnpm start --port ${port}\n`);
+  assert.equal(child.exitCode, null, 'runs until stopped');
+  child.kill('SIGTERM');
+  const code = await new Promise((res) => child.on('close', res));
+  assert.equal(code, 0);
+  await new Promise((res) => setTimeout(res, 200));
+  assert.equal(await httpCode(url), 0, 'server stopped with the CLI');
+});
+
+test('gui without a checkout prints the clone command and exits 1; a bad --port exits 2', () => {
+  const root = tmpRoot(), missing = path.join(root, 'nope');
+  const r = spawnSync(process.execPath, [cli, 'gui'], { encoding: 'utf8', env: guiEnv(root, missing) });
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, `git clone git@github.com:pruett/verify-suppco.git ${missing} && cd ${missing} && pnpm install && pnpm build\n`);
+  assert.equal(spawnSync(process.execPath, [cli, 'gui', '--port', 'x'], { encoding: 'utf8', env: guiEnv(root) }).status, 2);
 });

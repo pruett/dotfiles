@@ -58,6 +58,7 @@ is running, against which API/database, and which minted sessions are still fres
 | a job didn't run / background work | `verify-suppco jobs` (queues, busy workers, last retries and dead jobs with their errors) |
 | login is throttled (429 / "too many") | `verify-suppco throttle clear` |
 | prove feature `<x>` works | open [`features/README.md`](features/README.md), follow that feature's recipe, capture the evidence it names |
+| the **browser GUI** for all of the above (runs, evidence, features) | `verify-suppco gui [--port N]` — starts the GUI server (`$VERIFY_SUPPCO_GUI`, else `~/personal/verify-suppco`; prints the clone command if absent) on `127.0.0.1:3737` and opens it; Ctrl-C stops it. Every GUI action is also a verb here |
 | stop everything | `verify-suppco down` (`--all` also stops servers this CLI did not start) |
 | build / run the **native iOS app**, open it in Xcode | `verify-suppco ios` — boots the web behind your tunnel, `cap sync ios` from the current `--web` checkout, opens `App.xcworkspace`; `verify-suppco ios run [--device <name>]` builds onto a simulator instead |
 | native app with **working sign-in** | `verify-suppco ios run --api local --api-tunnel <you>-api.supp.co` — both Cloudflare routes must already reach this Mac (backend README → Cloudflare Tunnel) |
