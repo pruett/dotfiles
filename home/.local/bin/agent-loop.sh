@@ -1,22 +1,46 @@
 #!/bin/bash
+# agent-loop: run `claude --print` repeatedly with the same prompt file until the agent
+# emits <promise>COMPLETE</promise>. Each iteration is a fresh context; state lives on disk
+# (git, a tasks checklist, an append-only progress log).
 set -eo pipefail
 
 ITERATIONS=50
-EXPECTED_MODEL="claude-opus-4-7"
+# Opus 5.5 full model ID (https://code.claude.com/docs/en/model-config). Requires Claude Code >= 2.1.280.
+EXPECTED_MODEL="claude-opus-5-5"
 PROMPT_FILE="agent-loop-prompt.md"
+TASKS_FILE="TASKS.md"      # checklist of `- [ ]` / `- [x]` lines; used for stall detection when present
+MAX_TURNS=80
+STALL_LIMIT=3              # abort after this many consecutive iterations with no new [x]
 REVIEW=true
+ADD_DIRS=()
+
+usage() {
+  cat >&2 <<EOF
+Usage: $(basename "$0") [options]
+  --iterations N       max loop passes (default $ITERATIONS)
+  --model MODEL        model to run and to assert on (default $EXPECTED_MODEL)
+  --prompt FILE        prompt file re-sent every pass (default $PROMPT_FILE)
+  --tasks FILE         checklist for stall detection (default $TASKS_FILE; skipped if absent)
+  --max-turns N        per-pass turn budget (default $MAX_TURNS)
+  --stall N            abort after N passes with no newly checked task (default $STALL_LIMIT)
+  --add-dir PATH       extra working directory for claude (repeatable)
+  --review|--no-review run /simplify after completion (default on)
+EOF
+  exit 1
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --iterations) ITERATIONS="$2"; shift 2 ;;
-    --model)      EXPECTED_MODEL="$2"; shift 2 ;;
-    --prompt)     PROMPT_FILE="$2"; shift 2 ;;
-    --review)     REVIEW=true; shift ;;
-    --no-review)  REVIEW=false; shift ;;
-    *)
-      echo "Usage: $(basename "$0") [--iterations N] [--model MODEL] [--prompt FILE] [--review]" >&2
-      exit 1
-      ;;
+    --iterations)   ITERATIONS="$2"; shift 2 ;;
+    --model)        EXPECTED_MODEL="$2"; shift 2 ;;
+    --prompt)       PROMPT_FILE="$2"; shift 2 ;;
+    --tasks)        TASKS_FILE="$2"; shift 2 ;;
+    --max-turns)    MAX_TURNS="$2"; shift 2 ;;
+    --stall)        STALL_LIMIT="$2"; shift 2 ;;
+    --add-dir)      ADD_DIRS+=("$2"); shift 2 ;;
+    --review)       REVIEW=true; shift ;;
+    --no-review)    REVIEW=false; shift ;;
+    *) usage ;;
   esac
 done
 
@@ -25,7 +49,11 @@ if [[ ! -f "$PROMPT_FILE" ]]; then
   exit 1
 fi
 
-SANDBOX_SETTINGS='{"sandbox":{"enabled":true,"autoAllowBashIfSandboxed":true,"excludedCommands":["docker"],"network":{"allowedDomains":["github.com","*npmjs.org"]}}}'
+CLAUDE_ARGS=()
+for d in "${ADD_DIRS[@]}"; do CLAUDE_ARGS+=(--add-dir "$d"); done
+
+# The API reports the base model even when a context suffix like `[1m]` was requested.
+MODEL_BASE="${EXPECTED_MODEL%%\[*}"
 
 # jq filters
 JQ_STREAM='select(.type == "assistant").message.content[]? | select(.type == "text").text // empty | gsub("\n"; "\r\n") | . + "\r\n\n"'
@@ -43,21 +71,23 @@ run_claude() {
   OUTFILE=$(mktemp)
   TMPFILES+=("$OUTFILE")
 
+  # The prompt goes in on stdin: `--add-dir` is variadic and would swallow a trailing
+  # positional prompt as another directory.
   set +e
-  claude \
+  printf '%s' "$prompt" | claude \
     --print \
     --dangerously-skip-permissions \
     --disallowedTools EnterPlanMode \
-    --max-turns 50 \
-    --settings "$SANDBOX_SETTINGS" \
+    --model "$EXPECTED_MODEL" \
+    --max-turns "$MAX_TURNS" \
     --verbose \
     --output-format stream-json \
+    "${CLAUDE_ARGS[@]}" \
     "$@" \
-    "$prompt" \
   | { grep --line-buffered '^{' || true; } \
   | tee "$OUTFILE" \
   | jq --unbuffered -rj "$JQ_STREAM"
-  local rc=${PIPESTATUS[0]}
+  local rc=${PIPESTATUS[1]}
   set -e
 
   if [[ $rc -ne 0 ]]; then
@@ -65,14 +95,25 @@ run_claude() {
   fi
 }
 
+count_done() {
+  if [[ -f "$TASKS_FILE" ]]; then
+    grep -cE '^[[:space:]]*- \[[xX]\]' "$TASKS_FILE" || true
+  else
+    echo 0
+  fi
+}
+
 # Main agent loop
+prev_done=$(count_done)
+stalled=0
+result=""
 for ((i=1; i<=ITERATIONS; i++)); do
   echo -e "\n=== Iteration $i/$ITERATIONS ===" >&2
   run_claude "$(cat "$PROMPT_FILE")"
 
   actual_model=$(jq -r "$JQ_MODEL" "$OUTFILE" | head -1)
-  if [[ -n "$actual_model" && "$actual_model" != "$EXPECTED_MODEL" ]]; then
-    echo "ERROR: Expected model '$EXPECTED_MODEL' but got '$actual_model'. Aborting." >&2
+  if [[ -n "$actual_model" && "$actual_model" != "$MODEL_BASE" ]]; then
+    echo "ERROR: Expected model '$MODEL_BASE' but got '$actual_model'. Aborting." >&2
     exit 1
   fi
 
@@ -80,6 +121,17 @@ for ((i=1; i<=ITERATIONS; i++)); do
   if [[ "$result" == *"<promise>COMPLETE</promise>"* ]]; then
     echo "Agent loop complete after $i iterations."
     break
+  fi
+
+  if [[ -f "$TASKS_FILE" ]]; then
+    done_now=$(count_done)
+    if (( done_now > prev_done )); then stalled=0; else stalled=$((stalled + 1)); fi
+    prev_done=$done_now
+    echo "Progress: $done_now task(s) checked in $TASKS_FILE; $stalled stalled pass(es)." >&2
+    if (( stalled >= STALL_LIMIT )); then
+      echo "ERROR: No task completed in $STALL_LIMIT consecutive passes. Aborting." >&2
+      exit 1
+    fi
   fi
 done
 
