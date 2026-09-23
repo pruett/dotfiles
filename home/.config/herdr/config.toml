@@ -25,8 +25,14 @@ show_agent_labels_on_pane_borders = true
 prompt_new_workspace_name = true
 
 status_indicators = "symbols"
+
+# Background notification popup delivery.
+# "terminal" hands the notification to Ghostty (OSC 777), so it carries the
+# Ghostty icon and clicking it focuses Ghostty. "system" fell back to
+# osascript, which attributed notifications to Script Editor and opened it on click.
 [ui.toast]
-delivery = "system"
+delivery = "terminal"
+delay_seconds = 1
 
 [theme]
 name = "nord"
