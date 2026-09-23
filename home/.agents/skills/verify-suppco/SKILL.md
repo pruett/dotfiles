@@ -75,9 +75,12 @@ is running, against which API/database, and which minted sessions are still fres
   status ≥ 400: a 404 page is exit 1 with `errorPage: false` in the sidecar, which is the right result when 404 is what you expect.
 - `verify-suppco api …` prints status, rails ms, sql ms and the body; add `--expect N` to make the wrong status exit 1.
 - `verify-suppco pw script.mjs --trace` writes a Playwright trace to `.verify-suppco/traces/`; `verify-suppco trace` opens the latest.
+- Add `--video` to `shot` or `pw` to record `.verify-suppco/videos/<timestamp>-<slug>[-<user>].webm`; its path is `video` in
+  the sidecar / pw result. Every `shot`/`pw` also writes `<timestamp>-<slug>[-<user>].run.json` next to its output (`shots/`
+  for pw) listing `verb`, `argv`, `startedAt`, `exitCode`, `artifacts` and `feature` (from `$VERIFY_FEATURE`).
 - Side effects: prove them with a read-only second look, `verify-suppco sql '<select>'` or `verify-suppco rails '<ruby>'`,
   never by trusting the UI alone.
-- Evidence survives `down`: nothing under `.verify-suppco/shots` or `.verify-suppco/traces` is removed by teardown. Name the
+- Evidence survives `down`: nothing under `.verify-suppco/shots`, `traces` or `videos` is removed by teardown. Name the
   files in your report.
 
 ## Cleanup

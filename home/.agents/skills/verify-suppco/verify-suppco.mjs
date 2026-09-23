@@ -661,12 +661,44 @@ function summarize(rep) {
   return parts.join('  ·  ');
 }
 
-async function browserContext(cfg, { as, headed = false, viewport, devtools } = {}) {
+async function browserContext(cfg, { as, headed = false, viewport, devtools, video = false } = {}) {
   const storageState = as ? (await identity(cfg, as)).storageState : undefined;   // may boot Rails: resolve before launching Chromium
   const { chromium } = playwright();
   const browser = await chromium.launch({ headless: !headed && !devtools, devtools: !!devtools });
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, baseURL: WEB_URL, storageState, viewport: viewport || { width: 1280, height: 900 } });
-  return { browser, context };
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, baseURL: WEB_URL, storageState, viewport: viewport || { width: 1280, height: 900 }, ...(video ? { recordVideo: { dir: P.videos } } : {}) });
+  const pages = [];   // every page the context opens, so their videos can be named after close
+  context.on('page', (p) => pages.push(p));
+  return { browser, context, pages };
+}
+
+// ------------------------------------------------------------- evidence ----
+/** `<stamp>-<slug>[-<user>]`: the basename shared by one shot/pw run's screenshot, video and run.json. */
+const evidenceBase = (slug, as) => `${stamp()}-${slug}${as ? '-' + as.split('@')[0] : ''}`;
+/** After context.close(): rename each page's webm to `<base>.webm` (`<base>-2.webm`, … for extra pages). */
+async function saveVideos(pages, base) {
+  const files = [];
+  for (const page of pages) {
+    const raw = await page.video()?.path().catch(() => null);
+    if (!raw || !fs.existsSync(raw)) continue;
+    const file = path.join(P.videos, `${base}${files.length ? `-${files.length + 1}` : ''}.webm`);
+    fs.renameSync(raw, file);
+    files.push(file);
+  }
+  if (files.length) log(`video → ${files.map((f) => path.relative(USER_CWD, f)).join(', ')}`);
+  return files;
+}
+/** Evidence files (shots/traces/videos) written since `since`; a pw script may save its own screenshots anywhere in shots/. */
+function newArtifacts(since) {
+  return [P.shots, P.traces, P.videos].flatMap((dir) => fs.readdirSync(dir).filter((f) => !f.endsWith('.run.json')).map((f) => path.join(dir, f)))
+    .filter((f) => fs.statSync(f).mtimeMs >= since.getTime()).sort();
+}
+/** CLI-7: `<dir>/<base>.run.json` so the evidence of one run is reconstructable from disk alone. */
+function writeRun(dir, base, { verb, startedAt, exitCode, artifacts }) {
+  const file = path.join(dir, `${base}.run.json`);
+  const rec = { verb, argv: process.argv.slice(2), startedAt: startedAt.toISOString(), exitCode, artifacts, feature: process.env.VERIFY_FEATURE || null };
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(rec, null, 2) + '\n');
+  return file;
 }
 
 async function clearThrottle() {
@@ -1119,19 +1151,24 @@ async function cmdApi(argv) {
 // ---------------------------------------------------------------- shot -----
 const ERROR_PAGE = /Oops\. Error|Internal Error|500 Internal Server Error/;
 async function cmdShot(argv) {
-  const { flags, rest } = parseArgs(argv, { as: 'str', out: 'str', full: 'bool', selector: 'str', width: 'str', height: 'str', wait: 'str', json: 'bool', trace: 'bool' });
+  const { flags, rest } = parseArgs(argv, { as: 'str', out: 'str', full: 'bool', selector: 'str', width: 'str', height: 'str', wait: 'str', json: 'bool', trace: 'bool', video: 'bool' });
   const route = rest[0] || '/';
   const cfg = currentConfig();
-  const { browser, context } = await browserContext(cfg, { as: flags.as, viewport: { width: Number(flags.width || 1280), height: Number(flags.height || 900) } });
+  const startedAt = new Date();
+  const { browser, context, pages } = await browserContext(cfg, { as: flags.as, viewport: { width: Number(flags.width || 1280), height: Number(flags.height || 900) }, video: flags.video });
   const slug = slugify(route);
-  if (flags.trace) await startTrace(context);
+  const base = evidenceBase(slug, flags.as);
+  const file = flags.out ? userPath(flags.out) : path.join(P.shots, `${base}.png`);
+  const sidecar = file.replace(/\.png$/, '') + '.json';
+  const trace = flags.trace ? traceFile(slug) : null;
+  let exitCode = 1, videos = [];
+  if (trace) await startTrace(context);
   try {
     const page = await context.newPage();
     const obs = observe(page, target(cfg).apiBase);
     const resp = await page.goto(route, { waitUntil: 'load', timeout: 60000 });
     await page.waitForLoadState('networkidle', { timeout: Number(flags.wait || 8000) }).catch(() => {});
     if (flags.selector) await page.locator(flags.selector).first().waitFor({ state: 'visible', timeout: 15000 });
-    const file = flags.out ? userPath(flags.out) : path.join(P.shots, `${stamp()}-${slug}${flags.as ? '-' + flags.as.split('@')[0] : ''}.png`);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     if (flags.selector) await page.locator(flags.selector).first().screenshot({ path: file });
     else await page.screenshot({ path: file, fullPage: !!flags.full });
@@ -1141,12 +1178,21 @@ async function cmdShot(argv) {
     const redirected = new URL(page.url()).pathname !== requested.pathname;
     const rep = obs.report();
     const result = { file, requested: requested.pathname, url: page.url(), redirected, title: await page.title(), status: resp?.status(), as: flags.as || null, errorPage, network: rep };
-    fs.writeFileSync(file.replace(/\.png$/, '') + '.json', JSON.stringify(result, null, 2));
-    if (flags.trace) await stopTrace(context, traceFile(slug));
+    if (trace) await stopTrace(context, trace);
+    await context.close();
+    videos = flags.video ? await saveVideos(pages, base) : [];
+    if (flags.video) result.video = videos[0] ?? null;
+    fs.writeFileSync(sidecar, JSON.stringify(result, null, 2));
     if (flags.json) out(result);
     else console.log(`${file}\n${result.status} ${result.url}  "${result.title}"${redirected ? c(33, `  REDIRECTED from ${requested.pathname}`) : ''}${errorPage ? c(31, '  ERROR PAGE') : ''}\n${summarize(rep)}   (details: ${path.basename(file, '.png')}.json)`);
-    if (errorPage || (resp && resp.status() >= 400)) process.exit(1);
-  } finally { await browser.close(); }
+    exitCode = errorPage || (resp && resp.status() >= 400) ? 1 : 0;
+  } finally {
+    await context.close().catch(() => {});
+    if (flags.video && !videos.length) videos = await saveVideos(pages, base);
+    await browser.close();
+    writeRun(path.dirname(file), base, { verb: 'shot', startedAt, exitCode, artifacts: [file, sidecar, trace, ...videos].filter((f) => f && fs.existsSync(f)) });
+  }
+  if (exitCode) process.exit(exitCode);
 }
 
 async function cmdOpen(argv) {
@@ -1183,30 +1229,39 @@ async function cmdOpen(argv) {
 }
 
 async function cmdPw(argv) {
-  const { flags, rest } = parseArgs(argv, { as: 'str', headed: 'bool', trace: 'bool' });
+  const { flags, rest } = parseArgs(argv, { as: 'str', headed: 'bool', trace: 'bool', video: 'bool' });
   const script = rest[0];
-  if (!script) fail('usage: verify-suppco pw <script.mjs> [--as email] [--headed] [--trace] [args...]\n  script: export default async ({ page, context, browser, base, api, auth, args, shots, report }) => result', 2);
+  if (!script) fail('usage: verify-suppco pw <script.mjs> [--as email] [--headed] [--trace] [--video] [args...]\n  script: export default async ({ page, context, browser, base, api, auth, args, shots, report }) => result', 2);
   const cfg = currentConfig();
   const mod = await import(pathToFileURL(userPath(script)).href);
   const fn = mod.default || mod.run;
   if (typeof fn !== 'function') fail(`${script} must export a default async function`, 2);
-  const { browser, context } = await browserContext(cfg, { as: flags.as, headed: !!flags.headed });
+  const startedAt = new Date();
+  const { browser, context, pages } = await browserContext(cfg, { as: flags.as, headed: !!flags.headed, video: flags.video });
   const auth = flags.as ? readAuth(flags.as) : null;
   const slug = path.basename(script, path.extname(script));
+  const base = evidenceBase(slug, flags.as);
   if (flags.trace) await startTrace(context);
-  let obs;
+  let obs, result, exitCode = 1;
   try {
     const page = await context.newPage();
     obs = observe(page, target(cfg).apiBase);
-    const result = await fn({ page, context, browser, base: WEB_URL, api: target(cfg).apiBase, auth, config: cfg, args: rest.slice(1), shots: P.shots, report: () => obs.report() });
-    if (result !== undefined) out(result);
+    result = await fn({ page, context, browser, base: WEB_URL, api: target(cfg).apiBase, auth, config: cfg, args: rest.slice(1), shots: P.shots, report: () => obs.report() });
     if (flags.trace) await stopTrace(context, traceFile(slug));
+    exitCode = 0;
   } catch (e) {
     if (flags.trace) await stopTrace(context, traceFile(`${slug}-failed`)).catch(() => {});
     throw e;
   } finally {
     if (obs) console.error(summarize(obs.report()));
+    await context.close().catch(() => {});
+    const videos = flags.video ? await saveVideos(pages, base) : [];
     await browser.close();
+    if (!exitCode && flags.video) {
+      const video = videos[0] ?? null;
+      out(result && typeof result === 'object' && !Array.isArray(result) ? { ...result, video } : { result: result ?? null, video });
+    } else if (!exitCode && result !== undefined) out(result);
+    writeRun(P.shots, base, { verb: 'pw', startedAt, exitCode, artifacts: newArtifacts(startedAt) });
   }
 }
 
@@ -1435,12 +1490,14 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
   verify-suppco login <email> [--role r] [--real]        session for <email> → .verify-suppco/auth/<email>.json (minted on local; real login remote)
   verify-suppco api [METHOD] </api/path> [--as email] [--json '{}'] [--form k=v] [-H 'K: V'] [--expect N] [--raw]
                                                           prints rails ms, sql ms, x-request-id; exit 1 on the wrong status
-  verify-suppco shot <route> [--as email] [--out f.png] [--full] [--selector css] [--trace] [--json]
+  verify-suppco shot <route> [--as email] [--out f.png] [--full] [--selector css] [--trace] [--video] [--json]
                                                           screenshot + <shot>.json (console errors, failed/slow requests); exit 1 on an error page
   verify-suppco open <route> [--as email] [--devtools] [--persistent] [--detach]
                                                           headed browser for a human; --persistent keeps cookies/localStorage in .verify-suppco/browser
-  verify-suppco pw <script.mjs> [--as email] [--headed] [--trace] [args...]
+  verify-suppco pw <script.mjs> [--as email] [--headed] [--trace] [--video] [args...]
                                                           run a Playwright script with page/context/auth/report() injected
+  shot/pw --video records .verify-suppco/videos/<stamp>-<slug>[-<user>].webm (path as \`video\` in the result); every shot/pw
+  run writes <stamp>-<slug>[-<user>].run.json next to its output (verb, argv, startedAt, exitCode, artifacts, feature=$VERIFY_FEATURE)
   verify-suppco trace [file.zip]                 open the Playwright trace viewer (latest trace by default)
 
   verify-suppco rails '<ruby>' | -f file.rb      bin/rails runner against the current --db
@@ -1466,7 +1523,7 @@ const HELP = `verify-suppco — boot and drive the SuppCo app deterministically
   --api-tunnel host   your Cloudflare route → http://localhost:3000; sets the web's API/OAuth URLs and the Rails issuer (native sign-in).
   Flags persist in .verify-suppco/state.json; clear a tunnel with --tunnel "" / --api-tunnel "".
   Remote targets read extra env from .verify-suppco/env/<api>.env (e.g. OAUTH_CLIENT_SECRET from 1Password).
-  State: .verify-suppco/state.json · logs: .verify-suppco/logs · sessions: .verify-suppco/auth · screenshots: .verify-suppco/shots
+  State: .verify-suppco/state.json · logs: .verify-suppco/logs · sessions: .verify-suppco/auth · screenshots: .verify-suppco/shots · videos: .verify-suppco/videos
 `;
 
 // ---------------------------------------------------------------- main -----
