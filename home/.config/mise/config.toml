@@ -1,4 +1,6 @@
 [tools]
+node = "lts"
+"npm:portless" = "latest"
 ruby = "3.4"
 
 [settings]
