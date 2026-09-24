@@ -29,7 +29,10 @@ Hand-written skills (not in the lockfile) live here too, e.g. `orchestrate`,
 `explain-pr`, `visual-pr` and `verify-suppco`. A skill that ships a CLI exposes it
 through a relative symlink in `home/.local/bin` (`verify-suppco -> ../../.agents/skills/verify-suppco/bin/verify-suppco`)
 so Stow puts it on `PATH`; after adding one, run `skills sync claude claude-work`
-to create the agent links, then `stow -R home`.
+to create the agent links, then `stow -R home`. `verify-suppco`'s `bin/` is only a
+forwarder: the CLI, its tests and feature map live in `~/personal/verify-suppco`
+(`packages/cli/`, github.com/pruett/verify-suppco) next to its GUI, and the shim
+prints the clone command when that checkout is missing.
 
 `zed` is used as the installer target because its global skill directory is the
 shared `~/.agents/skills` directory. Run `skills sync <agent>` to create one

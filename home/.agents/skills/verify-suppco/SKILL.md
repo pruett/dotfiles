@@ -5,9 +5,13 @@ description: Boot and drive the SuppCo app (Rails backend + SvelteKit web) from 
 
 # verify-suppco
 
-`verify-suppco` is a deterministic CLI on `PATH` (this skill lives in dotfiles; `~/.local/bin/verify-suppco` points at
-`bin/verify-suppco`). This skill turns a request into `verify-suppco` commands and, for "prove feature X works", into a
-recipe from [`features/`](features/README.md). The table under **Drive** is enough for the rows it lists; run
+`verify-suppco` is a deterministic CLI on `PATH`. The CLI itself, its tests, its browser GUI and the feature map live in
+the verify-suppco repo (`~/personal/verify-suppco`, github.com/pruett/verify-suppco; `packages/cli/` is the CLI). This
+dotfiles skill holds only this file and `bin/verify-suppco`, a shim that `~/.local/bin/verify-suppco` points at: it execs
+`$VERIFY_SUPPCO_HOME/packages/cli/bin/verify-suppco` (default `~/personal/verify-suppco`) or prints the `git clone` to run.
+`verify-suppco where` prints the paths in effect (`features` is the feature map). This skill turns a request into
+`verify-suppco` commands and, for "prove feature X works", into a recipe from the feature map (`README.md` index + one file
+per feature under `packages/cli/features/`). The table under **Drive** is enough for the rows it lists; run
 `verify-suppco help` only for a flag it does not show. When a verb fails, its stderr names the fix: run the fix, do not
 work around it.
 
@@ -57,8 +61,8 @@ is running, against which API/database, and which minted sessions are still fres
 | set up data / flip a flag / inspect a row | `verify-suppco rails '<ruby>'` or `verify-suppco sql '<query>'` — both hit the database of the current `--db` |
 | a job didn't run / background work | `verify-suppco jobs` (queues, busy workers, last retries and dead jobs with their errors) |
 | login is throttled (429 / "too many") | `verify-suppco throttle clear` |
-| prove feature `<x>` works | open [`features/README.md`](features/README.md), follow that feature's recipe, capture the evidence it names |
-| the **browser GUI** for all of the above (runs, evidence, features) | `verify-suppco gui [--port N]` — starts the GUI server (`$VERIFY_SUPPCO_GUI`, else `~/personal/verify-suppco`; prints the clone command if absent) on `127.0.0.1:3737` and opens it; Ctrl-C stops it. Every GUI action is also a verb here |
+| prove feature `<x>` works | open `packages/cli/features/README.md` in the verify-suppco repo (`verify-suppco where` → `features`), follow that feature's recipe, capture the evidence it names |
+| the **browser GUI** for all of the above (runs, evidence, features) | `verify-suppco gui [--port N] [--restart]` — starts the GUI server from the same checkout as the CLI on `127.0.0.1:3737` and opens it; Ctrl-C stops it. A server already running from another commit is replaced (`--restart` forces it). Every GUI action is also a verb here |
 | stop everything | `verify-suppco down` (`--all` also stops servers this CLI did not start) |
 | build / run the **native iOS app**, open it in Xcode | `verify-suppco ios` — boots the web behind your tunnel, `cap sync ios` from the current `--web` checkout, opens `App.xcworkspace`; `verify-suppco ios run [--device <name>]` builds onto a simulator instead |
 | native app with **working sign-in** | `verify-suppco ios run --api local --api-tunnel <you>-api.supp.co` — both Cloudflare routes must already reach this Mac (backend README → Cloudflare Tunnel) |
@@ -97,14 +101,16 @@ under `.verify-suppco/worktrees/` persist; remove with `git worktree remove <pat
 
 ## Helpers
 
-Everything ships inside this directory and is executable:
-
-- `bin/verify-suppco` — bash shim; picks the web repo's Node/pnpm via `mise exec -C $SUPPCO_ROOT/web`, exports the mkcert CA
-  for Node, then runs `verify-suppco.mjs`. Symlinked from `~/.local/bin/verify-suppco`.
-- `verify-suppco.mjs` — the whole CLI (single ESM file). `verify-suppco help` is the flag reference.
-- `verify-suppco.test.mjs` — unit tests for the argument/env layer:
-  `mise exec -C ~/work/suppco/web -- node --test ~/.agents/skills/verify-suppco/verify-suppco.test.mjs`
-- `features/` — the feature map (`README.md` index + one file per user-facing feature).
+- `bin/verify-suppco` (here, in dotfiles) — forwarder to the checkout named by `$VERIFY_SUPPCO_HOME` (default
+  `~/personal/verify-suppco`); prints the clone command when it is missing. Symlinked from `~/.local/bin/verify-suppco`.
+- In the verify-suppco repo, `packages/cli/`:
+  - `bin/verify-suppco` — bash shim; picks the web repo's Node/pnpm via `mise exec -C $SUPPCO_ROOT/web`, exports the mkcert
+    CA for Node, then runs `verify-suppco.mjs`.
+  - `verify-suppco.mjs` — the whole CLI (single ESM file). `verify-suppco help` is the flag reference; `verify-suppco where`
+    prints where it lives.
+  - `verify-suppco.test.mjs` — unit tests for the argument/env layer: `pnpm --filter verify-suppco test` from the repo root.
+  - `features/` — the feature map (`README.md` index + one file per user-facing feature).
+- A CLI change and the GUI surface that uses it land in one commit of that repo; `CLI.md` there lists every CLI change.
 
 ## Where things live
 
@@ -138,7 +144,7 @@ After `verify-suppco up --web <branch>` / `--backend <branch>` the roots above m
 - A screenshot that says `REDIRECTED` is app behaviour (auth guard, onboarding wizard, Pro gate), not a CLI failure. Read the
   final URL before concluding.
 - Never edit product code to make a verification pass; a behavior the map describes that the app no longer does is either
-  map drift (fix `features/`) or a product regression (report it).
+  map drift (fix `packages/cli/features/` in the verify-suppco repo) or a product regression (report it).
 
 ## Gotchas the CLI cannot print
 

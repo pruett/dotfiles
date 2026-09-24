@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# verify-suppco — boots and drives the SuppCo app (backend + web) deterministically.
-# Thin shim: runs verify-suppco.mjs with the web repo's toolchain (Node 22 + pnpm via mise)
-# so Playwright and @auth/core resolve from web/apps/web/node_modules.
+# verify-suppco — shim. The CLI itself lives in the verify-suppco repo (github.com/pruett/verify-suppco, packages/cli),
+# next to its browser GUI; this dotfiles skill keeps only SKILL.md and this forwarder so a fresh machine has the command
+# on PATH (~/.local/bin/verify-suppco -> here) and is told what to clone. $VERIFY_SUPPCO_HOME points at another checkout.
 set -euo pipefail
-HERE="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"   # resolve through the ~/.local/bin symlink
-ROOT="${SUPPCO_ROOT:-$HOME/work/suppco}"                                    # backend/, web/ and .verify-suppco/ live here
-export SUPPCO_ROOT="$ROOT"
-export VERIFY_CWD="$PWD"
-if [[ -z "${NODE_EXTRA_CA_CERTS:-}" ]] && command -v mkcert >/dev/null 2>&1; then
-  ca_root="$(mkcert -CAROOT)"
-  if [[ -f "$ca_root/rootCA.pem" ]]; then
-    export NODE_EXTRA_CA_CERTS="$ca_root/rootCA.pem"
-  fi
+HOME_DIR="${VERIFY_SUPPCO_HOME:-$HOME/personal/verify-suppco}"
+CLI="$HOME_DIR/packages/cli/bin/verify-suppco"
+if [[ ! -x "$CLI" ]]; then
+  printf '\033[31m✖\033[0m no verify-suppco checkout at %s (set $VERIFY_SUPPCO_HOME to use another path); clone it:\n' "$HOME_DIR" >&2
+  printf 'git clone git@github.com:pruett/verify-suppco.git %s\n' "$HOME_DIR"
+  exit 1
 fi
-exec mise exec -C "$ROOT/web" -- node "$HERE/verify-suppco.mjs" "$@"
+exec "$CLI" "$@"
