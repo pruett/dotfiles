@@ -148,8 +148,8 @@ After `verify-suppco up --web <branch>` / `--backend <branch>` the roots above m
   `/marketplace/welcome` first. New users (`onboarding_completed` false) are sent to the SuppScore wizard at
   `/my/suppscore/wizard/intro` on first `/home/today`.
 - The passwordless limiter is 5 codes per email and 10 per IP per 30 minutes; `verify-suppco throttle clear` resets it.
-- `--migrate` on the main backend clone lets Rails re-dump `db/structure.sql` and `annotaterb` rewrite models and tests, so
-  `status` shows the backend dirty (`*`) afterwards; inspect `git status` there before assuming the changes are yours.
+- `--migrate` runs `db:migrate` with `annotaterb` skipped and puts `db/structure.sql` back if the dump changed it, so it
+  never leaves the backend clone dirty. Author schema changes from inside `backend/` with `bin/rails db:migrate` instead.
 - With the placeholder credentials shim every signed-in page logs one failed `401 /api/inApp/getMessages` (Iterable) and the
   marketplace hub a `422 /api/shop/subscriptions` (Shopify); guests log `401 /api/ui_note_flags`. None is a page error.
 - The dev Rails log has no request-id tags (`config.log_tags` is unset), so join `api` output to the log by path and
