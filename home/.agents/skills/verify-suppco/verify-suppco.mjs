@@ -942,8 +942,16 @@ async function ensureDatabase(cfg, { migrate }) {
   if (!pending.length) return;
   if (!migrate) fail(`${path.relative(ROOT, dirs(cfg).backend)} has migrations that ${cfg.db} has not run:\n${pending.join('\n')}\nRe-run with --migrate to apply them to ${cfg.db}, or use a copy: verify-suppco db clone ${cfg.db} <new-db> && verify-suppco up --db <new-db> --migrate`);
   log(`running db:migrate against ${cfg.db}`);
-  const m = await rails(cfg, ['db:migrate'], { inherit: true });
+  // db:migrate also re-dumps db/structure.sql (with the local pg_dump) and re-annotates models. Those are
+  // authoring side effects, not local-dev needs: skip annotaterb, and put structure.sql back if this run dirtied it.
+  const backend = dirs(cfg).backend;
+  const structureWasClean = git(backend, ['diff', '--quiet', '--', 'db/structure.sql']).status === 0;
+  const m = await rails(cfg, ['db:migrate'], { inherit: true, env: { ANNOTATERB_SKIP_ON_DB_TASKS: '1' } });
   if (m.code !== 0) fail('db:migrate failed');
+  if (structureWasClean && git(backend, ['diff', '--quiet', '--', 'db/structure.sql']).status !== 0) {
+    git(backend, ['checkout', '--', 'db/structure.sql']);
+    log('restored db/structure.sql (the migrate re-dumped it; author schema changes from inside backend/ with bin/rails db:migrate)');
+  }
 }
 
 const UP_FLAGS = { ...CFG_FLAGS, as: 'str', role: 'str', takeover: 'bool', 'no-web': 'bool', 'no-backend': 'bool', real: 'bool', migrate: 'bool' };
