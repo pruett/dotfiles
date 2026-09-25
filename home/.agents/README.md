@@ -41,7 +41,10 @@ relative symlink per skill in an agent-specific location:
 - `claude-code` (also `claude`) links into `~/.claude/skills/<skill>`
 - `codex-cli` (also `codex` or `openai-codex`) is a no-op because current Codex
   discovers `~/.agents/skills` directly
-- `pi` is also a no-op because Pi discovers `~/.agents/skills` directly
+- `pi` is also a no-op because Pi discovers `~/.agents/skills` directly. The
+  upstream CLI still auto-detects Pi and links updated skills into
+  `~/.pi/agent/skills`; the wrapper prunes those redundant links after `add`
+  and `update`.
 
 Multiple targets may be supplied, such as `skills sync claude codex`. For
 agents that need links, existing non-symlink files and directories are never

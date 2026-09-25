@@ -15,6 +15,21 @@ run_skills_cli() {
     command env -u XDG_STATE_HOME npx --yes skills "$@"
 }
 
+# The upstream CLI auto-detects Pi from $managed_home/.pi/agent and links updated
+# skills into .pi/agent/skills. Pi already discovers ~/.agents/skills directly,
+# so drop those redundant links to keep them out of the repo.
+prune_pi_links() {
+  local pi_dir="$managed_home/.pi/agent/skills" link
+  [[ -d "$pi_dir" ]] || return 0
+  for link in "$pi_dir"/*; do
+    [[ -L "$link" ]] || continue
+    case "$(readlink "$link")" in
+      */.agents/skills/*) rm "$link" ;;
+    esac
+  done
+  rmdir "$pi_dir" 2>/dev/null || true
+}
+
 list_skills() {
   local skill_file name description found=false
 
@@ -147,6 +162,7 @@ case "${1:-help}" in
       exit 2
     fi
     run_skills_cli add "$@" --global --agent zed --yes
+    prune_pi_links
     (cd "$repo_root" && stow -R home)
     ;;
   list|ls)
@@ -160,6 +176,7 @@ case "${1:-help}" in
   update|upgrade)
     shift
     run_skills_cli update --global --yes "$@"
+    prune_pi_links
     (cd "$repo_root" && stow -R home)
     ;;
   sync)
