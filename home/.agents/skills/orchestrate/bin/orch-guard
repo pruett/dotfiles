@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# orch-guard: exit 0 only when this session runs inside Herdr on an orchestrator-capable model.
+set -euo pipefail
+
+ALLOWED=(claude-fable- gpt-6-astra)   # model-id prefixes
+
+die() { printf 'orchestrate: refused: %s\n' "$*" >&2; exit 1; }
+
+[[ "${HERDR_ENV:-}" == 1 ]] || die "not inside Herdr (HERDR_ENV != 1)"
+
+harness= model=
+if [[ "${CLAUDECODE:-}" == 1 ]]; then
+  harness=claude
+  cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  transcript=$(command ls "$cfg"/projects/*/"${CLAUDE_CODE_SESSION_ID:-none}".jsonl 2>/dev/null | head -1 || true)
+  if [[ -n "$transcript" ]]; then
+    model=$(grep -o '"model":"[^"]*"' "$transcript" | tail -1 | cut -d'"' -f4)
+  fi
+  [[ -n "$model" ]] || model=$(jq -r '.model // empty' "$cfg/settings.json" 2>/dev/null | sed 's/\[.*\]$//')
+elif [[ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}" ]]; then
+  harness=codex
+  codex_home="${CODEX_HOME:-$HOME/.codex}"
+  rollout=$(command ls -t "$codex_home"/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -1 || true)
+  if [[ -n "$rollout" ]]; then
+    model=$(grep -o '"model":"[^"]*"' "$rollout" | tail -1 | cut -d'"' -f4)
+  fi
+  [[ -n "$model" ]] || model=$(sed -n 's/^model *= *"\(.*\)"/\1/p' "$codex_home/config.toml" 2>/dev/null | head -1)
+else
+  die "unknown harness; only Claude Code and Codex sessions can orchestrate"
+fi
+
+[[ -n "$model" ]] || die "could not determine the $harness session model"
+
+for prefix in "${ALLOWED[@]}"; do
+  if [[ "$model" == "$prefix"* ]]; then
+    printf 'orchestrate: ok harness=%s model=%s\n' "$harness" "$model"
+    exit 0
+  fi
+done
+die "model $model ($harness) is not an orchestrator; allowed prefixes: ${ALLOWED[*]}"
