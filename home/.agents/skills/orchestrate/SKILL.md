@@ -9,13 +9,7 @@ disable-model-invocation: true
 
 This session plans and dispatches. Agents in other Herdr tabs do the work.
 
-Run the guard first and stop on a non-zero exit, quoting its message:
-
-```bash
-"$HOME/.agents/skills/orchestrate/bin/orch-guard"
-```
-
-It passes only inside Herdr on an Orchestrator-class model (Fable, GPT-6 Astra). The allowlist is the `ALLOWED` array in that script.
+Requires Herdr (`HERDR_ENV=1`).
 
 ## Steps
 

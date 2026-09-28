@@ -12,5 +12,3 @@ Four classes. Pick the class from the chunk, then the model from what is install
 | **Cloud** | long-running tasks, work that should run off this machine, tasks that may need collaboration | Devin | `--kind devin -- --cloud --permission-mode dangerous` |
 
 Claude rows need `--env CLAUDE_CONFIG_DIR=$HOME/.claude-work` on `tab create` (that is what the `ccw` alias sets). Devin cloud sessions need `/repo` picked before the first prompt (space toggles, enter confirms).
-
-Only Orchestrator-class models may run this skill; `bin/orch-guard` enforces it.
