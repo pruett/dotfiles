@@ -11,7 +11,7 @@
       "~/.dotfiles"
     ]
   },
-  "model": "claude-fable-5-1[1m]",
+  "model": "opus",
   "hooks": {
     "SessionStart": [
       {
@@ -21,6 +21,16 @@
             "type": "command",
             "command": "bash \"$HOME/.claude-work/hooks/herdr-agent-state.sh\" session",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude-work/hooks/worktree-install.sh\"",
+            "timeout": 300
           }
         ]
       }
