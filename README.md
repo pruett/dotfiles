@@ -35,6 +35,8 @@ $ cd ~/.dotfiles && brew bundle
 ```bash
 # Loop over directories and run `stow` to enable respective dotfile symlinking
 $ cd ~/.dotfiles && find . -not -path '*/\.*' -maxdepth 1 -mindepth 1 -type d | sed -e 's/^\.\///'| xargs -I % sh -c 'stow %'
+# Refresh home links with directory symlinks for Codex skill discovery
+$ ./home/.local/bin/skills restow
 # Remove stow link anytime with stow -D <directory>
 ```
 

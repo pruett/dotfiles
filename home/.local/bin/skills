@@ -7,6 +7,26 @@ managed_home="$repo_root/home"
 real_home="$HOME"
 npm_cache="${npm_config_cache:-$real_home/.npm}"
 
+refresh_stow_links() {
+  (cd "$repo_root" && stow --target="$real_home" -R home)
+
+  # Keep the repo's --no-folding for other dotfiles. Codex follows skill
+  # directory links, but skips symlinked SKILL.md files. Run Stow from this
+  # nested directory to use its default folding for just the skills.
+  (
+    cd "$managed_home/.agents"
+    local target_dir="$real_home/.agents/skills"
+    # Scan the target too, removing stale Stow links to deleted skill files.
+    stow --compat --target="$target_dir" --delete skills
+    # Stow leaves empty directories behind; they prevent directory folding.
+    # Restore links on exit even if removing the empty directories fails.
+    trap 'stow --target="$target_dir" skills' EXIT
+    find "$target_dir" -depth -mindepth 1 -type d -empty -delete
+    stow --target="$target_dir" skills
+    trap - EXIT
+  )
+}
+
 run_skills_cli() {
   # The skills CLI stores its global lock at $XDG_STATE_HOME/skills/.skill-lock.json
   # when that variable is set. Clear it so the lock resolves to
@@ -149,6 +169,7 @@ Commands:
   add <source> [options] Add skills from a path, URL, or GitHub repository
   list, ls               List centrally managed global skills
   update [skills...]     Update all skills, or only the named skills
+  restow                 Refresh dotfile links with Codex-compatible skill directories
   sync <agent> [...]     Configure skills for claude-code, claude-work, codex-cli, or pi
   help                   Show this help
 EOF
@@ -163,7 +184,7 @@ case "${1:-help}" in
     fi
     run_skills_cli add "$@" --global --agent zed --yes
     prune_pi_links
-    (cd "$repo_root" && stow -R home)
+    refresh_stow_links
     ;;
   list|ls)
     shift
@@ -177,7 +198,7 @@ case "${1:-help}" in
     shift
     run_skills_cli update --global --yes "$@"
     prune_pi_links
-    (cd "$repo_root" && stow -R home)
+    refresh_stow_links
     ;;
   sync)
     shift
@@ -188,7 +209,15 @@ case "${1:-help}" in
     for agent in "$@"; do
       sync_agent "$agent"
     done
-    (cd "$repo_root" && stow -R home)
+    refresh_stow_links
+    ;;
+  restow)
+    shift
+    if [[ $# -ne 0 ]]; then
+      printf 'Usage: skills restow\n' >&2
+      exit 2
+    fi
+    refresh_stow_links
     ;;
   help|-h|--help)
     usage

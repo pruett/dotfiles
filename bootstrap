@@ -200,7 +200,11 @@ while IFS= read -r package; do
                  -e 's/.*existing target is neither a directory nor owned by stow: //p' \
              || true)
 
-  stow --restow "$package"
+  if [[ "$package" == home ]]; then
+    ./home/.local/bin/skills restow
+  else
+    stow --restow "$package"
+  fi
   success "stowed ${package}"
 done < <(find . -maxdepth 1 -mindepth 1 -type d -not -path '*/.*')
 
