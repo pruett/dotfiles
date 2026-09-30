@@ -65,6 +65,7 @@ is running, against which API/database, and which minted sessions are still fres
 | a job didn't run / background work | `verify-suppco jobs` (queues, busy workers, last retries and dead jobs with their errors) |
 | login is throttled (429 / "too many") | `verify-suppco throttle clear` |
 | prove feature `<x>` works | open `packages/cli/features/README.md` in the verify-suppco repo (`verify-suppco where` → `features`), follow that feature's recipe, capture the evidence it names |
+| launch it interactively / pick branches, backend, user, iOS with a stepper | `verify-suppco tui` (`tui --help` lists every flag and what it maps to). Agents: `verify-suppco tui --json --preflight …` (plan, commands and the `doctor` rows it needs; runs nothing), then `verify-suppco tui --yes …` to run it |
 | the **browser GUI** for all of the above (runs, evidence, features) | `verify-suppco gui [--port N] [--restart]` — starts the GUI server from the same checkout as the CLI on `127.0.0.1:3737` (also `https://verify-suppco.localhost` via the portless alias, see the repo README) and opens it; Ctrl-C stops it. A server already running from another commit is replaced (`--restart` forces it). Every GUI action is also a verb here |
 | stop everything | `verify-suppco down` (`--all` also stops servers this CLI did not start) |
 | build / run the **native iOS app**, open it in Xcode | `verify-suppco ios` — boots the web behind your tunnel, `cap sync ios` from the current `--web` checkout, opens `App.xcworkspace`; `verify-suppco ios run [--device <name>]` builds onto a simulator instead |
@@ -113,6 +114,8 @@ under `.verify-suppco/worktrees/` persist; remove with `git worktree remove <pat
     prints where it lives.
   - `verify-suppco.test.mjs` — unit tests for the argument/env layer: `pnpm --filter verify-suppco test` from the repo root.
   - `features/` — the feature map (`README.md` index + one file per user-facing feature).
+- In the verify-suppco repo, `apps/tui/` — the terminal stepper behind `verify-suppco tui` (Ink, run through tsx); it only
+  composes `verify-suppco` verbs and drives the CLI that launched it.
 - A CLI change and the GUI surface that uses it land in one commit of that repo; `CLI.md` there lists every CLI change.
 
 ## Where things live
