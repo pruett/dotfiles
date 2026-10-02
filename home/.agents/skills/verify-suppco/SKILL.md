@@ -64,7 +64,8 @@ is running, against which API/database, and which minted sessions are still fres
 | set up data / flip a flag / inspect a row | `verify-suppco rails '<ruby>'` or `verify-suppco sql '<query>'` — both hit the database of the current `--db` |
 | a job didn't run / background work | `verify-suppco jobs` (queues, busy workers, last retries and dead jobs with their errors) |
 | login is throttled (429 / "too many") | `verify-suppco throttle clear` |
-| prove feature `<x>` works | open `packages/cli/features/README.md` in the verify-suppco repo (`verify-suppco where` → `features`), follow that feature's recipe, capture the evidence it names |
+| prove feature `<x>` works | `verify-suppco feature` lists the map; a feature with a driver runs unattended with `verify-suppco feature <id> --trace --report` (mints the session, sets up, drives the browser flow, takes the second look, cleans up; summary JSON on stdout, exit 1 on a failed step). Without a driver, open `packages/cli/features/<id>.md` (`verify-suppco where` → `features`) and follow the recipe by hand, capturing the evidence it names |
+| boot **and** prove a feature in one go | `verify-suppco tui --yes --db prod --feature <id>` (`up`, then `feature <id> --trace --report`) |
 | launch it interactively / pick branches, backend, user, iOS with a stepper | `verify-suppco tui` (`tui --help` lists every flag and what it maps to). Agents: `verify-suppco tui --json --preflight …` (plan, commands and the `doctor` rows it needs; runs nothing), then `verify-suppco tui --yes …` to run it |
 | the **browser GUI** for all of the above (runs, evidence, features) | `verify-suppco gui [--port N] [--restart]` — starts the GUI server from the same checkout as the CLI on `127.0.0.1:3737` (also `https://verify-suppco.localhost` via the portless alias, see the repo README) and opens it; Ctrl-C stops it. A server already running from another commit is replaced (`--restart` forces it). Every GUI action is also a verb here |
 | stop everything | `verify-suppco down` (`--all` also stops servers this CLI did not start) |
@@ -113,7 +114,8 @@ under `.verify-suppco/worktrees/` persist; remove with `git worktree remove <pat
   - `verify-suppco.mjs` — the whole CLI (single ESM file). `verify-suppco help` is the flag reference; `verify-suppco where`
     prints where it lives.
   - `verify-suppco.test.mjs` — unit tests for the argument/env layer: `pnpm --filter verify-suppco test` from the repo root.
-  - `features/` — the feature map (`README.md` index + one file per user-facing feature).
+  - `features/` — the feature map (`README.md` index + one file per user-facing feature); `features/scripts/*.mjs` are the
+    executable Playwright flows the recipes name (`verify-suppco pw <features>/scripts/<name>.mjs --as <email> …`).
 - In the verify-suppco repo, `apps/tui/` — the terminal stepper behind `verify-suppco tui` (Ink, run through tsx); it only
   composes `verify-suppco` verbs and drives the CLI that launched it.
 - A CLI change and the GUI surface that uses it land in one commit of that repo; `CLI.md` there lists every CLI change.

@@ -1,9 +1,0 @@
-{
-  "askClaude": {
-    "enabled": true,
-    "allowFullMode": true
-  },
-  "provider": {
-    "plan": "max"
-  }
-}
