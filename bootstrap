@@ -160,53 +160,33 @@ fi
 # Machine-local git identity (.gitconfig.local is gitignored)
 # ------------------------------------------------------------------------------
 
-if [[ ! -f git/.gitconfig.local ]]; then
-  info "Creating git/.gitconfig.local (machine-local git identity)"
+if [[ ! -f home/.gitconfig.local ]]; then
+  info "Creating home/.gitconfig.local (machine-local git identity)"
   read -rp "  git user.name: " git_name <"$TTY"
   read -rp "  git user.email: " git_email <"$TTY"
-  cp git/.gitconfig.local.sample git/.gitconfig.local
+  cp gitconfig.local.sample home/.gitconfig.local
   {
     echo ""
     echo "[user]"
     echo "  name = ${git_name}"
     echo "  email = ${git_email}"
-  } >> git/.gitconfig.local
-  success "git/.gitconfig.local created (add signing keys there later if needed)"
+  } >> home/.gitconfig.local
+  success "home/.gitconfig.local created (add signing keys there later if needed)"
 else
-  success "git/.gitconfig.local already exists"
+  success "home/.gitconfig.local already exists"
 fi
 
 # ------------------------------------------------------------------------------
-# Symlink packages with stow
+# Symlink packages with stow (via `dot`), then agent skills (via `skills`)
 # ------------------------------------------------------------------------------
 
-info "Stowing dotfile packages..."
-while IFS= read -r package; do
-  package="${package#./}"
+info "Linking dotfile packages..."
+./home/.local/bin/dot link
+success "Dotfiles linked"
 
-  # Back up any pre-existing files that would block stow (e.g. a default
-  # ~/.zshrc), then link the package. The two sed patterns cover the conflict
-  # message formats used by stow >= 2.4 and older releases respectively.
-  while IFS= read -r conflict; do
-    [[ -n "$conflict" ]] || continue
-    target="$HOME/$conflict"
-    if [[ -e "$target" || -L "$target" ]]; then
-      warn "Backing up existing ${target} -> ${target}.pre-dotfiles"
-      mv "$target" "${target}.pre-dotfiles"
-    fi
-  done < <(stow --no --verbose "$package" 2>&1 \
-             | sed -n \
-                 -e 's/.*over existing target \(.*\) since neither a link nor a directory.*/\1/p' \
-                 -e 's/.*existing target is neither a directory nor owned by stow: //p' \
-             || true)
-
-  if [[ "$package" == home ]]; then
-    ./home/.local/bin/skills restow
-  else
-    stow --restow "$package"
-  fi
-  success "stowed ${package}"
-done < <(find . -maxdepth 1 -mindepth 1 -type d -not -path '*/.*')
+info "Linking skills for Claude Code..."
+./home/.local/bin/skills sync claude-code claude-work
+success "Skills linked"
 
 # ------------------------------------------------------------------------------
 # Done
@@ -219,7 +199,7 @@ $(printf '\033[1;32mBootstrap complete!\033[0m')
 Next steps:
   - Open a new terminal so your shell picks up the stowed configs.
   - Review MACOS.md for the manual System Preferences checklist.
-  - If you sign commits, add your signing key to git/.gitconfig.local.
+  - If you sign commits, add your signing key to home/.gitconfig.local.
   - For the Cloudflare Tunnel, save the connector token to
     ~/.config/cloudflared/token.local and run cloudflared-tunnel install.
 

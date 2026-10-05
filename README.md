@@ -15,8 +15,8 @@ The [`bootstrap`](bootstrap) script is idempotent (safe to re-run) and handles e
 3. Clones this repo to `~/.dotfiles` over HTTPS — public, so no auth needed yet (or pulls if already present)
 4. Installs all formulae and casks from the [Brewfile](Brewfile) via `brew bundle` (including `gh` and `stow`)
 5. Authenticates with GitHub via `gh auth login` (SSH key generated and uploaded for you), then switches the `origin` remote to SSH so you can push
-6. Prompts for your git identity and writes it to the gitignored `git/.gitconfig.local`
-7. Symlinks every package with [GNU Stow](https://www.gnu.org/software/stow/), backing up any conflicting existing files to `<file>.pre-dotfiles`
+6. Prompts for your git identity and writes it to the gitignored `home/.gitconfig.local`
+7. Symlinks every package with `dot link` ([GNU Stow](https://www.gnu.org/software/stow/) underneath), backing up any conflicting existing files to `<file>.pre-dotfiles`, then links skills for Claude Code with `skills sync`
 
 Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checklist.
 
@@ -30,19 +30,27 @@ Everything below is done automatically by `bootstrap`, but documented here for o
 $ cd ~/.dotfiles && brew bundle
 ```
 
-### Dotfile symlinks with `stow`
+### Dotfile symlinks with `dot`
+
+`dot` (`home/.local/bin/dot`) owns all linking into `~`:
 
 ```bash
-# Loop over directories and run `stow` to enable respective dotfile symlinking
-$ cd ~/.dotfiles && find . -not -path '*/\.*' -maxdepth 1 -mindepth 1 -type d | sed -e 's/^\.\///'| xargs -I % sh -c 'stow %'
-# Refresh home links with directory symlinks for Codex skill discovery
-$ ./home/.local/bin/skills restow
-# Remove stow link anytime with stow -D <directory>
+$ dot status   # what's out of date: unlinked files, folded dirs, dangling links
+$ dot link     # stow every package, link folded dirs, remove dangling links
+$ dot edit     # open this repo in $EDITOR (bare `dot` in zsh also cds here)
 ```
+
+A package is any top-level directory with tracked files (today just `home`); dot-directories like `.plugins` are never stowed. `.stowrc` sets `--no-folding`, so most files get their own link and **a new file needs `dot link`**. The directories in `folded_dirs` (`~/.agents/skills`, `~/.config/zsh`) are instead one symlink to the repo folder, so files added there appear immediately. Edits to existing files never need relinking.
 
 ### Git
 
-See [git/README.md](git/README.md) for SSH/GPG key setup and `.gitconfig.local` details.
+`home/.gitconfig` includes the gitignored `~/.gitconfig.local` for your identity and signing keys. `bootstrap` creates it from [`gitconfig.local.sample`](gitconfig.local.sample), which also covers GPG signing setup; to do it by hand:
+
+```bash
+$ cp gitconfig.local.sample home/.gitconfig.local && dot link
+```
+
+Add SSH/GPG keys to GitHub at https://github.com/settings/keys.
 
 ### Cloudflare Tunnel
 

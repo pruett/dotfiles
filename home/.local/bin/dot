@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path="$(realpath "${BASH_SOURCE[0]}")"
+repo_root="$(cd "$(dirname "$script_path")/../../.." && pwd)"
+target="$HOME"
+
+# .stowrc sets --no-folding, so stow links file by file and a file added to the
+# repo only appears after relinking. These directories (relative to the home
+# package) are linked as one directory symlink instead, so new files appear
+# immediately. Only list directories no app writes into, or those writes land
+# in the repo.
+folded_dirs=(
+  .agents/skills
+  .config/zsh
+)
+
+info() { printf '%s\n' "$*"; }
+warn() { printf '%s\n' "$*" >&2; }
+
+# A stow package is a top-level directory with tracked files, except
+# dot-directories. Gitignored directories (local scratch) are never stowed.
+packages() {
+  git -C "$repo_root" ls-files | sed -n 's|^\([^./][^/]*\)/.*|\1|p' | sort -u
+}
+
+# Sets stow_args for a package. Bash 3.2 (macOS) has no mapfile, so this fills
+# a global array instead of printing.
+set_stow_args() {
+  local package="$1" dir
+  stow_args=(--dir="$repo_root" --target="$target")
+  if [[ "$package" == home ]]; then
+    for dir in "${folded_dirs[@]}"; do
+      stow_args+=("--ignore=(^|/)${dir//./\\.}")
+    done
+  fi
+}
+
+# Move aside real files that would block stow (e.g. a default ~/.zshrc). The two
+# sed patterns cover the conflict messages of stow >= 2.4 and older releases.
+backup_conflicts() {
+  local package="$1" conflict path
+  set_stow_args "$package"
+  while IFS= read -r conflict; do
+    [[ -n "$conflict" ]] || continue
+    path="$target/$conflict"
+    if [[ -e "$path" || -L "$path" ]]; then
+      warn "Backing up $path -> $path.pre-dotfiles"
+      mv "$path" "$path.pre-dotfiles"
+    fi
+  done < <(stow --no --verbose "${stow_args[@]}" "$package" 2>&1 \
+             | sed -n \
+                 -e 's/.*over existing target \(.*\) since neither a link nor a directory.*/\1/p' \
+                 -e 's/.*existing target is neither a directory nor owned by stow: //p' \
+             || true)
+}
+
+stow_package() {
+  local package="$1"
+  backup_conflicts "$package"
+  set_stow_args "$package"
+  stow --restow "${stow_args[@]}" "$package"
+}
+
+# Relative link target from $target/<dir> to the repo copy, like stow writes.
+folded_link_target() {
+  local dir="$1" up="" part
+  IFS=/ read -ra parts <<<"$dir"
+  for part in "${parts[@]:1}"; do up+="../"; done
+  if [[ "$repo_root" == "$target"/* ]]; then
+    printf '%s%s/home/%s\n' "$up" "${repo_root#"$target"/}" "$dir"
+  else
+    printf '%s/home/%s\n' "$repo_root" "$dir"
+  fi
+}
+
+# True when $1 holds nothing but symlinks into the repo and empty directories,
+# i.e. leftovers from file-by-file linking that are safe to replace.
+only_repo_links() {
+  local entry
+  while IFS= read -r -d '' entry; do
+    if [[ -L "$entry" ]]; then
+      [[ "$(readlink "$entry")" == *"${repo_root##*/}/"* ]] || return 1
+    elif [[ ! -d "$entry" ]]; then
+      return 1
+    fi
+  done < <(find "$1" -mindepth 1 -print0)
+}
+
+link_folded_dir() {
+  local dir="$1"
+  local link="$target/$dir"
+  local expected
+  expected="$(folded_link_target "$dir")"
+
+  [[ -d "$repo_root/home/$dir" ]] || return 0
+  if [[ -L "$link" ]]; then
+    [[ "$(readlink "$link")" == "$expected" ]] && return 0
+    rm "$link"
+  elif [[ -d "$link" ]]; then
+    if ! only_repo_links "$link"; then
+      warn "Refusing to replace $link: it holds files that aren't links into the repo"
+      return 1
+    fi
+    rm -r "$link"
+  elif [[ -e "$link" ]]; then
+    warn "Refusing to replace non-directory $link"
+    return 1
+  fi
+  mkdir -p "$(dirname "$link")"
+  ln -s "$expected" "$link"
+  info "Linked $link -> $expected"
+}
+
+# Links into the repo whose file was deleted or moved. Stow leaves these behind.
+dangling_links() {
+  local package entry
+  for package in $(packages); do
+    for entry in "$repo_root/$package"/* "$repo_root/$package"/.[!.]*; do
+      [[ -e "$entry" || -L "$entry" ]] || continue
+      entry="$target/${entry##*/}"
+      [[ -e "$entry" || -L "$entry" ]] || continue
+      find "$entry" -type l ! -exec test -e {} \; -print 2>/dev/null || true
+    done
+  done | while IFS= read -r entry; do
+    if [[ "$(readlink "$entry")" == *"${repo_root##*/}/"* ]]; then
+      printf '%s\n' "$entry"
+    fi
+  done
+}
+
+cmd_link() {
+  local package dir entry
+  for package in $(packages); do
+    stow_package "$package"
+    info "Stowed $package"
+  done
+  for dir in "${folded_dirs[@]}"; do
+    link_folded_dir "$dir"
+  done
+  while IFS= read -r entry; do
+    rm "$entry"
+    info "Removed dangling link $entry"
+  done < <(dangling_links)
+}
+
+cmd_status() {
+  local package dir link out clean=true
+  for package in $(packages); do
+    set_stow_args "$package"
+    out="$(stow --no --verbose "${stow_args[@]}" "$package" 2>&1 | grep -v 'simulation mode' || true)"
+    if [[ -n "$out" ]]; then
+      clean=false
+      printf '%s: pending stow changes\n%s\n' "$package" "$out"
+    fi
+  done
+  for dir in "${folded_dirs[@]}"; do
+    link="$target/$dir"
+    if [[ ! -L "$link" || "$(readlink "$link")" != "$(folded_link_target "$dir")" ]]; then
+      clean=false
+      printf '%s: not linked as a directory\n' "$link"
+    fi
+  done
+  out="$(dangling_links)"
+  if [[ -n "$out" ]]; then
+    clean=false
+    printf 'Dangling links:\n%s\n' "$out"
+  fi
+  if [[ "$clean" == true ]]; then
+    info "All packages linked."
+  else
+    info "Run 'dot link' to fix."
+    return 1
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+Usage: dot <command>
+
+Commands:
+  link     Stow every package into ~, link folded directories, remove dangling links
+  status   Show what 'link' would change (exits 1 if anything is out of date)
+  edit     Open the dotfiles repo in $EDITOR
+  help     Show this help
+
+In zsh, bare `dot` (a function in aliases.zsh) cds into the repo and opens it.
+EOF
+}
+
+case "${1:-help}" in
+  link|restow) cmd_link ;;
+  status) cmd_status ;;
+  edit) exec "${EDITOR:-vi}" "$repo_root" ;;
+  help|-h|--help) usage ;;
+  *)
+    warn "Unknown command: $1"
+    usage >&2
+    exit 2
+    ;;
+esac

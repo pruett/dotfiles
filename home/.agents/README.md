@@ -5,14 +5,15 @@ Skills live in this dotfiles package so GNU Stow exposes them at
 `.skill-lock.json` is managed by the `skills` CLI.
 
 The `~/.local/bin/skills` wrapper runs the upstream CLI against this package's
-`home/` directory and refreshes the Stow links after updates:
+`home/` directory. It only edits skills; linking into `~` is `dot`'s job (see the
+root README). `~/.agents/skills` is a single symlink to this folder, so added
+and updated skills appear immediately:
 
 ```sh
 skills add <source> [options]  # Add from a path, URL, or GitHub repository
 skills list                    # List skills with short description snippets
 skills update                  # Update every lockfile-managed skill
 skills update herdr            # Update one skill
-skills restow                  # Refresh Stow links, including skill directory links
 skills sync claude-code        # Link every skill into ~/.claude/skills
 skills sync claude-work        # Link every skill into ~/.claude-work/skills
 ```
@@ -23,21 +24,15 @@ For example:
 skills add https://github.com/herdrdev/herdr --skill herdr
 ```
 
-`skills add` supplies `--global --agent zed --yes` and refreshes the Stow links
-automatically.
+`skills add` supplies `--global --agent zed --yes`.
 
-The repository's `.stowrc` uses `--no-folding` for normal dotfiles. Codex skips
-symlinked `SKILL.md` files, so the wrapper makes a second Stow pass that links
-whole skill directories instead. Bootstrap uses the same refresh. After adding
-skills manually or running `stow -R home`, run `skills restow` to restore this layout.
-Skill sources stay in `home/.agents/skills`; only the links in your home directory
-change. The refresh cleans up stale Stow links and empty directories left behind
-by Stow, preserving unrelated files.
+Codex skips symlinked `SKILL.md` files, which is why `dot` links
+`~/.agents/skills` as one directory symlink rather than file by file.
 
 Hand-written skills (not in the lockfile) live here too, e.g. `orchestrate`,
 `explain-pr`, `visual-pr` and `verify-suppco`. A skill that ships a CLI exposes it
 through a relative symlink in `home/.local/bin` (`verify-suppco -> ../../.agents/skills/verify-suppco/bin/verify-suppco`)
-so Stow puts it on `PATH`; after adding one, run `skills sync claude claude-work`
+so Stow puts it on `PATH`; after adding one, run `dot link` for the CLI and `skills sync claude claude-work`
 to create the agent links. `verify-suppco`'s `bin/` is only a
 forwarder: the CLI, its tests and feature map live in `~/personal/verify-suppco`
 (`packages/cli/`, github.com/pruett/verify-suppco) next to its GUI, and the shim
@@ -45,7 +40,8 @@ prints the clone command when that checkout is missing.
 
 `zed` is used as the installer target because its global skill directory is the
 shared `~/.agents/skills` directory. Run `skills sync <agent>` to create one
-relative symlink per skill in an agent-specific location:
+relative symlink per skill directly in the agent's skills folder in `~` (not in
+this repo, since Claude Code writes its own files there):
 
 - `claude-code` (also `claude`) links into `~/.claude/skills/<skill>`
 - `claude-work` (also `work`) links into `~/.claude-work/skills/<skill>`
