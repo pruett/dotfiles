@@ -71,9 +71,10 @@ stow_package() {
 
 # Relative link target from $target/<dir> to the repo copy, like stow writes.
 folded_link_target() {
-  local dir="$1" up="" part
-  IFS=/ read -ra parts <<<"$dir"
-  for part in "${parts[@]:1}"; do up+="../"; done
+  local dir="$1" up="" slashes
+  # One "../" per slash climbs from the link's parent directory back to $target.
+  slashes="${dir//[^\/]/}"
+  while [[ ${#up} -lt $((${#slashes} * 3)) ]]; do up+="../"; done
   if [[ "$repo_root" == "$target"/* ]]; then
     printf '%s%s/home/%s\n' "$up" "${repo_root#"$target"/}" "$dir"
   else
