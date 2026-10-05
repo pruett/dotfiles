@@ -155,12 +155,8 @@ sync_agent() {
       agent="claude-work"
       target_dir="$managed_home/.claude-work/skills"
       ;;
-    codex|codex-cli|openai-codex|pi)
-      printf '%s already reads skills from ~/.agents/skills; nothing to sync.\n' "$agent"
-      return
-      ;;
     *)
-      printf 'Unknown agent: %s (expected claude-code, claude-work, codex-cli, or pi)\n' "$agent" >&2
+      printf 'Unknown agent: %s (expected claude-code or claude-work; Codex and Pi read ~/.agents/skills directly)\n' "$agent" >&2
       return 2
       ;;
   esac
@@ -213,7 +209,7 @@ Commands:
   list, ls               List centrally managed global skills
   update [skills...]     Update all skills, or only the named skills
   restow                 Refresh dotfile links with Codex-compatible skill directories
-  sync <agent> [...]     Configure skills for claude-code, claude-work, codex-cli, or pi
+  sync <agent> [...]     Link skills for claude-code or claude-work
   help                   Show this help
 EOF
 }
@@ -251,7 +247,7 @@ case "${1:-help}" in
   sync)
     shift
     if [[ $# -eq 0 ]]; then
-      printf 'Usage: skills sync <claude-code|claude-work|codex-cli|pi> [...]\n' >&2
+      printf 'Usage: skills sync <claude-code|claude-work> [...]\n' >&2
       exit 2
     fi
     for agent in "$@"; do
