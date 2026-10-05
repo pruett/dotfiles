@@ -35,7 +35,7 @@ change. The refresh cleans up stale Stow links and empty directories left behind
 by Stow, preserving unrelated files.
 
 Hand-written skills (not in the lockfile) live here too, e.g. `orchestrate`,
-`explain-pr`, `visual-pr` and `verify-suppco`. A skill that ships a CLI exposes it
+`explain-pr`, `visual-pr`, `cull-tests` and `verify-suppco`. A skill that ships a CLI exposes it
 through a relative symlink in `home/.local/bin` (`verify-suppco -> ../../.agents/skills/verify-suppco/bin/verify-suppco`)
 so Stow puts it on `PATH`; after adding one, run `skills sync claude claude-work`
 to create the agent links. `verify-suppco`'s `bin/` is only a
