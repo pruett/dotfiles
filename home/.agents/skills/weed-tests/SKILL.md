@@ -1,7 +1,7 @@
 ---
 name: weed-tests
 description: "Unattended sweep that deletes tests proven unable to fail for a defect, then opens one small PR. Deletes tests only; production code is untouched."
-argument-hint: "[path…] [--base main] [--max 12]"
+argument-hint: "[path…] [--base main] [--max <tests per PR, default 12>]"
 disable-model-invocation: true
 ---
 
@@ -43,7 +43,7 @@ Slow or static is never a reason to pull a test.
 
 ## Steps
 
-1. **Baseline.** Parse arguments: paths narrow the sweep (default: whole repo), `--base` is the target branch (default `main`), `--max` caps deletions per PR (default 12). Read root and scoped `AGENTS.md` / `CLAUDE.md`. Check `gh pr list --state open --search "head:weed/"`; an open weed PR means stop and report its URL, since one coherent PR lands at a time. Find the test runner command from the repo's scripts or CI config. Run the full suite on a clean checkout of the base and record every red test. Done when the tree is clean, the runner command is known, and baseline reds are recorded.
+1. **Baseline.** Parse arguments: paths narrow the sweep (default: whole repo), `--base` is the target branch (default `main`), `--max` caps the number of tests pulled per PR (default 12). Read root and scoped `AGENTS.md` / `CLAUDE.md`. Check `gh pr list --state open --search "head:weed/"`; an open weed PR means stop and report its URL, since one coherent PR lands at a time. Find the test runner command from the repo's scripts or CI config. Run the full suite on a clean checkout of the base and record every red test. Done when the tree is clean, the runner command is known, and baseline reds are recorded.
 
 2. **Discover.** Read-only. Hunt each pattern in [`references/junk-patterns.md`](references/junk-patterns.md) with the greps it lists, plus skipped tests via blame. Read every hit in full, together with its subject and the sibling tests of that subject. Collect at most three times `--max` candidates, most mechanical patterns first. Done when every candidate has an evidence card started: exact test name, `file:line`, matched pattern.
 
