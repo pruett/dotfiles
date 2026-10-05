@@ -194,6 +194,8 @@ cmd_status() {
     clean=false
     printf 'Links to ignored paths:\n%s\n' "$out"
   fi
+  info "Linked as whole directories: ${folded_dirs[*]/#/~/}"
+  info "Never linked: ${ignored_paths[*]}"
   if [[ "$clean" == true ]]; then
     info "All packages linked."
   else

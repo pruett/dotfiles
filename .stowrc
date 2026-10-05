@@ -1,1 +1,5 @@
+# Link file by file, so apps writing into ~/.config, ~/.claude, etc. don't
+# write into this repo. Exceptions linked as whole directories, and paths never
+# linked, are `folded_dirs` and `ignored_paths` in home/.local/bin/dot.
+# Run `dot status` to see them.
 --no-folding
