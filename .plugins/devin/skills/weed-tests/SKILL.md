@@ -1,58 +1,54 @@
 ---
 name: weed-tests
-description: "Unattended sweep that deletes tests proven unable to fail for a defect, then opens one small PR. Deletes tests only; production code is untouched."
-argument-hint: "[path…] [--base main] [--max <tests per PR, default 12>]"
+description: "Find tests that can't catch a bug, delete them, and open a PR. Touches tests only."
+argument-hint: "[path…] [--base main] [--max 12]"
 disable-model-invocation: true
 ---
 
 # Weed Tests
 
-Weed the test suite: pull the tests that cost CI time and review attention while proving nothing, and open one reviewable PR. Runs unattended on a schedule, so every decision here is made by evidence, never by asking. Confidence beats count: pulling two proven weeds is a success, pulling ten guesses is a failure.
+Delete tests that can't fail for a real bug, then open one PR. Runs unattended, so decide from evidence, not by asking. Two certain deletions beat ten guesses.
 
-Scope fence: this skill deletes **tests and the test support they orphan**. Production code, including test-only exports it leaves behind, is reported as follow-up, never edited.
+Only touch tests and the helpers they leave unused. Never edit production code; list now-unused production exports in the PR instead.
 
-## Detection: the metric
+## What counts as useless
 
-A test earns its place by going **red for a defect**. The sweep measures that directly by injecting faults into the committed tree and watching the test:
+A test is useless if either holds:
 
-- **Stub fault.** Every function the test imports from its subject is replaced with one returning `undefined` (or the language's nil). A test still green under the stub fault observes no behavior: it cannot fail for any defect. Mechanics per framework in [`references/stub-proof.md`](references/stub-proof.md).
-- **Cover check.** With the candidate deleted, the subject's behavior is broken (one return value swapped for a wrong literal). Another surviving test must go red. If one does, the candidate was duplicate proof.
+- **It can't fail.** It still passes when every function it imports from its subject is stubbed to return `undefined`/nil (do the stub in a scratch copy). Long-skipped tests (`.skip`, `xit`, `todo`, older than 90 days by blame) count too.
+- **It's redundant.** Break the subject (swap a return value for a wrong literal); if another test goes red without this one, it adds nothing.
 
-Each candidate lands in exactly one tier:
+Suspects:
 
-| Tier | Condition | Action |
-|---|---|---|
-| **Proven** | Green under stub fault, or skipped (`.skip`, `xit`, `todo`) with blame older than 90 days | Delete |
-| **Covered** | Matches a junk pattern and passes the cover check | Delete |
-| **Flagged** | Matches a junk pattern but detects a fault with no cover | Report only |
+- **No real assertion:** asserts nothing, or only `toBeDefined`, `toBeTruthy`, `not.toThrow`, or similar.
+- **Self-comparison:** the expected value comes from the subject itself, including snapshots updated without review.
+- **Constant pin:** restates a hard-coded constant, config default, prompt string, or export list.
+- **Fixture asserts fixture:** checks data the test built and never calls the subject.
+- **Source grep:** reads source text and asserts a string or import is there.
+- **Call-shape:** mocks an in-repo module and asserts only calls, call counts, or call order.
+- **Mock proves mock:** the mock returns exactly the value the test then asserts.
+- **Side channel:** checks results through raw DB queries, file reads, or private state instead of the interface.
+- **Tautological:** computes the expected value with the same logic as the subject. Delete only if another test checks a hard-coded value; otherwise keep and suggest that rewrite in the PR.
+- **Duplicate:** same subject, same inputs, same assertion as another test, often one layer shallower.
+- **Test-only seam:** tests a private or underscore symbol, or an export only tests use.
+- **Wrong-reason rejection:** a `toThrow()`/`rejects` with no error type or message that passes because of an unrelated guard.
+- **Overpromising name:** the name claims more than the inputs actually exercise.
 
-A tautological test that recomputes its expected value inline does go red when the subject breaks, so it lands in Flagged unless a literal-oracle test covers it. The PR body names it with a rewrite suggestion; deleting it is a human call.
+## Keep anyway
 
-## Retention bar
-
-A Proven or Covered candidate is demoted to Flagged when any of these hold:
-
-- it is the only test naming a public API, protocol, config, migration, storage, security, or release contract, even weakly;
-- it is a regression test whose commit message or comment names a bug or incident;
-- it asserts call ordering where ordering is the observable contract (retries, transactions, lifecycle hooks);
-- it is a type-level test (`*.test-d.ts`) or a relation across table rows;
-- it is red on the baseline. That is a possible product bug, reported under its own heading, never deleted;
-- a root or scoped `AGENTS.md` / `CLAUDE.md` names it or its area as protected.
-
-Slow or static is never a reason to pull a test.
+- The only test covering a public API, config, migration, security, or release contract.
+- Regression tests tied to a named bug or incident.
+- Tests where call order is the contract (retries, transactions, hooks).
+- Type-level tests (`*.test-d.ts`) and tests of relations across table rows.
+- Tests already failing on the base branch. Report them as possible bugs.
+- Anything `AGENTS.md` / `CLAUDE.md` marks as protected.
 
 ## Steps
 
-1. **Baseline.** Parse arguments: paths narrow the sweep (default: whole repo), `--base` is the target branch (default `main`), `--max` caps the number of tests pulled per PR (default 12). Read root and scoped `AGENTS.md` / `CLAUDE.md`. Check `gh pr list --state open --search "head:weed/"`; an open weed PR means stop and report its URL, since one coherent PR lands at a time. Find the test runner command from the repo's scripts or CI config. Run the full suite on a clean checkout of the base and record every red test. Done when the tree is clean, the runner command is known, and baseline reds are recorded.
+1. If an open PR from a `weed/` branch exists, print its URL and stop.
+2. Find the test command and run the full suite on `--base` (default `main`). Note any failures.
+3. Find suspects in the given paths (default: whole repo) and check each against the rules above.
+4. On branch `weed/<YYYY-MM-DD>`, delete up to `--max` (default 12) useless tests plus any imports, fixtures, or files they leave empty. Run the full suite; if it goes red, restore that test.
+5. Commit as `weed: remove <n> tests that can't catch bugs` and open the PR with `gh pr create`. In the body, list each deleted test as `` `file:line` test name: <why> ``, where the reason is one terse line naming the evidence (e.g. "passes with subject stubbed; only asserts `toBeDefined`" or "duplicate of `cart.test.ts:42`"). Then list suspects you kept, baseline failures, and unused production exports. Print the PR URL last.
 
-2. **Discover.** Read-only. Hunt each pattern in [`references/junk-patterns.md`](references/junk-patterns.md) with the greps it lists, plus skipped tests via blame. Read every hit in full, together with its subject and the sibling tests of that subject. Collect at most three times `--max` candidates, most mechanical patterns first. Done when every candidate has an evidence card started: exact test name, `file:line`, matched pattern.
-
-3. **Prove.** For each candidate, run the stub fault on its file. Green means Proven. Red means run the cover check when the pattern is duplicate, call-shape, or tautological; otherwise the candidate is Flagged. Complete the evidence card: tier, the fault command and its output, the surviving owner test for Covered, the production seam left callerless. Done when every candidate has a tier and a complete card. A card missing any field is Flagged.
-
-4. **Retain.** Pass every Proven and Covered card through the retention bar. Done when each card records which bar rule it cleared or which one demoted it.
-
-5. **Cut.** Branch `weed/<YYYY-MM-DD>` from base. Delete Proven and Covered tests up to `--max`, most mechanical tier first. In the same files, remove imports, fixtures, and helpers that nothing else uses; delete a file when it holds no tests. Run the touched files, then the full suite. A red run reverts that deletion and demotes the card to Flagged with the output attached. Done when the full suite is green on the final tree and `git diff --numstat` shows zero production lines changed.
-
-6. **Open the PR.** Commit as `weed: pull <n> tests that cannot fail for a defect`. Fill [`references/pr-body.md`](references/pr-body.md) from the evidence cards and open the PR against base with `gh pr create`. Done when the PR URL is printed as the last line of output.
-
-With zero Proven or Covered candidates after step 4, print the Flagged list and the baseline reds and stop; opening an empty PR is a failure.
+If nothing qualifies, print what you found and stop without opening a PR.
