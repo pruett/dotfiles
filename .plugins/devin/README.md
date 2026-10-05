@@ -4,9 +4,7 @@ Personal [Devin plugin](https://docs.devin.ai/cli/extensibility/plugins/overview
 
 ```
 .devin-plugin/plugin.json   manifest (only `name` is required)
-AGENTS.md                   always-on rule
 skills/<name>/SKILL.md      skills
-hooks.json                  lifecycle hooks (CLI and Desktop only; fail open)
 ```
 
 ## Sharing a skill with `~/.agents/skills`
@@ -33,4 +31,4 @@ New cloud sessions pick up pushes to the default branch. Use **Reindex plugins**
 
 ## Automations
 
-Devin Automations (schedule, Slack, GitHub, Linear and webhook triggers) are set up in the web app, not shipped in a plugin. `hooks.json` covers in-session automation. See https://docs.devin.ai/product-guides/automations.
+Devin Automations (schedule, Slack, GitHub, Linear and webhook triggers) are set up in the web app, not shipped in a plugin. See https://docs.devin.ai/product-guides/automations.
