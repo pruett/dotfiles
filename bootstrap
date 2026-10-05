@@ -164,7 +164,7 @@ if [[ ! -f home/.gitconfig.local ]]; then
   info "Creating home/.gitconfig.local (machine-local git identity)"
   read -rp "  git user.name: " git_name <"$TTY"
   read -rp "  git user.email: " git_email <"$TTY"
-  cp gitconfig.local.sample home/.gitconfig.local
+  cp home/.gitconfig.local.sample home/.gitconfig.local
   {
     echo ""
     echo "[user]"

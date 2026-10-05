@@ -40,14 +40,14 @@ $ dot link     # stow every package, link folded dirs, remove dangling links
 $ dot edit     # open this repo in $EDITOR (bare `dot` in zsh also cds here)
 ```
 
-A package is any top-level directory with tracked files (today just `home`); dot-directories like `.plugins` are never stowed. `.stowrc` sets `--no-folding`, so most files get their own link and **a new file needs `dot link`**. The directories in `folded_dirs` (`~/.agents/skills`, `~/.config/zsh`) are instead one symlink to the repo folder, so files added there appear immediately. Edits to existing files never need relinking.
+A package is any top-level directory with tracked files (today just `home`); dot-directories like `.plugins` are never stowed. `.stowrc` sets `--no-folding`, so most files get their own link and **a new file needs `dot link`**. The directories in `folded_dirs` (`~/.agents/skills`, `~/.config/zsh`) are instead one symlink to the repo folder, so files added there appear immediately. Edits to existing files never need relinking. Paths in `ignored_paths` (e.g. `.gitconfig.local.sample`) stay in the repo and never get a link.
 
 ### Git
 
-`home/.gitconfig` includes the gitignored `~/.gitconfig.local` for your identity and signing keys. `bootstrap` creates it from [`gitconfig.local.sample`](gitconfig.local.sample), which also covers GPG signing setup; to do it by hand:
+`home/.gitconfig` includes the gitignored `~/.gitconfig.local` for your identity and signing keys. `bootstrap` creates it from [`home/.gitconfig.local.sample`](home/.gitconfig.local.sample), which also covers GPG signing setup; to do it by hand:
 
 ```bash
-$ cp gitconfig.local.sample home/.gitconfig.local && dot link
+$ cp home/.gitconfig.local.sample home/.gitconfig.local && dot link
 ```
 
 Add SSH/GPG keys to GitHub at https://github.com/settings/keys.

@@ -15,6 +15,13 @@ folded_dirs=(
   .config/zsh
 )
 
+# Paths in the home package that stay in the repo and never get a link in ~.
+# Passed to stow as --ignore, which adds to stow's built-in ignore list; a
+# .stow-local-ignore file would replace that list instead.
+ignored_paths=(
+  .gitconfig.local.sample
+)
+
 info() { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "$*" >&2; }
 
@@ -30,7 +37,7 @@ set_stow_args() {
   local package="$1" dir
   stow_args=(--dir="$repo_root" --target="$target")
   if [[ "$package" == home ]]; then
-    for dir in "${folded_dirs[@]}"; do
+    for dir in "${folded_dirs[@]}" "${ignored_paths[@]}"; do
       stow_args+=("--ignore=(^|/)${dir//./\\.}")
     done
   fi
@@ -112,6 +119,17 @@ link_folded_dir() {
   info "Linked $link -> $expected"
 }
 
+# Links in ~ for ignored_paths, left over from before they were ignored.
+ignored_links() {
+  local path link
+  for path in "${ignored_paths[@]}"; do
+    link="$target/$path"
+    if [[ -L "$link" && "$(readlink "$link")" == *"${repo_root##*/}/"* ]]; then
+      printf '%s\n' "$link"
+    fi
+  done
+}
+
 # Links into the repo whose file was deleted or moved. Stow leaves these behind.
 dangling_links() {
   local package entry
@@ -142,6 +160,10 @@ cmd_link() {
     rm "$entry"
     info "Removed dangling link $entry"
   done < <(dangling_links)
+  while IFS= read -r entry; do
+    rm "$entry"
+    info "Removed link to ignored path $entry"
+  done < <(ignored_links)
 }
 
 cmd_status() {
@@ -166,6 +188,11 @@ cmd_status() {
     clean=false
     printf 'Dangling links:\n%s\n' "$out"
   fi
+  out="$(ignored_links)"
+  if [[ -n "$out" ]]; then
+    clean=false
+    printf 'Links to ignored paths:\n%s\n' "$out"
+  fi
   if [[ "$clean" == true ]]; then
     info "All packages linked."
   else
@@ -179,7 +206,7 @@ usage() {
 Usage: dot <command>
 
 Commands:
-  link     Stow every package into ~, link folded directories, remove dangling links
+  link     Stow every package into ~, link folded directories, remove stale links
   status   Show what 'link' would change (exits 1 if anything is out of date)
   edit     Open the dotfiles repo in $EDITOR
   help     Show this help
