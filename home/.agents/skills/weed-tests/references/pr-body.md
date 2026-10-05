@@ -1,11 +1,11 @@
 # PR body template
 
-Title: `cull: remove <n> tests that cannot fail for a defect`
+Title: `weed: pull <n> tests that cannot fail for a defect`
 
 ```markdown
-Weekly test cull. Each deleted test was proven unable to detect a defect, or proven duplicate of a surviving test. Production code is untouched; `git diff --numstat` shows <test lines removed> test lines, 0 production lines.
+Weekly test weeding. Each pulled test was proven unable to detect a defect, or proven duplicate of a surviving test. Production code is untouched; `git diff --numstat` shows <test lines removed> test lines, 0 production lines.
 
-## Deleted: Proven (<n>)
+## Pulled: Proven (<n>)
 
 Still green with every imported subject function returning `undefined`, or skipped for over 90 days.
 
@@ -13,7 +13,7 @@ Still green with every imported subject function returning `undefined`, or skipp
 |---|---|---|---|
 | <name> | `<file:line>` | <pattern> | stub fault green (`<command>`) |
 
-## Deleted: Covered (<n>)
+## Pulled: Covered (<n>)
 
 Matched a junk pattern; another test catches the same break.
 
@@ -21,7 +21,7 @@ Matched a junk pattern; another test catches the same break.
 |---|---|---|---|
 | <name> | `<file:line>` | <pattern> | `<owner file:line>` |
 
-## Flagged, not deleted (<n>)
+## Flagged, not pulled (<n>)
 
 Matched a pattern but detects a fault with no cover. Human call.
 

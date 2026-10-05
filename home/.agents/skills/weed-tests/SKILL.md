@@ -1,13 +1,13 @@
 ---
-name: cull-tests
+name: weed-tests
 description: "Unattended sweep that deletes tests proven unable to fail for a defect, then opens one small PR. Deletes tests only; production code is untouched."
 argument-hint: "[path…] [--base main] [--max 12]"
 disable-model-invocation: true
 ---
 
-# Cull Tests
+# Weed Tests
 
-Cull the test suite: remove the tests that cost CI time and review attention while proving nothing, and open one reviewable PR. Runs unattended on a schedule, so every decision here is made by evidence, never by asking. Confidence beats count: a sweep that deletes two proven tests is a success, one that deletes ten guesses is a failure.
+Weed the test suite: pull the tests that cost CI time and review attention while proving nothing, and open one reviewable PR. Runs unattended on a schedule, so every decision here is made by evidence, never by asking. Confidence beats count: pulling two proven weeds is a success, pulling ten guesses is a failure.
 
 Scope fence: this skill deletes **tests and the test support they orphan**. Production code, including test-only exports it leaves behind, is reported as follow-up, never edited.
 
@@ -39,11 +39,11 @@ A Proven or Covered candidate is demoted to Flagged when any of these hold:
 - it is red on the baseline. That is a possible product bug, reported under its own heading, never deleted;
 - a root or scoped `AGENTS.md` / `CLAUDE.md` names it or its area as protected.
 
-Slow or static is never a reason to cull.
+Slow or static is never a reason to pull a test.
 
 ## Steps
 
-1. **Baseline.** Parse arguments: paths narrow the sweep (default: whole repo), `--base` is the target branch (default `main`), `--max` caps deletions per PR (default 12). Read root and scoped `AGENTS.md` / `CLAUDE.md`. Check `gh pr list --state open --search "head:cull/"`; an open cull PR means stop and report its URL, since one coherent PR lands at a time. Find the test runner command from the repo's scripts or CI config. Run the full suite on a clean checkout of the base and record every red test. Done when the tree is clean, the runner command is known, and baseline reds are recorded.
+1. **Baseline.** Parse arguments: paths narrow the sweep (default: whole repo), `--base` is the target branch (default `main`), `--max` caps deletions per PR (default 12). Read root and scoped `AGENTS.md` / `CLAUDE.md`. Check `gh pr list --state open --search "head:weed/"`; an open weed PR means stop and report its URL, since one coherent PR lands at a time. Find the test runner command from the repo's scripts or CI config. Run the full suite on a clean checkout of the base and record every red test. Done when the tree is clean, the runner command is known, and baseline reds are recorded.
 
 2. **Discover.** Read-only. Hunt each pattern in [`references/junk-patterns.md`](references/junk-patterns.md) with the greps it lists, plus skipped tests via blame. Read every hit in full, together with its subject and the sibling tests of that subject. Collect at most three times `--max` candidates, most mechanical patterns first. Done when every candidate has an evidence card started: exact test name, `file:line`, matched pattern.
 
@@ -51,8 +51,8 @@ Slow or static is never a reason to cull.
 
 4. **Retain.** Pass every Proven and Covered card through the retention bar. Done when each card records which bar rule it cleared or which one demoted it.
 
-5. **Cut.** Branch `cull/<YYYY-MM-DD>` from base. Delete Proven and Covered tests up to `--max`, most mechanical tier first. In the same files, remove imports, fixtures, and helpers that nothing else uses; delete a file when it holds no tests. Run the touched files, then the full suite. A red run reverts that deletion and demotes the card to Flagged with the output attached. Done when the full suite is green on the final tree and `git diff --numstat` shows zero production lines changed.
+5. **Cut.** Branch `weed/<YYYY-MM-DD>` from base. Delete Proven and Covered tests up to `--max`, most mechanical tier first. In the same files, remove imports, fixtures, and helpers that nothing else uses; delete a file when it holds no tests. Run the touched files, then the full suite. A red run reverts that deletion and demotes the card to Flagged with the output attached. Done when the full suite is green on the final tree and `git diff --numstat` shows zero production lines changed.
 
-6. **Open the PR.** Commit as `cull: remove <n> tests that cannot fail for a defect`. Fill [`references/pr-body.md`](references/pr-body.md) from the evidence cards and open the PR against base with `gh pr create`. Done when the PR URL is printed as the last line of output.
+6. **Open the PR.** Commit as `weed: pull <n> tests that cannot fail for a defect`. Fill [`references/pr-body.md`](references/pr-body.md) from the evidence cards and open the PR against base with `gh pr create`. Done when the PR URL is printed as the last line of output.
 
 With zero Proven or Covered candidates after step 4, print the Flagged list and the baseline reds and stop; opening an empty PR is a failure.
