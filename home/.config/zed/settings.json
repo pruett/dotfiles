@@ -7,6 +7,11 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "icon_theme": {
+    "mode": "system",
+    "light": "Zed (Default)",
+    "dark": "Zed (Default)"
+  },
   "agent_servers": {
     "claude-acp": {
       "default_config_options": {
@@ -168,14 +173,14 @@
       "model": "claude-sonnet-4-5-thinking-latest",
     },
   },
-  "base_keymap": "VSCode",
+  "base_keymap": "Zed",
   "vim_mode": true,
   "ui_font_size": 16,
   "buffer_font_size": 16,
   "theme": {
     "mode": "system",
-    "light": "One Light",
-    "dark": "One Dark",
+    "light": "Ayu Light",
+    "dark": "Ayu Dark",
   },
   "cursor_blink": false,
   "soft_wrap": "editor_width",
