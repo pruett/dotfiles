@@ -1,0 +1,7 @@
+{
+  "name": "dotfiles",
+  "version": "0.1.0",
+  "description": "Personal Devin plugin from pruett/dotfiles",
+  "author": { "name": "Kevin Pruett" },
+  "repository": "https://github.com/pruett/dotfiles"
+}
