@@ -99,6 +99,49 @@ list_skills() {
   fi
 }
 
+# Plugins under .plugins/<plugin>/skills own their skill files so each plugin
+# is self-contained when cloned on its own. Link them back into
+# home/.agents/skills so every agent sees them like any other skill.
+link_plugin_skills() {
+  local agents_dir="$managed_home/.agents/skills"
+  local source plugin name link expected current
+
+  mkdir -p "$agents_dir"
+
+  for source in "$repo_root"/.plugins/*/skills/*; do
+    [[ -d "$source" && ! -L "$source" ]] || continue
+    name="${source##*/}"
+    plugin="${source%/skills/*}"
+    plugin="${plugin##*/}"
+    link="$agents_dir/$name"
+    expected="../../../.plugins/$plugin/skills/$name"
+
+    if [[ -L "$link" ]]; then
+      current="$(readlink "$link")"
+      [[ "$current" == "$expected" ]] && continue
+      printf 'Updating %s -> %s\n' "$link" "$expected"
+      ln -sfn "$expected" "$link"
+    elif [[ -e "$link" ]]; then
+      printf 'Refusing to replace non-symlink: %s (also in .plugins/%s)\n' "$link" "$plugin" >&2
+      return 1
+    else
+      printf 'Linking %s -> %s\n' "$link" "$expected"
+      ln -s "$expected" "$link"
+    fi
+  done
+
+  # Remove links into .plugins whose skill was deleted or moved.
+  for link in "$agents_dir"/*; do
+    [[ -L "$link" && ! -e "$link" ]] || continue
+    case "$(readlink "$link")" in
+      ../../../.plugins/*)
+        printf 'Removing stale link %s\n' "$link"
+        rm "$link"
+        ;;
+    esac
+  done
+}
+
 sync_agent() {
   local agent="$1"
   local target_dir
@@ -174,6 +217,11 @@ Commands:
   help                   Show this help
 EOF
 }
+
+case "${1:-help}" in
+  help|-h|--help) ;;
+  *) link_plugin_skills ;;
+esac
 
 case "${1:-help}" in
   add)
