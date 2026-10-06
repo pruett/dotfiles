@@ -32,3 +32,20 @@ New cloud sessions pick up pushes to the default branch. Use **Reindex plugins**
 ## Automations
 
 Devin Automations (schedule, Slack, GitHub, Linear and webhook triggers) are set up in the web app, not shipped in a plugin. See https://docs.devin.ai/product-guides/automations.
+
+### api-contract-batch loop
+
+Each run does one batch and opens one PR. Two triggers on one automation keep it going:
+
+| Trigger | Config |
+|---|---|
+| GitHub → Pull request, closed | repo `SuppleCo/backend`, condition: head branch starts with `api-contract/` |
+| Schedule | weekdays 9:00, RRULE `FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0` |
+
+Action: **Start session**, prompt:
+
+```
+Run /api-contract-batch. First, if SuppleCo/backend has an open PR whose head branch starts with api-contract/, report "waiting on <url>" and stop.
+```
+
+Limits: concurrent runs 1 (queue on), ACU limit per session, email on failure.

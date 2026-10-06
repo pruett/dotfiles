@@ -28,7 +28,7 @@ Rules:
 4. If `assert_matches_openapi` does not exist, copy [`references/openapi_contract_helper.rb`](references/openapi_contract_helper.rb) to `test/support/`. Add `include OpenapiContractHelper` to `ActiveSupport::TestCase` in `test/test_helper.rb`.
 5. For each endpoint, add `assert_matches_openapi` after the request in one happy-path controller test. If no test exists, write a minimal one.
 6. Run the changed test files and `bin/rails test test/lib/openapi_validation_test.rb`. If a test fails, fix the spec. If you cannot make it pass, remove that endpoint and record it.
-7. Open the PR from branch `api-contract/<batch>` as the requesting human (see `AGENTS.md`). If you can open it only as the bot, do not push. Report and stop.
+7. Open the PR from branch `api-contract/<batch>`.
    - PR body: endpoints, gaps closed, surprises (null fields, wrong paths, frontend type mismatches), skipped endpoints with reasons, test commands.
    - Do not use closing keywords (`fixes`, `closes`, `resolves`).
 8. Wait for CI. Fix failures that your change causes. Explain other failures in a PR comment. Do not merge.
