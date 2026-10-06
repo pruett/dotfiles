@@ -54,7 +54,7 @@ Multiple targets may be supplied, such as `skills sync claude claude-work`.
 Existing non-symlink files and directories are never overwritten. Managed links whose central skills have been removed are cleaned
 up during sync.
 
-Skills bundled in a plugin under `.plugins/<plugin>/skills/` (e.g. `weed-tests`
+Skills bundled in a plugin under `.plugins/<plugin>/skills/` (e.g. `prune-tests`
 in `.plugins/devin`) keep their real files there. Every `skills` command except
 `help` first links them into `home/.agents/skills`; run `skills sync claude
 claude-work` once after adding one.

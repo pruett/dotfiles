@@ -1,11 +1,11 @@
 ---
-name: weed-tests
+name: prune-tests
 description: "Find tests that can't catch a bug, delete them, and open a PR. Touches tests only."
 argument-hint: "[path…] [--base main] [--max 12]"
 disable-model-invocation: true
 ---
 
-# Weed Tests
+# Prune Tests
 
 Delete tests that can't fail for a real bug, then open one PR. Runs unattended, so decide from evidence, not by asking. Two certain deletions beat ten guesses.
 
@@ -45,10 +45,10 @@ Suspects:
 
 ## Steps
 
-1. If an open PR from a `weed/` branch exists, print its URL and stop.
+1. If an open PR from a `prune/` branch exists, print its URL and stop.
 2. Find the test command and run the full suite on `--base` (default `main`). Note any failures.
 3. Find suspects in the given paths (default: whole repo) and check each against the rules above.
-4. On branch `weed/<YYYY-MM-DD>`, delete up to `--max` (default 12) useless tests plus any imports, fixtures, or files they leave empty. Run the full suite; if it goes red, restore that test.
-5. Commit as `weed: remove <n> tests that can't catch bugs` and open the PR with `gh pr create`. In the body, list each deleted test as `` `file:line` test name: <why> ``, where the reason is one terse line naming the evidence (e.g. "passes with subject stubbed; only asserts `toBeDefined`" or "duplicate of `cart.test.ts:42`"). Then list suspects you kept, baseline failures, and unused production exports. Print the PR URL last.
+4. On branch `prune/<YYYY-MM-DD>`, delete up to `--max` (default 12) useless tests plus any imports, fixtures, or files they leave empty. Run the full suite; if it goes red, restore that test.
+5. Commit as `prune: remove <n> tests that can't catch bugs` and open the PR with `gh pr create`. In the body, list each deleted test as `` `file:line` test name: <why> ``, where the reason is one terse line naming the evidence (e.g. "passes with subject stubbed; only asserts `toBeDefined`" or "duplicate of `cart.test.ts:42`"). Then list suspects you kept, baseline failures, and unused production exports. Print the PR URL last.
 
 If nothing qualifies, print what you found and stop without opening a PR.
