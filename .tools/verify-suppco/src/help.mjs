@@ -1,6 +1,10 @@
-// SOURCE OF TRUTH for everything verify-suppco can do. Edit this file, then run `node scripts/gen-readme.mjs` to
-// refresh the fenced blocks in README.md; test/help.test.mjs fails if the README or a verb's output drifts from it.
+// SOURCE OF TRUTH for everything verify-suppco can do; there is no other documentation. Edit this file whenever a verb
+// gains or changes behavior; test/help.test.mjs fails if a verb's --help output drifts from it.
 // Formatting: 2-space indent, flags padded to column 27, defaults in [brackets], one blank line between sections.
+//
+// Rules for verbs (src/verbs/<verb>.mjs, `export default async (argv, ctx) => exitCode`): stdout is the verb's result
+// only; every CliError carries a fix; never echo $VERIFY_SUPPCO_CODE; a verb edits only its own file, shared helpers are
+// additive exports of src/lib.mjs; every process.env read is listed in .env.example (test/env-example.test.mjs).
 
 export const HELP = {
   root: `verify-suppco — boot and drive the SuppCo app for automated verification
@@ -32,6 +36,12 @@ conventions:
   exports win, the CLI's own .env is the fallback. nothing is read from the checkouts
   state lives under $VERIFY_SUPPCO_ROOT/.verify-suppco/ ($VERIFY_SUPPCO_STATE to relocate): auth/,
   runs/, logs/, up.json; safe to delete
+
+setup:
+  the CLI directory plus Node 22, \`pnpm install && pnpm exec playwright install chromium\`
+  and the variables doctor lists drive any remote target from any machine; only up and
+  local targets need the backend/ and web/ checkouts under $VERIFY_SUPPCO_ROOT. with
+  --web <url> the root may be an empty temp dir.
 
 run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
 `,
@@ -105,12 +115,17 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   pw: `usage: verify-suppco pw <script.mjs> [--as <email>] [--web ...] [--api ...]
                         [--headed] [--trace] [--video] [-- <args>...]
 
-  imports the script and calls its default export once:
-    async ({ page, context, base, auth, args, shots }) => result
+  imports the script (an ES module) and calls its default export once:
+    export default async ({ page, context, base, auth, args, shots }) => result
   page/context are Playwright's, baseURL set to --web, session injected for --as.
-  base is the web url. auth is the saved session record or null for guest.
-  await shots('name') saves shots/name.png in the run directory.
-  stdout is the returned result (strings as-is, else JSON). everything else is stderr.
+  base is the web url without a trailing slash. auth is the saved session record
+  { email, web, api, savedAt, expiresAt } or null for guest. args are the strings
+  after --. await shots('name') saves shots/name.png in the run directory and
+  returns its path. stdout is the returned result (strings as-is, else JSON);
+  everything else is stderr. a thrown error is printed to stderr, exit 1.
+
+  smallest script:
+    export default async ({ page }) => { await page.goto('/'); return { url: page.url(), title: await page.title() }; };
 
   --as <email>             session to inject             [$VERIFY_SUPPCO_EMAIL, else guest]
                            must exist (fix: verify-suppco login <email>)
@@ -118,10 +133,6 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   --trace / --video        save a Playwright trace / webm in the run directory
                            open a trace with: npx playwright show-trace <run>/trace.zip
   -- <args>...             passed to the script as \`args\`
-
-  examples in ~/.dotfiles/.tools/verify-suppco/examples/:
-    title.mjs              goto / and return { url, title }
-    click-around.mjs       click the primary nav links, screenshot each
 
   writes: .verify-suppco/runs/<stamp>-pw-<script>/ (run.json, trace.zip, video.webm, shots/)
   exit 1: the script threw      exit 2: no session for --as · script not found

@@ -1,4 +1,4 @@
-// verify-suppco up — see README.md "verify-suppco up --help" for the locked contract.
+// verify-suppco up — the contract is HELP.up in ../help.mjs (`verify-suppco up --help`).
 import https from 'node:https';
 import path from 'node:path';
 import {

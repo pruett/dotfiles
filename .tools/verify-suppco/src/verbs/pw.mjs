@@ -1,4 +1,4 @@
-// verify-suppco pw — see README.md "verify-suppco pw --help" for the locked contract.
+// verify-suppco pw — the contract is HELP.pw in ../help.mjs (`verify-suppco pw --help`).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';

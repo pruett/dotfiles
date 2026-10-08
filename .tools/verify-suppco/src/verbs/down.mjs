@@ -1,4 +1,4 @@
-// verify-suppco down — see README.md "verify-suppco down --help" for the locked contract.
+// verify-suppco down — the contract is HELP.down in ../help.mjs (`verify-suppco down --help`).
 import { fail, log, out, parseArgs, paths, resolveRoot } from '../lib.mjs';
 import { readUp, setUp, stopGroup } from '../lib-up.mjs';
 

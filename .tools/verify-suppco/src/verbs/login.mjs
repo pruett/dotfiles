@@ -1,4 +1,4 @@
-// verify-suppco login — see README.md "verify-suppco login --help" for the locked contract.
+// verify-suppco login — the contract is HELP.login in ../help.mjs (`verify-suppco login --help`).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

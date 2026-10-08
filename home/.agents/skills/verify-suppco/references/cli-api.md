@@ -1,1 +1,0 @@
-../../../../../.tools/verify-suppco/README.md

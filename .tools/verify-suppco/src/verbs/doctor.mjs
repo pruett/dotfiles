@@ -1,4 +1,4 @@
-// verify-suppco doctor — see README.md "verify-suppco doctor --help" for the locked contract.
+// verify-suppco doctor — the contract is HELP.doctor in ../help.mjs (`verify-suppco doctor --help`).
 import fs from 'node:fs';
 import path from 'node:path';
 import { BYPASS_SUFFIX, CliError, ENV_FILE, fail, out, parseArgs, paths, playwright, resolveRoot, sh } from '../lib.mjs';

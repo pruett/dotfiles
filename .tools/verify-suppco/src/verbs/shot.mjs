@@ -1,4 +1,4 @@
-// verify-suppco shot — see README.md "verify-suppco shot --help" for the locked contract.
+// verify-suppco shot — the contract is HELP.shot in ../help.mjs (`verify-suppco shot --help`).
 import path from 'node:path';
 import { fail, out, log, warn, parseArgs, resolveRoot, paths, resolveTargets, writeJson } from '../lib.mjs';
 import { resolveAs, loadSession, requireWeb, openDrive, parseViewport, errorPageReason, mainHeadings, AUTH_ERROR } from '../lib-drive.mjs';

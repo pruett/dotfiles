@@ -1,7 +1,6 @@
-// src/help.mjs is the source of truth: every verb's `--help` output and every fenced block in README.md must match it.
+// src/help.mjs is the source of truth: every verb's `--help` output must match it byte for byte.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -9,13 +8,10 @@ import { HELP } from '../src/help.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const cli = path.join(here, '../src/cli.mjs');
-const md = fs.readFileSync(path.join(here, '../README.md'), 'utf8');
-const blocks = Object.fromEntries([...md.matchAll(/## `verify-suppco (?:(\w+) )?--help`\n\n```\n([\s\S]*?)```/g)].map(([, v, t]) => [v || 'root', t]));
 const run = (...args) => spawnSync('node', [cli, ...args], { encoding: 'utf8' });
 
-test('help.mjs and README carry the same seven blocks', () => {
+test('help.mjs carries root plus the six verbs', () => {
   assert.deepEqual(Object.keys(HELP).sort(), ['doctor', 'down', 'login', 'pw', 'root', 'shot', 'up']);
-  assert.deepEqual(blocks, HELP, 'README drifted from src/help.mjs: run node scripts/gen-readme.mjs');
 });
 
 for (const [verb, text] of Object.entries(HELP)) {

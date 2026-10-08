@@ -3,13 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Boot and drive the SuppCo app for automated verification (locked v1 API in README.md)",
+  "description": "Boot and drive the SuppCo app for automated verification (--help is the contract)",
   "bin": {
     "verify-suppco": "bin/verify-suppco"
   },
   "scripts": {
-    "test": "node --test",
-    "gen-readme": "node scripts/gen-readme.mjs"
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22"
