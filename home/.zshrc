@@ -20,16 +20,17 @@
 #   14. Starship prompt
 #
 # ========================================
+# shellcheck shell=bash disable=SC1091  # zsh; sourced files are not followed
 
 # --------
 # PATH Management (must come before depcheck)
 # --------
-source $XDG_CONFIG_HOME/zsh/extras/path.zsh
+source "$XDG_CONFIG_HOME/zsh/extras/path.zsh"
 
 # --------
 # Dependency Check
 # --------
-source $XDG_CONFIG_HOME/zsh/extras/depcheck.zsh
+source "$XDG_CONFIG_HOME/zsh/extras/depcheck.zsh"
 
 # --------
 # Homebrew
@@ -37,13 +38,13 @@ source $XDG_CONFIG_HOME/zsh/extras/depcheck.zsh
 # brew shellenv runs in path.zsh. It only adds site-functions, not the core functions dir containing
 # is-at-least, add-zsh-hook, compinit, bashcompinit, etc. Add it explicitly so
 # plugins loaded below can find these. typeset -U prevents duplicates on reload.
-fpath=(/opt/homebrew/share/zsh/functions $fpath)
+fpath=(/opt/homebrew/share/zsh/functions "${fpath[@]}")
 typeset -U fpath
 
 # --------
 # FZF Integration
 # --------
-source $XDG_CONFIG_HOME/zsh/extras/fzf.zsh
+source "$XDG_CONFIG_HOME/zsh/extras/fzf.zsh"
 
 # --------
 # zsh-vi-mode (load before Starship to avoid conflicts)
@@ -55,7 +56,7 @@ function zvm_after_init() {
 
   # Enable fzf-tab after vi-mode to prevent Tab key conflicts
   if [[ -f $XDG_CONFIG_HOME/zsh/plugins/fzf-tab/fzf-tab.plugin.zsh ]]; then
-    source $XDG_CONFIG_HOME/zsh/plugins/fzf-tab/fzf-tab.plugin.zsh
+    source "$XDG_CONFIG_HOME/zsh/plugins/fzf-tab/fzf-tab.plugin.zsh"
   fi
 }
 
@@ -63,6 +64,7 @@ function zvm_after_init() {
 # Starship (loaded last) wraps zvm's ZLE widgets exactly once. The default
 # deferred init runs after Starship and the mutual wrapping of
 # zle-keymap-select recurses until FUNCNEST is exceeded.
+# shellcheck disable=SC2034  # read by the plugin
 ZVM_INIT_MODE=sourcing
 
 source "$(brew --prefix zsh-vi-mode)/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh"
@@ -70,12 +72,12 @@ source "$(brew --prefix zsh-vi-mode)/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh"
 # ---------
 # Aliases
 # ---------
-source $XDG_CONFIG_HOME/zsh/extras/aliases.zsh
+source "$XDG_CONFIG_HOME/zsh/extras/aliases.zsh"
 
 # ---------
 # Functions (using fpath autoload)
 # ---------
-fpath=($XDG_CONFIG_HOME/zsh/functions $fpath)
+fpath=("$XDG_CONFIG_HOME/zsh/functions" "${fpath[@]}")
 autoload -Uz worktree tmuxn dayta help fzf-file fzf-cd fzf-git-branch fzf-env
 
 # --------
@@ -92,7 +94,7 @@ bindkey '^f' autosuggest-accept
 # --------
 # Tab Completions
 # --------
-source $XDG_CONFIG_HOME/zsh/extras/tabcomp.zsh
+source "$XDG_CONFIG_HOME/zsh/extras/tabcomp.zsh"
 
 # --------
 # Mise (runtime version manager: ruby, etc.)
@@ -119,13 +121,13 @@ if [ -f '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc' ]; then . '/Use
 # --------
 # Tells gpg which terminal to use when it needs to prompt for a passphrase
 # (git commit signing). Without this, signing fails with "Inappropriate ioctl".
-export GPG_TTY=$(tty)
+GPG_TTY=$(tty); export GPG_TTY
 
 # --------
 # Local Config (optionally load gitignored config)
 # --------
 if [[ -f $XDG_CONFIG_HOME/zsh/extras/.zshrc.local.zsh ]]; then
-    source $XDG_CONFIG_HOME/zsh/extras/.zshrc.local.zsh
+    source "$XDG_CONFIG_HOME/zsh/extras/.zshrc.local.zsh"
 fi
 
 # --------

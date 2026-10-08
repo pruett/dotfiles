@@ -28,9 +28,10 @@ conventions:
   every non-zero exit prints one \`fix: <command>\` line on stderr
   stdout is the verb's result; everything else (progress, run paths) is stderr
   targets are never persisted; repeat --web/--api on every verb
-  credentials ($PLAYWRIGHT_EMAIL, $PLAYWRIGHT_CODE) and per-target secrets come from the
-  environment or ~/.config/verify-suppco/env; nothing is read from the checkouts' .env files
-  state lives under $SUPPCO_ROOT/.verify-suppco/ (auth/, runs/, logs/, up.json); safe to delete
+  every input is a flag or an environment variable (verify-suppco doctor lists them); shell
+  exports win, the CLI's own .env is the fallback. nothing is read from the checkouts
+  state lives under $SUPPCO_ROOT/.verify-suppco/ ($VERIFY_SUPPCO_STATE to relocate): auth/,
+  runs/, logs/, up.json; safe to delete
 
 run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
 `,
@@ -38,10 +39,11 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   doctor: `usage: verify-suppco doctor [--root <dir>]
 
   one line per prerequisite: node/pnpm/ruby via mise, backend/ and web/ checkouts,
-  rails credentials, postgres, redis, mkcert CA, playwright browsers, the env file,
-  $PLAYWRIGHT_EMAIL (set, ends with test@monsterinbox.com), $PLAYWRIGHT_CODE (set).
-  each failing line ends with its fix. credential and env-file lines warn, they do
-  not fail: a human can still type the code.
+  rails credentials, postgres, redis, mkcert CA, playwright browsers, and one line per
+  environment variable: $SUPPCO_ROOT, $PLAYWRIGHT_EMAIL, $PLAYWRIGHT_CODE,
+  $OAUTH_CLIENT_SECRET_PROD, $OAUTH_CLIENT_SECRET_STAGING, $AUTH_SECRET (shell exports,
+  then the CLI's .env). each failing line ends with its fix. environment lines warn,
+  they do not fail: a human can still type the code.
 
   --root <dir>             directory holding backend/ and web/      [~/work/suppco]
 
@@ -54,7 +56,7 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   then waits for health. always a fresh instance: whatever already listens on a
   port it needs is stopped first, servers it started and foreign ones alike.
   remote targets (staging, prod, <url>) boot nothing; the local web is pointed at
-  the remote api (needs $OAUTH_CLIENT_SECRET_PROD / _STAGING in the env file).
+  the remote api (needs $OAUTH_CLIENT_SECRET_PROD / _STAGING in the environment or .env).
 
   --web local|<branch>     web checkout: the main clone, or a branch       [local]
   --api local|<branch>     backend checkout                                 [local]

@@ -77,13 +77,14 @@ export function parseArgs(argv, { valued = [], boolean = [] } = {}) {
 }
 
 // ----------------------------------------------------------------- paths --
+export const expandHome = (p) => path.resolve(String(p).replace(/^~(?=$|\/)/, os.homedir()));
 /** Resolve the root holding backend/ and web/. `--root` wins, then $SUPPCO_ROOT, then ~/work/suppco. */
 export function resolveRoot(flags = {}) {
-  const r = flags.root || process.env.SUPPCO_ROOT || DEFAULT_ROOT;
-  return path.resolve(r.replace(/^~(?=$|\/)/, os.homedir()));
+  return expandHome(flags.root || process.env.SUPPCO_ROOT || DEFAULT_ROOT);
 }
+/** State dir: $VERIFY_SUPPCO_STATE, else <root>/.verify-suppco. */
 export function paths(root) {
-  const state = path.join(root, '.verify-suppco');
+  const state = process.env.VERIFY_SUPPCO_STATE ? expandHome(process.env.VERIFY_SUPPCO_STATE) : path.join(root, '.verify-suppco');
   return {
     root,
     backend: path.join(root, 'backend'),
@@ -116,10 +117,10 @@ export function resolveTarget(which, value) {
 export const resolveTargets = (flags) => ({ web: resolveTarget('web', flags.web), api: resolveTarget('api', flags.api) });
 
 // -------------------------------------------------------------- env file --
-/** CLI-owned env: $VERIFY_SUPPCO_ENV or ~/.config/verify-suppco/env (dotenv). Loaded once at startup into process.env;
- *  a variable already in the environment always wins. Keys: PLAYWRIGHT_EMAIL, PLAYWRIGHT_CODE, SUPPCO_ROOT, AUTH_SECRET,
- *  OAUTH_CLIENT_SECRET_PROD, OAUTH_CLIENT_SECRET_STAGING, OAUTH_CLIENT_SECRET (for --api <url>). */
-export const ENV_FILE = process.env.VERIFY_SUPPCO_ENV || path.join(os.homedir(), '.config/verify-suppco/env');
+/** CLI-owned env: $VERIFY_SUPPCO_ENV or <CLI_DIR>/.env (dotenv; every key is documented in <CLI_DIR>/.env.example).
+ *  Loaded once at startup into process.env; a variable already in the environment always wins. */
+export const ENV_FILE = process.env.VERIFY_SUPPCO_ENV || path.join(CLI_DIR, '.env');
+export const ENV_EXAMPLE = path.join(CLI_DIR, '.env.example');
 export function loadEnvFile(file = ENV_FILE) {
   const vars = dotenv(file);
   for (const [k, v] of Object.entries(vars)) if (process.env[k] === undefined) process.env[k] = v;

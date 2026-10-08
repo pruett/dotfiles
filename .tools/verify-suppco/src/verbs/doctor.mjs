@@ -78,19 +78,22 @@ export default async function run(argv) {
     add('FAIL', 'playwright', e instanceof CliError ? e.message.split(' (')[0] : String(e.message), e instanceof CliError ? e.fix : pwFix);
   }
 
-  // env file: where credentials and remote OAuth secrets live (loaded by cli.mjs; the environment wins over it)
-  if (!fs.existsSync(ENV_FILE)) add('warn', 'env file', `${ENV_FILE} missing`, `mkdir -p ${path.dirname(ENV_FILE)} && install -m 600 /dev/null ${ENV_FILE}`);
-  else {
-    const mode = fs.statSync(ENV_FILE).mode & 0o777;
-    add(mode === 0o600 ? 'ok' : 'warn', 'env file', mode === 0o600 ? ENV_FILE : `${ENV_FILE} is mode ${mode.toString(8)}, not 600`, `chmod 600 ${ENV_FILE}`);
-  }
-
-  // credentials: warn only, a human can still type the code
-  const email = process.env.PLAYWRIGHT_EMAIL || '';
-  if (!email) add('warn', '$PLAYWRIGHT_EMAIL', 'unset', `export PLAYWRIGHT_EMAIL=<you>+${BYPASS_SUFFIX}`);
-  else if (!email.endsWith(BYPASS_SUFFIX)) add('warn', '$PLAYWRIGHT_EMAIL', `${email} does not end with ${BYPASS_SUFFIX}`, `export PLAYWRIGHT_EMAIL=<you>+${BYPASS_SUFFIX}`);
-  else add('ok', '$PLAYWRIGHT_EMAIL', email);
-  add(process.env.PLAYWRIGHT_CODE ? 'ok' : 'warn', '$PLAYWRIGHT_CODE', process.env.PLAYWRIGHT_CODE ? 'set' : 'unset', 'export PLAYWRIGHT_CODE=<the bypass code>');
+  // environment: one line per variable (shell exports win; ENV_FILE is the dotenv fallback). warn only: a human can
+  // still type the code, and remote secrets matter only for `up --api prod|staging`.
+  const envFile = fs.existsSync(ENV_FILE) ? ((fs.statSync(ENV_FILE).mode & 0o777) === 0o600 ? ENV_FILE : `${ENV_FILE} (not mode 600)`) : 'none';
+  add(envFile.endsWith('(not mode 600)') ? 'warn' : 'ok', 'env', `shell exports, then ${envFile}`, `chmod 600 ${ENV_FILE}`);
+  const persist = `${process.env.XDG_CONFIG_HOME || `${process.env.HOME}/.config`}/zsh/extras/.zshrc.local.zsh or ${ENV_FILE}`;
+  const envVar = (key, { required = true, secret = false, placeholder = '<value>', check } = {}) => {
+    const v = process.env[key] || '';
+    const bad = v ? check?.(v) : (required ? 'unset' : '');
+    add(bad ? 'warn' : 'ok', `$${key}`, bad || (!v ? 'unset (optional)' : secret ? 'set' : v), `echo 'export ${key}=${placeholder}' >> ${persist}`);
+  };
+  envVar('SUPPCO_ROOT', { required: false, placeholder: '~/work/suppco' });
+  envVar('PLAYWRIGHT_EMAIL', { placeholder: `<you>${BYPASS_SUFFIX}`, check: (v) => (v.endsWith(BYPASS_SUFFIX) ? '' : `${v} does not end with ${BYPASS_SUFFIX}`) });
+  envVar('PLAYWRIGHT_CODE', { secret: true, placeholder: '<the bypass code>' });
+  envVar('OAUTH_CLIENT_SECRET_PROD', { secret: true, placeholder: '<secret>' });
+  envVar('OAUTH_CLIENT_SECRET_STAGING', { secret: true, placeholder: '<secret>' });
+  envVar('AUTH_SECRET', { required: false, secret: true, placeholder: '<secret>' });
 
   const w = Math.max(...rows.map((r) => r.name.length));
   for (const r of rows) out(`${r.status.padEnd(4)}  ${r.name.padEnd(w)}  ${r.detail}${r.status !== 'ok' && r.fix ? `  fix: ${r.fix}` : ''}`);

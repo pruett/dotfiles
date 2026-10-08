@@ -9,7 +9,7 @@ import { CliError } from '../src/lib.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const cli = path.join(here, '../src/cli.mjs');
-// CLI subprocesses never read the developer's ~/.config/verify-suppco/env.
+// CLI subprocesses never read the developer's .env next to the CLI.
 const env = (o) => { const e = { ...process.env, VERIFY_SUPPCO_ENV: '/nonexistent', ...o }; for (const k of Object.keys(o)) if (o[k] === undefined) delete e[k]; return e; };
 const withEnv = (o, fn) => {
   const saved = Object.fromEntries(Object.keys(o).map((k) => [k, process.env[k]]));

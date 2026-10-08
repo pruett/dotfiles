@@ -117,16 +117,28 @@ test('doctor: rails credentials warns on the placeholder shim, ok with master.ke
   assert.match(r.stdout, /^ok {4}rails credentials +real$/m);
 });
 
-test('doctor: env file line warns when missing or not 600, ok at 600', () => {
+test('doctor: env line is ok without a file, warns on a loose file, ok at 600', () => {
   const dir = tmpRoot(); const file = path.join(dir, 'env');
   let r = run(['doctor', '--root', dir], { VERIFY_SUPPCO_ENV: file });
-  assert.match(r.stdout, new RegExp(`^warn {2}env file +${file} missing {2}fix: mkdir -p ${dir} && install -m 600 /dev/null ${file}$`, 'm'));
+  assert.match(r.stdout, /^ok {4}env +shell exports, then none$/m);
   fs.writeFileSync(file, ''); fs.chmodSync(file, 0o644);
   r = run(['doctor', '--root', dir], { VERIFY_SUPPCO_ENV: file });
-  assert.match(r.stdout, /^warn {2}env file .*mode 644, not 600 {2}fix: chmod 600 /m);
+  assert.match(r.stdout, new RegExp(`^warn {2}env +shell exports, then ${file} \\(not mode 600\\) {2}fix: chmod 600 ${file}$`, 'm'));
   fs.chmodSync(file, 0o600);
   r = run(['doctor', '--root', dir], { VERIFY_SUPPCO_ENV: file });
-  assert.match(r.stdout, new RegExp(`^ok {4}env file +${file}$`, 'm'));
+  assert.match(r.stdout, new RegExp(`^ok {4}env +shell exports, then ${file}$`, 'm'));
+});
+
+test('doctor: one line per environment variable; unset required ones warn with an export fix', () => {
+  const dir = tmpRoot();
+  const r = run(['doctor', '--root', dir], { VERIFY_SUPPCO_ENV: '/nonexistent', SUPPCO_ROOT: '', PLAYWRIGHT_EMAIL: 'me@example.com', PLAYWRIGHT_CODE: '', OAUTH_CLIENT_SECRET_PROD: 'x', OAUTH_CLIENT_SECRET_STAGING: '', AUTH_SECRET: '' });
+  assert.match(r.stdout, /^ok {4}\$SUPPCO_ROOT +unset \(optional\)$/m);
+  assert.match(r.stdout, /^warn {2}\$PLAYWRIGHT_EMAIL +me@example\.com does not end with test@monsterinbox\.com {2}fix: echo 'export PLAYWRIGHT_EMAIL=<you>test@monsterinbox\.com' >> .*\.zshrc\.local\.zsh or \/nonexistent$/m);
+  assert.match(r.stdout, /^warn {2}\$PLAYWRIGHT_CODE +unset {2}fix: echo 'export PLAYWRIGHT_CODE=<the bypass code>' >> /m);
+  assert.match(r.stdout, /^ok {4}\$OAUTH_CLIENT_SECRET_PROD +set$/m);
+  assert.match(r.stdout, /^warn {2}\$OAUTH_CLIENT_SECRET_STAGING +unset {2}fix: /m);
+  assert.match(r.stdout, /^ok {4}\$AUTH_SECRET +unset \(optional\)$/m);
+  assert.doesNotMatch(r.stdout, /PLAYWRIGHT_CODE +x/);
 });
 
 test('up --api staging without OAUTH_CLIENT_SECRET_STAGING → exit 2 with the env-file fix, before touching anything', () => {

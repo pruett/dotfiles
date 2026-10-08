@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CLI=./bin/verify-suppco
-ENV_FILE="${VERIFY_SUPPCO_ENV:-$HOME/.config/verify-suppco/env}"
+ENV_FILE="${VERIFY_SUPPCO_ENV:-$PWD/.env}"
 
 if [ -z "${PLAYWRIGHT_EMAIL:-}" ] && [ -f "$ENV_FILE" ]; then
   set -a; . "$ENV_FILE"; set +a

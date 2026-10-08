@@ -14,8 +14,8 @@ verify-suppco <verb> [<subverb>] [<args>...] [<flags>]
 - Every non-zero exit prints one `fix: <command>` line on stderr.
 - stdout is the verb's result. Everything else is stderr.
 - Targets are flags, repeated on every verb. Nothing persists between invocations except sessions and run output.
-- Only credentials (`PLAYWRIGHT_EMAIL`, `PLAYWRIGHT_CODE`) and per-target secrets (`OAUTH_CLIENT_SECRET_PROD`, `OAUTH_CLIENT_SECRET_STAGING`, `AUTH_SECRET`) are read from the environment, or from the CLI's own env file `~/.config/verify-suppco/env` (`$VERIFY_SUPPCO_ENV`) when the variable is unset. A flag wins over the variable. The CLI never reads secrets from, or writes to, the checkouts.
-- Output lives under `.verify-suppco/` in the root: `auth/<email>.json` and `runs/<stamp>-<verb>-<slug>/`.
+- Every input is a flag or an environment variable; `verify-suppco doctor` lists the variables and checks them. Shell exports win (on this Mac they live in `~/.config/zsh/extras/.zshrc.local.zsh`); the CLI's own `.env` ([`.env.example`](.env.example)) is the fallback for a machine without them. A flag wins over the variable. Nothing is read from, or written to, the checkouts.
+- Portable: this directory plus Node 22, `pnpm install && pnpm exec playwright install chromium` and those variables drives any remote target from any machine; only `up` and `local` targets need the checkouts. State lives under `$SUPPCO_ROOT/.verify-suppco/` (`$VERIFY_SUPPCO_STATE` relocates it).
 
 ## `verify-suppco --help`
 
@@ -45,9 +45,10 @@ conventions:
   every non-zero exit prints one `fix: <command>` line on stderr
   stdout is the verb's result; everything else (progress, run paths) is stderr
   targets are never persisted; repeat --web/--api on every verb
-  credentials ($PLAYWRIGHT_EMAIL, $PLAYWRIGHT_CODE) and per-target secrets come from the
-  environment or ~/.config/verify-suppco/env; nothing is read from the checkouts' .env files
-  state lives under $SUPPCO_ROOT/.verify-suppco/ (auth/, runs/, logs/, up.json); safe to delete
+  every input is a flag or an environment variable (verify-suppco doctor lists them); shell
+  exports win, the CLI's own .env is the fallback. nothing is read from the checkouts
+  state lives under $SUPPCO_ROOT/.verify-suppco/ ($VERIFY_SUPPCO_STATE to relocate): auth/,
+  runs/, logs/, up.json; safe to delete
 
 run `verify-suppco <verb> --help` for a verb's flags, output and exit codes
 ```
@@ -58,10 +59,11 @@ run `verify-suppco <verb> --help` for a verb's flags, output and exit codes
 usage: verify-suppco doctor [--root <dir>]
 
   one line per prerequisite: node/pnpm/ruby via mise, backend/ and web/ checkouts,
-  rails credentials, postgres, redis, mkcert CA, playwright browsers, the env file,
-  $PLAYWRIGHT_EMAIL (set, ends with test@monsterinbox.com), $PLAYWRIGHT_CODE (set).
-  each failing line ends with its fix. credential and env-file lines warn, they do
-  not fail: a human can still type the code.
+  rails credentials, postgres, redis, mkcert CA, playwright browsers, and one line per
+  environment variable: $SUPPCO_ROOT, $PLAYWRIGHT_EMAIL, $PLAYWRIGHT_CODE,
+  $OAUTH_CLIENT_SECRET_PROD, $OAUTH_CLIENT_SECRET_STAGING, $AUTH_SECRET (shell exports,
+  then the CLI's .env). each failing line ends with its fix. environment lines warn,
+  they do not fail: a human can still type the code.
 
   --root <dir>             directory holding backend/ and web/      [~/work/suppco]
 
@@ -77,7 +79,7 @@ usage: verify-suppco up [--web local|<branch>] [--api local|<branch>] [--root <d
   then waits for health. always a fresh instance: whatever already listens on a
   port it needs is stopped first, servers it started and foreign ones alike.
   remote targets (staging, prod, <url>) boot nothing; the local web is pointed at
-  the remote api (needs $OAUTH_CLIENT_SECRET_PROD / _STAGING in the env file).
+  the remote api (needs $OAUTH_CLIENT_SECRET_PROD / _STAGING in the environment or .env).
 
   --web local|<branch>     web checkout: the main clone, or a branch       [local]
   --api local|<branch>     backend checkout                                 [local]

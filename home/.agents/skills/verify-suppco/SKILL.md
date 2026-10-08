@@ -16,13 +16,12 @@ CLI there, following its `AGENTS.md`. This skill is prose only.
 
 - `--web` and `--api` are repeated on every verb and never persisted. Each is `local`, `staging`, `prod`, or a URL
   (`--api` also takes a backend branch name on `up`). Default is `local` for both. Remote targets boot nothing.
-- Every input is a flag or an environment variable. Secrets come from `~/.config/verify-suppco/env` (or
-  `$VERIFY_SUPPCO_ENV`) when unset: `PLAYWRIGHT_EMAIL`, `PLAYWRIGHT_CODE`, `OAUTH_CLIENT_SECRET_PROD`,
-  `OAUTH_CLIENT_SECRET_STAGING`, `OAUTH_CLIENT_SECRET` (for a URL `--api`), `AUTH_SECRET`. Nothing is read from or
-  written to the checkouts' `.env` files; `up` hands Vite its whole environment.
+- Every input is a flag or an environment variable; `verify-suppco doctor` lists and checks the variables. They are
+  exported from `~/.config/zsh/extras/.zshrc.local.zsh` on this Mac (the CLI's own `.env` is the fallback elsewhere).
+  Nothing is read from or written to the checkouts' `.env` files; `up` hands Vite its whole environment.
 - `$SUPPCO_ROOT` (default `~/work/suppco`) holds `backend/` and `web/`. Sessions, run output, logs and `up.json` live
-  under `$SUPPCO_ROOT/.verify-suppco/`, a cache that can be deleted at any time. A run directory is
-  `runs/<stamp>-<verb>-<slug>/`.
+  under `$SUPPCO_ROOT/.verify-suppco/` (`$VERIFY_SUPPCO_STATE` relocates it), a cache that can be deleted at any time.
+  A run directory is `runs/<stamp>-<verb>-<slug>/`.
 - With `--web <url>` no checkout is needed: `SUPPCO_ROOT=$(mktemp -d)` works, and Playwright resolves from the
   CLI's own `node_modules`.
 

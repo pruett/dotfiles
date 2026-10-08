@@ -18,8 +18,8 @@ README or any verb's `--help` output drifts from it.
 - `test/` — `node --test` (or `pnpm test`).
 - `examples/` — Playwright scripts for `pw`.
 
-State lives under `$SUPPCO_ROOT/.verify-suppco/` (default `~/work/suppco/.verify-suppco/`): `auth/<email>.json`,
-`runs/<stamp>-<verb>-<slug>/`, `logs/`, `up.json`.
+State lives under `$SUPPCO_ROOT/.verify-suppco/` (default `~/work/suppco/.verify-suppco/`; `$VERIFY_SUPPCO_STATE`
+relocates it): `auth/<email>.json`, `runs/<stamp>-<verb>-<slug>/`, `logs/`, `up.json`, `worktrees/`.
 
 Rules: stdout is the verb's result only. Never echo `$PLAYWRIGHT_CODE`. Exit 0/1/2 per the README. A verb edits only its
 own file; shared helpers go in `lib.mjs` as additive exports.
@@ -36,10 +36,10 @@ The script's default export is called once: `async ({ page, context, base, auth,
 
 ## Inputs and state (ephemeral by design)
 
-Every input is a flag or an environment variable. `src/cli.mjs` first loads `$VERIFY_SUPPCO_ENV` or
-`~/.config/verify-suppco/env` (dotenv; a variable already in the environment wins). Keys: `PLAYWRIGHT_EMAIL`,
-`PLAYWRIGHT_CODE`, `OAUTH_CLIENT_SECRET_PROD`, `OAUTH_CLIENT_SECRET_STAGING`, `OAUTH_CLIENT_SECRET` (for `--api <url>`),
-`AUTH_SECRET` (optional), `SUPPCO_ROOT`. Nothing is read from the checkouts' `.env` files and nothing is written to them.
+Every input is a flag or an environment variable; `doctor` prints one line per variable and `.env.example` lists them
+(`test/env-example.test.mjs` fails when a new `process.env` read is missing there). Shell exports win (this Mac:
+`~/.config/zsh/extras/.zshrc.local.zsh`); `src/cli.mjs` loads `$VERIFY_SUPPCO_ENV` or the gitignored `.env` here as
+the fallback. Nothing is read from the checkouts' `.env` files and nothing is written to them.
 `up` hands Vite its complete environment (`webEnvFor`), so a web clone with no `.env.local` boots. With `--web <url>` no
 checkout is needed at all: Playwright resolves from this directory's `node_modules`, and `$SUPPCO_ROOT` may be an empty
 temp dir. `.verify-suppco/` under the root is a cache (sessions, runs, logs, up.json) that can be deleted at any time.
