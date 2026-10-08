@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# verify-suppco — boot and drive the SuppCo app for automated verification.
+# Thin shim: runs src/cli.mjs with the web repo's Node (via mise) so Playwright resolves from web/apps/web/node_modules.
+set -euo pipefail
+HERE="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
+ROOT="${SUPPCO_ROOT:-$HOME/work/suppco}"
+export VERIFY_SUPPCO_CWD="$PWD"
+# Trust both local CAs for Node fetch: mkcert's own, and vite-plugin-mkcert's (which signs the :3001 cert).
+if [[ -z "${NODE_EXTRA_CA_CERTS:-}" ]]; then
+  bundle="${TMPDIR:-/tmp}/verify-suppco-ca-$(id -u).pem"
+  : > "$bundle"
+  if command -v mkcert >/dev/null 2>&1; then
+    ca_root="$(mkcert -CAROOT 2>/dev/null || true)"
+    [[ -n "$ca_root" && -f "$ca_root/rootCA.pem" ]] && cat "$ca_root/rootCA.pem" >> "$bundle"
+  fi
+  [[ -f "$HOME/.vite-plugin-mkcert/rootCA.pem" ]] && cat "$HOME/.vite-plugin-mkcert/rootCA.pem" >> "$bundle"
+  [[ -s "$bundle" ]] && export NODE_EXTRA_CA_CERTS="$bundle"
+fi
+if [[ -d "$ROOT/web" ]] && command -v mise >/dev/null 2>&1; then
+  exec mise exec -C "$ROOT/web" -- node "$HERE/src/cli.mjs" "$@"
+fi
+exec node "$HERE/src/cli.mjs" "$@"

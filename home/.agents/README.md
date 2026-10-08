@@ -30,13 +30,13 @@ Codex skips symlinked `SKILL.md` files, which is why `dot` links
 `~/.agents/skills` as one directory symlink rather than file by file.
 
 Hand-written skills (not in the lockfile) live here too, e.g. `orchestrate`,
-`explain-pr`, `visual-pr` and `verify-suppco`. A skill that ships a CLI exposes it
-through a relative symlink in `home/.local/bin` (`verify-suppco -> ../../.agents/skills/verify-suppco/bin/verify-suppco`)
-so Stow puts it on `PATH`; after adding one, run `dot link` for the CLI and `skills sync claude claude-work`
-to create the agent links. `verify-suppco`'s `bin/` is only a
-forwarder: the CLI, its tests and feature map live in `~/personal/verify-suppco`
-(`packages/cli/`, github.com/pruett/verify-suppco) next to its GUI, and the shim
-prints the clone command when that checkout is missing.
+`explain-pr`, `visual-pr` and `verify-suppco`. A skill that ships a CLI keeps the
+code out of the skill: the project lives in a root dot-directory (`.tools/verify-suppco/`,
+never stowed), a relative symlink in `home/.local/bin` points at its `bin/`
+(`verify-suppco -> ../../../.tools/verify-suppco/bin/verify-suppco`) so Stow puts it on
+`PATH`, and the skill holds only `SKILL.md` plus `references/` (symlinks into the project
+where the text must not drift). After adding one, run `dot link` for the CLI and
+`skills sync claude claude-work` to create the agent links.
 
 `zed` is used as the installer target because its global skill directory is the
 shared `~/.agents/skills` directory. Run `skills sync <agent>` to create one

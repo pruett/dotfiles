@@ -1,190 +1,65 @@
 ---
 name: verify-suppco
-description: Boot and drive the SuppCo app (Rails backend + SvelteKit web) from the terminal with the `verify-suppco` CLI, and prove user-facing behavior with its feature map. Use when asked to boot/run/restart the app locally, run it against production or staging data, log in as a user, call the API as a user, screenshot or open a route, run a Playwright script, set up local state with rails/sql, verify a feature, or build/run the native iOS app (Capacitor, Xcode, simulator). Turns the request into `verify-suppco` commands.
+description: Boot and drive the SuppCo app (Rails backend + SvelteKit web) from the terminal with the `verify-suppco` CLI. Use when asked to boot, run or stop the app locally, run the web app against production or staging data, log in as a user, screenshot a route, run a Playwright script as a user, or prove user-facing behavior end to end. Turns the request into `verify-suppco` commands.
 ---
 
 # verify-suppco
 
-`verify-suppco` is a deterministic CLI on `PATH`. The CLI itself, its tests, its browser GUI and the feature map live in
-the verify-suppco repo (`~/personal/verify-suppco`, github.com/pruett/verify-suppco; `packages/cli/` is the CLI). This
-dotfiles skill holds only this file and `bin/verify-suppco`, a shim that `~/.local/bin/verify-suppco` points at: it execs
-`$VERIFY_SUPPCO_HOME/packages/cli/bin/verify-suppco` (default `~/personal/verify-suppco`) or prints the `git clone` to run.
-`verify-suppco where` prints the paths in effect (`features` is the feature map). This skill turns a request into
-`verify-suppco` commands and, for "prove feature X works", into a recipe from the feature map (`README.md` index + one file
-per feature under `packages/cli/features/`). The table under **Drive** is enough for the rows it lists; run
-`verify-suppco help` only for a flag it does not show. When a verb fails, its stderr names the fix: run the fix, do not
-work around it.
+`verify-suppco` is a six-verb CLI on `PATH`: `doctor`, `up`, `down`, `login`, `pw`, `shot`. Its `--help` is the
+source of truth for everything it can do: [`references/cli-api.md`](references/cli-api.md) is every verb's `--help` in one
+file. Read it once per session before the first command; this file only adds recipes and gotchas, never capabilities.
 
-The checkouts live under `$SUPPCO_ROOT` (default `~/work/suppco`): `backend/`, `web/`, and the CLI's own state dir
-`.verify-suppco/`. Set `SUPPCO_ROOT` only if the repos live somewhere else.
+The code lives in `~/.dotfiles/.tools/verify-suppco/` (`src/`, `test/`, `examples/`, `scripts/e2e.sh`); change the
+CLI there, following its `AGENTS.md`. This skill is prose only.
 
-## Launch
+## Targets and inputs
 
-- `verify-suppco up [--api local|staging|prod] [--db dev|prod|staging|<name>] [--as <email>]` boots the web app on
-  `https://localhost:3001` and, with `--api local`, Rails on `http://localhost:3000`. Idempotent: it reuses healthy servers,
-  restarts on config change, and returns once `/up` (backend) and the web root answer 200. Do not run `status` first.
-- Default `--api prod` boots web only against `api.supp.co`; login there is a real browser login. Everything you can mint
-  or drive headlessly needs `--api local`.
-- Flags persist in `.verify-suppco/state.json`, so `login`, `api`, `shot`, `rails`, `sql` follow the last `up`.
-- Teardown: `verify-suppco down` stops what this CLI started (`--all` also stops servers it did not start).
+- `--web` and `--api` are repeated on every verb and never persisted. Each is `local`, `staging`, `prod`, or a URL
+  (`--api` also takes a backend branch name on `up`). Default is `local` for both. Remote targets boot nothing.
+- Every input is a flag or an environment variable. Secrets come from `~/.config/verify-suppco/env` (or
+  `$VERIFY_SUPPCO_ENV`) when unset: `PLAYWRIGHT_EMAIL`, `PLAYWRIGHT_CODE`, `OAUTH_CLIENT_SECRET_PROD`,
+  `OAUTH_CLIENT_SECRET_STAGING`, `OAUTH_CLIENT_SECRET` (for a URL `--api`), `AUTH_SECRET`. Nothing is read from or
+  written to the checkouts' `.env` files; `up` hands Vite its whole environment.
+- `$SUPPCO_ROOT` (default `~/work/suppco`) holds `backend/` and `web/`. Sessions, run output, logs and `up.json` live
+  under `$SUPPCO_ROOT/.verify-suppco/`, a cache that can be deleted at any time. A run directory is
+  `runs/<stamp>-<verb>-<slug>/`.
+- With `--web <url>` no checkout is needed: `SUPPCO_ROOT=$(mktemp -d)` works, and Playwright resolves from the
+  CLI's own `node_modules`.
 
-## Doctor
+## Recipes
 
-`verify-suppco doctor` is read-only and prints one line per prerequisite (toolchain, web `node_modules`, the `backend` and
-`web checkout` in effect, Postgres, Redis, mkcert CA, `.env.local`, databases and their OAuth app, heroku, Playwright, Xcode,
-tunnel) with the fix for anything red. A `checkout` FAIL means the last `--web`/`--backend` pointed at a worktree that no
-longer exists: `up`, `env` and `status` name it too, and `verify-suppco up --web web` (or `--backend backend`) clears it. A
-`node_modules` FAIL names the package and whether it is a dangling pnpm symlink (an install linked into a deleted worktree);
-`up --web web` reinstalls it. Run it before the first
-drive of a session and again after any drive that failed for a reason the CLI did not name. `verify-suppco status` says what
-is running, against which API/database, and which minted sessions are still fresh.
+1. **Local end to end**: `doctor`, `up`, `login`, then `shot <route> --as <email>` or `pw <script> --as <email>`,
+   then `down`. Pass the same `--web`/`--api` to every step.
+2. **Local web on production data** (the usual demo path, no local backend needed):
+   `up --web local --api prod`, then `login`, `shot`, `pw` with `--web local --api prod`.
+3. **Pure remote, no checkout**: `SUPPCO_ROOT=$(mktemp -d) verify-suppco login --web https://supp.co --api prod`, then
+   `shot`/`pw` with the same root and targets.
+4. **Prove the whole chain**: `scripts/e2e.sh` in the project runs doctor, up, login, shot, pw, down and prints a
+   pass/fail table (`E2E_API=prod` for recipe 2, `E2E_KEEP=1` to leave servers up).
 
-## Drive
+`login` is required before any `--as <email>`; a missing session exits 2 with the exact `login` to run. Bypass
+accounts (any `*test@monsterinbox.com` on local and staging, allow-listed accounts on prod) take the fixed
+`$PLAYWRIGHT_CODE` headlessly; anything else needs a human at a headed browser.
 
-| Request says | Run |
-|---|---|
-| boot / start / run the app | `verify-suppco up` (idempotent: reuses healthy servers, restarts on config change; no need to run `status` first) |
-| …as / logged in as `<email>` | `verify-suppco up --as <email>` or `verify-suppco login <email>` (`--role admin` sets the role first) |
-| set me up to test by hand / let me click around | `verify-suppco dev --as <email>` — boots, opens a persistent logged-in Chromium, prints the cheat-sheet |
-| …against **production data** | `verify-suppco up --api local --db prod` — local Postgres mirror of the whitelisted production tables; users are never pulled, and the mirror holds only what has been pulled (`verify-suppco sql "select count(*) from products"` tells you if it is empty). Refresh: `verify-suppco db pull --db prod [tables…]` |
-| …against **staging data** | `verify-suppco up --api local --db staging` — same mirror scheme, sourced from suppleco-staging's DATABASE_URL (needs Operate on that app). Any table is pullable: `verify-suppco db pull --db staging users products …` |
-| …against the **production API** / live prod (default) | `verify-suppco up --api prod` — web only, talks to api.supp.co; login is a real browser login you finish by hand. Staging: `--api staging` |
-| run / test branch `<b>` (or a directory) | `verify-suppco up --web <b>` and/or `--backend <b>` — a branch becomes a worktree under `.verify-suppco/worktrees/`; later `rails`/`sql`/`logs rails` follow it. Back to main: `verify-suppco up --backend backend --web web` (from any cwd) |
-| a clean slate first / restart everything | `verify-suppco up --fresh …` — the `down --all` teardown (managed, foreign and orphaned servers on :3000/:3001), then the boot; what the GUI's "Go" runs |
-| which branches exist / which checkout is running | `verify-suppco branches [--fetch] [--json]` — local + origin branches of backend and web, worktrees, and the checkout in effect (`--fetch` pulls origin first) |
-| a test user with state X (role, onboarded, Pro/Buying Club, products in the stack) | `verify-suppco user <email> [--role r] [--onboarded\|--no-onboarded] [--pro\|--no-pro] [--product <slug>]... [--clear-products] [--json]` — local db only (rails runner, ~5 s); created if missing; no flags prints the state. Find slugs with `verify-suppco products <query> [-n N] [--json]` (psql, < 1 s). Then `login <email>` / `up --as <email>` |
-| the branch has new migrations | `up` stops and lists them; `--migrate` applies them, or keep main's db: `verify-suppco down && verify-suppco db clone api_development api_<b> && verify-suppco up --backend <b> --db api_<b> --migrate` |
-| restart / pick up env changes | `verify-suppco down && verify-suppco up …` (`--takeover` replaces servers this CLI did not start) |
-| is it running / what is running | `verify-suppco status` |
-| something 500s / what does the log say | `verify-suppco api GET /api/... --as <email>` (prints rails ms, sql ms) → `verify-suppco logs rails --grep '/api/<path>' -n 200`; `verify-suppco logs backend` / `web` for process stdout |
-| screenshot `<route>` (as `<email>`) | `verify-suppco shot <route> [--as <email>]` — exit 1 and `ERROR PAGE` on the app's error boundary; `REDIRECTED` when the app sent you elsewhere. Reads its `<shot>.json` sidecar before opening a trace |
-| call the API as `<email>` | `verify-suppco api GET /api/... --as <email>`, `verify-suppco api POST /api/... --as <email> --json '{...}' --expect 201` |
-| click through a flow / anything multi-step | write a tiny Playwright script and run `verify-suppco pw script.mjs --as <email>` (`export default async ({ page, context, base, api, auth, args, shots }) => result`); add `--trace` then `verify-suppco trace` to step through it |
-| let me look at it | `verify-suppco open <route> --as <email> --persistent --detach` (reusable logged-in browser, returns immediately) |
-| set up data / flip a flag / inspect a row | `verify-suppco rails '<ruby>'` or `verify-suppco sql '<query>'` — both hit the database of the current `--db` |
-| a job didn't run / background work | `verify-suppco jobs` (queues, busy workers, last retries and dead jobs with their errors) |
-| login is throttled (429 / "too many") | `verify-suppco throttle clear` |
-| prove feature `<x>` works | `verify-suppco feature` lists the map; a feature with a driver runs unattended with `verify-suppco feature <id> --trace --report` (mints the session, sets up, drives the browser flow, takes the second look, cleans up; summary JSON on stdout, exit 1 on a failed step). Without a driver, open `packages/cli/features/<id>.md` (`verify-suppco where` → `features`) and follow the recipe by hand, capturing the evidence it names |
-| boot **and** prove a feature in one go | `verify-suppco tui --yes --db prod --feature <id>` (`up`, then `feature <id> --trace --report`) |
-| launch it interactively / pick branches, backend, user, iOS with a stepper | `verify-suppco tui` (`tui --help` lists every flag and what it maps to). Agents: `verify-suppco tui --json --preflight …` (plan, commands and the `doctor` rows it needs; runs nothing), then `verify-suppco tui --yes …` to run it |
-| the **browser GUI** for all of the above (runs, evidence, features) | `verify-suppco gui [--port N] [--restart]` — starts the GUI server from the same checkout as the CLI on `127.0.0.1:3737` (also `https://verify-suppco.localhost` via the portless alias, see the repo README) and opens it; Ctrl-C stops it. A server already running from another commit is replaced (`--restart` forces it). Every GUI action is also a verb here |
-| stop everything | `verify-suppco down` (`--all` also stops servers this CLI did not start) |
-| build / run the **native iOS app**, open it in Xcode | `verify-suppco ios` — boots the web behind your tunnel, `cap sync ios` from the current `--web` checkout, opens `App.xcworkspace`; `verify-suppco ios run [--device <name>]` builds onto a simulator instead |
-| native app with **working sign-in** | `verify-suppco ios run --api local --api-tunnel <you>-api.supp.co` — both Cloudflare routes must already reach this Mac (backend README → Cloudflare Tunnel) |
-| native app against staging / production | `verify-suppco ios --target staging` / `--target prod` (no local web needed) |
-| the native app shows a blank page / old config | `verify-suppco ios sync` (forced re-sync; `up`/`run` skip it when nothing changed), then rebuild |
-| screenshot the **simulator** / list simulators | `verify-suppco ios shot [--device <name\|udid>] [--out f.png] [--json]` → `.verify-suppco/shots/<stamp>-ios-<device>.png` + `.json` sidecar (`device, udid, target, origin`) and `.run.json`; needs a booted simulator. `verify-suppco ios devices --json` → `[{name,udid,state,runtime}]` |
-| record the **simulator** screen / read the app's simulator log | `verify-suppco ios record start [--device <name\|udid>]` … `verify-suppco ios record stop` → `.verify-suppco/videos/<stamp>-ios-<device>.mov` + `.run.json` (`status --json` shows `ios.recording` while live). `verify-suppco ios logs [--grep re] [-n N] [-f]` — last N lines of the app's log (10 min window), or `-f` to stream |
+## Reading results
 
-`--api local|staging|prod` picks what the web app talks to (default `prod`: web only; `--api local` boots Rails) and
-`--db dev|prod|staging|<name>` picks the local Postgres database Rails uses. Ports are fixed at :3000/:3001.
+- stdout is the verb's result only; everything else, including the run directory path, is stderr.
+- `shot` writes `shot.png` and `shot.json` (final url, redirect, status, title, console errors, failed requests) to its
+  run directory. Exit 1 means an error page or status 400+.
+- `pw` prints the script's returned value (JSON, strings as-is). `--trace` and `--video` land in the run directory.
+  A script is an ES module whose default export is called once:
+  `async ({ page, context, base, auth, args, shots }) => result`. `page` has `baseURL` set and the session injected;
+  `base` is the web URL; `auth` is the saved session record or `null` for guest; `args` are the strings after `--`;
+  `await shots('name')` saves `shots/name.png` in the run directory. Start from `examples/` in the project.
+- Every non-zero exit prints `error: …` and one `fix: <command>` line on stderr. Run the fix verbatim before trying
+  anything else; exit 2 is a precondition (nothing booted, no session, checkout missing), exit 1 is the drive failing.
 
-## Evidence
+## Gotchas
 
-- `verify-suppco shot <route> --as <email>` writes `.verify-suppco/shots/<timestamp>-<route>-<user>.png` plus a `.json` sidecar
-  (final URL, console errors, failed and slow requests). Read the sidecar before trusting the PNG; `REDIRECTED` in it means
-  the app moved you (auth guard, wizard, Pro gate), not that the shot failed. `shot` exits 1 on `ERROR PAGE` **or** on a final
-  status ≥ 400: a 404 page is exit 1 with `errorPage: false` in the sidecar, which is the right result when 404 is what you expect.
-- `verify-suppco api …` prints status, rails ms, sql ms and the body; add `--expect N` to make the wrong status exit 1.
-- `verify-suppco pw script.mjs --trace` writes a Playwright trace to `.verify-suppco/traces/`; `verify-suppco trace` opens the latest.
-- Add `--video` to `shot` or `pw` to record `.verify-suppco/videos/<timestamp>-<slug>[-<user>].webm`; its path is `video` in
-  the sidecar / pw result. Every `shot`/`pw` also writes `<timestamp>-<slug>[-<user>].run.json` next to its output (`shots/`
-  for pw) listing `verb`, `argv`, `startedAt`, `exitCode`, `artifacts` and `feature` (from `$VERIFY_FEATURE`).
-- Side effects: prove them with a read-only second look, `verify-suppco sql '<select>'` or `verify-suppco rails '<ruby>'`,
-  never by trusting the UI alone.
-- Evidence survives `down`: nothing under `.verify-suppco/shots`, `traces` or `videos` is removed by teardown. Name the
-  files in your report. `verify-suppco report [--feature id] [--since ts] [--out f.md]` writes a markdown summary of that
-  evidence (one section per run, newest first, with relative links and each sidecar's entry point, final URL and errors) to
-  `.verify-suppco/reports/<timestamp>.md` and prints its path.
-
-## Cleanup
-
-`verify-suppco down` kills only the process groups this CLI started (state record + env-marker sweep); it never kills by name.
-Servers it did not start are `foreign`: a default `up` adopts them, anything else refuses, `--takeover` replaces them and
-`down --all` stops them. Detached browsers from `open --detach` are separate and close when you close the window. Worktrees
-under `.verify-suppco/worktrees/` persist; remove with `git worktree remove <path>` from the repo that owns them.
-
-## Helpers
-
-- `bin/verify-suppco` (here, in dotfiles) — forwarder to the checkout named by `$VERIFY_SUPPCO_HOME` (default
-  `~/personal/verify-suppco`); prints the clone command when it is missing. Symlinked from `~/.local/bin/verify-suppco`.
-- In the verify-suppco repo, `packages/cli/`:
-  - `bin/verify-suppco` — bash shim; picks the web repo's Node/pnpm via `mise exec -C $SUPPCO_ROOT/web`, exports the mkcert
-    CA for Node, then runs `verify-suppco.mjs`.
-  - `verify-suppco.mjs` — the whole CLI (single ESM file). `verify-suppco help` is the flag reference; `verify-suppco where`
-    prints where it lives.
-  - `verify-suppco.test.mjs` — unit tests for the argument/env layer: `pnpm --filter verify-suppco test` from the repo root.
-  - `features/` — the feature map (`README.md` index + one file per user-facing feature); `features/scripts/*.mjs` are the
-    executable Playwright flows the recipes name (`verify-suppco pw <features>/scripts/<name>.mjs --as <email> …`).
-- In the verify-suppco repo, `apps/tui/` — the terminal stepper behind `verify-suppco tui` (Ink, run through tsx); it only
-  composes `verify-suppco` verbs and drives the CLI that launched it.
-- A CLI change and the GUI surface that uses it land in one commit of that repo; `CLI.md` there lists every CLI change.
-
-## Where things live
-
-Both repos sit under `$SUPPCO_ROOT` (`~/work/suppco`). `web/` is a pnpm + Turborepo monorepo, so the checkout root and the
-app you are driving are different directories; run a package's own scripts from its directory (or `pnpm --filter <name>`
-from `web/`). `verify-suppco` itself runs from anywhere.
-
-| Directory | What it is | Run from here |
-|---|---|---|
-| `~/work/suppco/backend` | Rails API (`api.supp.co`); also Sidekiq, `db/`, `log/development.log` | `bin/rails …`, `bundle exec rspec`, `bin/rails db:migrate` |
-| `~/work/suppco/web` | monorepo root: `pnpm-workspace.yaml`, `turbo.json`, `AGENTS.md` | `pnpm install`, `pnpm --filter web <script>`, `pnpm lint`, `pnpm storybook:preview` |
-| `~/work/suppco/web/apps/web` | **the web app** (SvelteKit, package `web`); also Storybook and the Capacitor iOS shell (`ios/App/App.xcworkspace`) | `pnpm dev`, `pnpm test`, `pnpm test:unit`, `pnpm check`, `pnpm storybook` (:6007), `pnpm sync:ios` |
-| `~/work/suppco/web/apps/widget` | embeddable widget (`@suppco/widget`, Vite + Playwright) | `pnpm dev`, `pnpm test`, `pnpm e2e` |
-| `~/work/suppco/web/apps/{cache,cloudinary,segment,sentry,discourse}-proxy` | Cloudflare Workers (wrangler) | `pnpm dev`, `pnpm deploy…` |
-| `~/work/suppco/web/apps/extension` | browser extension | its own scripts |
-| `~/work/suppco/web/apps/shopify-app/supp-co-subscriptions` | Shopify app, a nested pnpm workspace | `pnpm --dir … --filter <pkg> …` (see `web/AGENTS.md`) |
-| `~/work/suppco/web/packages/{auth-native,browser}` | custom Capacitor plugins | `pnpm build` |
-| `~/work/suppco/web/packages/eslint-config-custom` | shared ESLint config | nothing to run |
-| `~/work/suppco/.verify-suppco` | this CLI's state, logs, sessions, screenshots, traces, `env/<api>.env`, and `worktrees/` | read-only for you |
-
-After `verify-suppco up --web <branch>` / `--backend <branch>` the roots above move to `.verify-suppco/worktrees/<backend|web>/<branch>`
-(and `apps/web` inside it); `verify-suppco status` → `repo` lines print the paths in effect, so read them before `cd`-ing.
-
-## Rules
-
-- `up` guarantees at most one managed backend and one managed web; `status` lists leftovers as `orphan`, `down` reaps them.
-- Servers this CLI did not start are `foreign`: a default `up` adopts them, anything else refuses. Replace them only with
-  `--takeover`, and say so.
-- Prefer minted sessions (`verify-suppco login`, default on `--api local`): no email, no throttle, ~3s. Use `--real` only
-  when the login flow itself is what you are testing.
-- A screenshot that says `REDIRECTED` is app behaviour (auth guard, onboarding wizard, Pro gate), not a CLI failure. Read the
-  final URL before concluding.
-- Never edit product code to make a verification pass; a behavior the map describes that the app no longer does is either
-  map drift (fix `packages/cli/features/` in the verify-suppco repo) or a product regression (report it).
-
-## Gotchas the CLI cannot print
-
-- `/marketplace` (Buying Club) requires an active subscription (`session.user.has_active_subscription`, rebuilt from
-  `GET /api/users/me_compact` on every load, so no re-mint after `Entitlement.grant_admin`); non-members and guests are sent
-  to `/`, which forwards a signed-in user to `/home/today`. Members without accepted Buying Club terms go to
-  `/marketplace/welcome` first. New users (`onboarding_completed` false) are sent to the SuppScore wizard at
-  `/my/suppscore/wizard/intro` on first `/home/today`.
-- The passwordless limiter is 5 codes per email and 10 per IP per 30 minutes; `verify-suppco throttle clear` resets it.
-- `--migrate` runs `db:migrate` with `annotaterb` skipped and puts `db/structure.sql` back if the dump changed it, so it
-  never leaves the backend clone dirty. Author schema changes from inside `backend/` with `bin/rails db:migrate` instead.
-- With the placeholder credentials shim every signed-in page logs one failed `401 /api/inApp/getMessages` (Iterable) and the
-  marketplace hub a `422 /api/shop/subscriptions` (Shopify); guests log `401 /api/ui_note_flags`. None is a page error.
-- The dev Rails log has no request-id tags (`config.log_tags` is unset), so join `api` output to the log by path and
-  time, not by `x-request-id`.
-- Sidekiq shares Redis, so a job enqueued under one `--db` can run under another if two backends ever overlap; the CLI
-  keeps one backend for that reason.
-- Worktrees share the main clone's `.git` (`git worktree list` in `backend/` or `web/` shows them; remove with
-  `git worktree remove <path>`). The main clone may itself be on a feature branch (`status` → `repo` lines).
-
-### iOS (`verify-suppco ios`)
-
-- The app is a Capacitor **shell**: it loads the web app from an origin fixed at `cap sync` time (dev → your
-  `--tunnel` host, staging → `staging.supp.co`, prod → `app.supp.co`); the web code is never bundled, so `pnpm build`
-  is not part of the loop. A device needs the tunnel host in `WKAppBoundDomains` in `Dev-Info.plist`.
-- Native sign-in only works through the named **API** tunnel (`--api-tunnel`): the auth plugin rejects non-HTTPS
-  authentication URLs and the backend compares the issuer host to the request host. Do not patch backend auth to
-  get around it; do not reuse another developer's hostname without checking the route points at this Mac.
-- A web tunnel route whose service is `https://localhost:3001` needs the mkcert CA trusted by cloudflared; a
-  Cloudflare 502 saying "first record does not look like a TLS handshake" means the origin was plain http.
-- The `xcode-select` fix the CLI prints is interactive (`sudo`): hand it to the human.
-- `Pods/`, `App/public/` and `capacitor.config.json` are generated and gitignored; a diff in `ios/` after sync means
-  something else changed.
-- `terra-capacitor` is deliberately left out of `includePlugins` (HealthKit entitlements); do not re-add it to fix a build.
-- In-app purchases in the simulator use the `Products.storekit` config (Edit Scheme → Run → Options); see `apps/web/README.md`.
+- `login --api local` rejected with "verify that you are human": the backend runs on placeholder Rails credentials.
+  `doctor` and `login` print the `master.key` fix; the key is Heroku's `RAILS_MASTER_KEY`, not in 1Password.
+- Local `shot.json` always lists Vite HMR websocket console errors (the app pins `hmr.clientPort` to 443 for tunnels).
+  That is noise, not a failure of the route.
+- Vite's `:3001` certificate is signed by `~/.vite-plugin-mkcert/rootCA.pem`, not `mkcert -CAROOT`. The `bin` shim
+  bundles both into `NODE_EXTRA_CA_CERTS`; a raw `node src/cli.mjs` will fail TLS against local web.
+- Non-bypass emails hit the login rate limiter at 5 codes per 30 minutes.

@@ -1,0 +1,20 @@
+{
+  "name": "verify-suppco",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Boot and drive the SuppCo app for automated verification (locked v1 API in README.md)",
+  "bin": {
+    "verify-suppco": "bin/verify-suppco"
+  },
+  "scripts": {
+    "test": "node --test",
+    "gen-readme": "node scripts/gen-readme.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@playwright/test": "1.58.2"
+  }
+}
