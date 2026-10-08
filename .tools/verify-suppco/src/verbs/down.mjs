@@ -3,7 +3,7 @@ import { fail, log, out, parseArgs, paths, resolveRoot } from '../lib.mjs';
 import { readUp, setUp, stopGroup } from '../lib-up.mjs';
 
 export default async function run(argv) {
-  // --root is accepted (like every verb that reads .verify-suppco/) but not advertised; $SUPPCO_ROOT works too.
+  // --root is accepted (like every verb that reads .verify-suppco/) but not advertised; $VERIFY_SUPPCO_ROOT works too.
   const { flags, rest } = parseArgs(argv, { valued: ['root'] });
   if (rest.length) fail(2, `unexpected argument '${rest[0]}'`, 'verify-suppco down --help');
   const P = paths(resolveRoot(flags));

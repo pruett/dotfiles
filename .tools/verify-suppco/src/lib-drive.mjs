@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fail, log, warn, readAuth, newRunDir, playwright, writeJson, mkdirp, credentials, CLI_DIR } from './lib.mjs';
 
-/** The session to inject: --as, else $PLAYWRIGHT_EMAIL, else '' (guest). */
+/** The session to inject: --as, else $VERIFY_SUPPCO_EMAIL, else '' (guest). */
 export const resolveAs = (flags) => flags.as || credentials().email || '';
 
 /** The saved session for `email` (exit 2 when missing), or null for guest. Returned twice: with and without storageState. */

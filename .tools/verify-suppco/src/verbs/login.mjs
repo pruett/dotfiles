@@ -24,7 +24,7 @@ export function parse(argv) {
   const { flags, rest } = parseArgs(argv, { valued: ['code', 'web', 'api'] });
   if (rest.length > 1) fail(2, `login takes one <email>, got ${rest.length} arguments`, 'verify-suppco login --help');
   const { email, code } = credentials({ email: rest[0], code: flags.code });
-  if (!email) fail(2, 'no email given and $PLAYWRIGHT_EMAIL unset', `export PLAYWRIGHT_EMAIL=<you>${BYPASS_SUFFIX}`);
+  if (!email) fail(2, 'no email given and $VERIFY_SUPPCO_EMAIL unset', `export VERIFY_SUPPCO_EMAIL=<you>${BYPASS_SUFFIX}`);
   return { email, code, flags };
 }
 

@@ -19,10 +19,10 @@ CLI there, following its `AGENTS.md`. This skill is prose only.
 - Every input is a flag or an environment variable; `verify-suppco doctor` lists and checks the variables. They are
   exported from `~/.config/zsh/extras/.zshrc.local.zsh` on this Mac (the CLI's own `.env` is the fallback elsewhere).
   Nothing is read from or written to the checkouts' `.env` files; `up` hands Vite its whole environment.
-- `$SUPPCO_ROOT` (default `~/work/suppco`) holds `backend/` and `web/`. Sessions, run output, logs and `up.json` live
-  under `$SUPPCO_ROOT/.verify-suppco/` (`$VERIFY_SUPPCO_STATE` relocates it), a cache that can be deleted at any time.
+- `$VERIFY_SUPPCO_ROOT` (default `~/work/suppco`) holds `backend/` and `web/`. Sessions, run output, logs and `up.json` live
+  under `$VERIFY_SUPPCO_ROOT/.verify-suppco/` (`$VERIFY_SUPPCO_STATE` relocates it), a cache that can be deleted at any time.
   A run directory is `runs/<stamp>-<verb>-<slug>/`.
-- With `--web <url>` no checkout is needed: `SUPPCO_ROOT=$(mktemp -d)` works, and Playwright resolves from the
+- With `--web <url>` no checkout is needed: `VERIFY_SUPPCO_ROOT=$(mktemp -d)` works, and Playwright resolves from the
   CLI's own `node_modules`.
 
 ## Recipes
@@ -31,14 +31,14 @@ CLI there, following its `AGENTS.md`. This skill is prose only.
    then `down`. Pass the same `--web`/`--api` to every step.
 2. **Local web on production data** (the usual demo path, no local backend needed):
    `up --web local --api prod`, then `login`, `shot`, `pw` with `--web local --api prod`.
-3. **Pure remote, no checkout**: `SUPPCO_ROOT=$(mktemp -d) verify-suppco login --web https://supp.co --api prod`, then
+3. **Pure remote, no checkout**: `VERIFY_SUPPCO_ROOT=$(mktemp -d) verify-suppco login --web https://supp.co --api prod`, then
    `shot`/`pw` with the same root and targets.
 4. **Prove the whole chain**: `scripts/e2e.sh` in the project runs doctor, up, login, shot, pw, down and prints a
    pass/fail table (`E2E_API=prod` for recipe 2, `E2E_KEEP=1` to leave servers up).
 
 `login` is required before any `--as <email>`; a missing session exits 2 with the exact `login` to run. Bypass
 accounts (any `*test@monsterinbox.com` on local and staging, allow-listed accounts on prod) take the fixed
-`$PLAYWRIGHT_CODE` headlessly; anything else needs a human at a headed browser.
+`$VERIFY_SUPPCO_CODE` headlessly; anything else needs a human at a headed browser.
 
 ## Reading results
 

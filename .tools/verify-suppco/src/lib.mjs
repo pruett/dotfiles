@@ -78,9 +78,9 @@ export function parseArgs(argv, { valued = [], boolean = [] } = {}) {
 
 // ----------------------------------------------------------------- paths --
 export const expandHome = (p) => path.resolve(String(p).replace(/^~(?=$|\/)/, os.homedir()));
-/** Resolve the root holding backend/ and web/. `--root` wins, then $SUPPCO_ROOT, then ~/work/suppco. */
+/** Resolve the root holding backend/ and web/. `--root` wins, then $VERIFY_SUPPCO_ROOT, then ~/work/suppco. */
 export function resolveRoot(flags = {}) {
-  return expandHome(flags.root || process.env.SUPPCO_ROOT || DEFAULT_ROOT);
+  return expandHome(flags.root || process.env.VERIFY_SUPPCO_ROOT || DEFAULT_ROOT);
 }
 /** State dir: $VERIFY_SUPPCO_STATE, else <root>/.verify-suppco. */
 export function paths(root) {
@@ -129,7 +129,7 @@ export function loadEnvFile(file = ENV_FILE) {
 /** OAuth client secret for an API target: local is fixed, remote targets come from the environment / env file. */
 export function oauthSecretFor(apiTarget) {
   if (apiTarget.kind === 'local') return 'development_secret';
-  const key = { staging: 'OAUTH_CLIENT_SECRET_STAGING', prod: 'OAUTH_CLIENT_SECRET_PROD' }[apiTarget.kind] || 'OAUTH_CLIENT_SECRET';
+  const key = { staging: 'VERIFY_SUPPCO_OAUTH_SECRET_STAGING', prod: 'VERIFY_SUPPCO_OAUTH_SECRET_PROD' }[apiTarget.kind] || 'VERIFY_SUPPCO_OAUTH_SECRET';
   const v = process.env[key];
   if (!v) fail(2, `${key} is not set (needed for --api ${apiTarget.name})`, `echo '${key}=<secret>' >> ${ENV_FILE}`);
   return v;
@@ -138,7 +138,7 @@ export function oauthSecretFor(apiTarget) {
 // ----------------------------------------------------------- credentials --
 /** Credentials: flag wins over env. Never log the code. */
 export function credentials(flags = {}) {
-  return { email: flags.email || process.env.PLAYWRIGHT_EMAIL || '', code: flags.code || process.env.PLAYWRIGHT_CODE || '' };
+  return { email: flags.email || process.env.VERIFY_SUPPCO_EMAIL || '', code: flags.code || process.env.VERIFY_SUPPCO_CODE || '' };
 }
 export const isBypassEmail = (email) => typeof email === 'string' && email.endsWith(BYPASS_SUFFIX);
 
@@ -212,7 +212,7 @@ export function webEnvFor(apiTarget, P) {
     PUBLIC_OAUTH_SCOPE: OAUTH_SCOPE,
     OAUTH_CLIENT_SECRET: oauthSecretFor(apiTarget),
     PUBLIC_WS_URL: apiTarget.ws || apiTarget.url.replace(/^http/, 'ws') + '/cable',
-    AUTH_SECRET: process.env.AUTH_SECRET || file.AUTH_SECRET || randomBytes(32).toString('hex'),
+    AUTH_SECRET: process.env.VERIFY_SUPPCO_AUTH_SECRET || file.AUTH_SECRET || randomBytes(32).toString('hex'),
     AUTH_TRUST_HOST: 'true',
     WEB_PORT: String(PORTS.web),
     BROWSER: 'none',

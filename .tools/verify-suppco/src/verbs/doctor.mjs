@@ -88,12 +88,12 @@ export default async function run(argv) {
     const bad = v ? check?.(v) : (required ? 'unset' : '');
     add(bad ? 'warn' : 'ok', `$${key}`, bad || (!v ? 'unset (optional)' : secret ? 'set' : v), `echo 'export ${key}=${placeholder}' >> ${persist}`);
   };
-  envVar('SUPPCO_ROOT', { required: false, placeholder: '~/work/suppco' });
-  envVar('PLAYWRIGHT_EMAIL', { placeholder: `<you>${BYPASS_SUFFIX}`, check: (v) => (v.endsWith(BYPASS_SUFFIX) ? '' : `${v} does not end with ${BYPASS_SUFFIX}`) });
-  envVar('PLAYWRIGHT_CODE', { secret: true, placeholder: '<the bypass code>' });
-  envVar('OAUTH_CLIENT_SECRET_PROD', { secret: true, placeholder: '<secret>' });
-  envVar('OAUTH_CLIENT_SECRET_STAGING', { secret: true, placeholder: '<secret>' });
-  envVar('AUTH_SECRET', { required: false, secret: true, placeholder: '<secret>' });
+  envVar('VERIFY_SUPPCO_ROOT', { required: false, placeholder: '~/work/suppco' });
+  envVar('VERIFY_SUPPCO_EMAIL', { placeholder: `<you>${BYPASS_SUFFIX}`, check: (v) => (v.endsWith(BYPASS_SUFFIX) ? '' : `${v} does not end with ${BYPASS_SUFFIX}`) });
+  envVar('VERIFY_SUPPCO_CODE', { secret: true, placeholder: '<the bypass code>' });
+  envVar('VERIFY_SUPPCO_OAUTH_SECRET_PROD', { secret: true, placeholder: '<secret>' });
+  envVar('VERIFY_SUPPCO_OAUTH_SECRET_STAGING', { secret: true, placeholder: '<secret>' });
+  envVar('VERIFY_SUPPCO_AUTH_SECRET', { required: false, secret: true, placeholder: '<secret>' });
 
   const w = Math.max(...rows.map((r) => r.name.length));
   for (const r of rows) out(`${r.status.padEnd(4)}  ${r.name.padEnd(w)}  ${r.detail}${r.status !== 'ok' && r.fix ? `  fix: ${r.fix}` : ''}`);

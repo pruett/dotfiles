@@ -3,13 +3,13 @@
 # Thin shim: runs src/cli.mjs with the web repo's Node (via mise) so Playwright resolves from web/apps/web/node_modules.
 set -euo pipefail
 HERE="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
-# The CLI loads the env file itself; the shim only needs SUPPCO_ROOT from it to pick the web checkout's Node.
+# The CLI loads the env file itself; the shim only needs VERIFY_SUPPCO_ROOT from it to pick the web checkout's Node.
 ENV_FILE="${VERIFY_SUPPCO_ENV:-$HERE/.env}"
-if [[ -z "${SUPPCO_ROOT:-}" && -f "$ENV_FILE" ]]; then
-  SUPPCO_ROOT="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?SUPPCO_ROOT[[:space:]]*=[[:space:]]*//p' "$ENV_FILE" | tail -1)"
-  SUPPCO_ROOT="${SUPPCO_ROOT%\"}"; SUPPCO_ROOT="${SUPPCO_ROOT#\"}"; SUPPCO_ROOT="${SUPPCO_ROOT%\'}"; SUPPCO_ROOT="${SUPPCO_ROOT#\'}"
+if [[ -z "${VERIFY_SUPPCO_ROOT:-}" && -f "$ENV_FILE" ]]; then
+  VERIFY_SUPPCO_ROOT="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?VERIFY_SUPPCO_ROOT[[:space:]]*=[[:space:]]*//p' "$ENV_FILE" | tail -1)"
+  VERIFY_SUPPCO_ROOT="${VERIFY_SUPPCO_ROOT%\"}"; VERIFY_SUPPCO_ROOT="${VERIFY_SUPPCO_ROOT#\"}"; VERIFY_SUPPCO_ROOT="${VERIFY_SUPPCO_ROOT%\'}"; VERIFY_SUPPCO_ROOT="${VERIFY_SUPPCO_ROOT#\'}"
 fi
-ROOT="${SUPPCO_ROOT:-$HOME/work/suppco}"; ROOT="${ROOT/#\~/$HOME}"
+ROOT="${VERIFY_SUPPCO_ROOT:-$HOME/work/suppco}"; ROOT="${ROOT/#\~/$HOME}"
 export VERIFY_SUPPCO_CWD="$PWD"
 # Trust both local CAs for Node fetch: mkcert's own, and vite-plugin-mkcert's (which signs the :3001 cert).
 if [[ -z "${NODE_EXTRA_CA_CERTS:-}" ]]; then

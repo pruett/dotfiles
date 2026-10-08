@@ -14,7 +14,7 @@ const script = path.join(root, 'ok.mjs');
 fs.writeFileSync(script, 'export default async () => 1;\n');
 const run = (...args) => spawnSync('node', [cli, ...args], {
   encoding: 'utf8',
-  env: { ...process.env, SUPPCO_ROOT: root, VERIFY_SUPPCO_CWD: root, PLAYWRIGHT_EMAIL: '', PLAYWRIGHT_CODE: '' },
+  env: { ...process.env, VERIFY_SUPPCO_ROOT: root, VERIFY_SUPPCO_CWD: root, VERIFY_SUPPCO_EMAIL: '', VERIFY_SUPPCO_CODE: '' },
 });
 const usage = (r, re) => {
   assert.equal(r.status, 2, r.stderr);
@@ -28,8 +28,8 @@ test('pw with two scripts → 2', () => usage(run('pw', 'a.mjs', 'b.mjs'), /one 
 test('pw script not found (relative to the caller cwd) → 2', () => usage(run('pw', 'nope.mjs'), new RegExp(`script not found: ${path.join(root, 'nope.mjs')}`)));
 test('pw unknown flag → 2', () => usage(run('pw', 'ok.mjs', '--bogus'), /unknown flag --bogus/));
 test('pw --as without a session → 2, fix is login', () => usage(run('pw', 'ok.mjs', '--as', 'ghost@x.com'), /^fix: verify-suppco login ghost@x\.com$/m));
-test('pw $PLAYWRIGHT_EMAIL without a session → 2', () => {
-  const r = spawnSync('node', [cli, 'pw', 'ok.mjs'], { encoding: 'utf8', env: { ...process.env, SUPPCO_ROOT: root, VERIFY_SUPPCO_CWD: root, PLAYWRIGHT_EMAIL: 'env@x.com' } });
+test('pw $VERIFY_SUPPCO_EMAIL without a session → 2', () => {
+  const r = spawnSync('node', [cli, 'pw', 'ok.mjs'], { encoding: 'utf8', env: { ...process.env, VERIFY_SUPPCO_ROOT: root, VERIFY_SUPPCO_CWD: root, VERIFY_SUPPCO_EMAIL: 'env@x.com' } });
   usage(r, /^fix: verify-suppco login env@x\.com$/m);
 });
 test('pw bad --web → 2', () => usage(run('pw', 'ok.mjs', '--web', 'moon'), /--web must be/));

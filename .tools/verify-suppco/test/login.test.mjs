@@ -18,28 +18,28 @@ const withEnv = (o, fn) => {
 };
 const throwsCode = (fn, code, fix) => assert.throws(fn, (e) => e instanceof CliError && e.code === code && (!fix || fix.test(e.fix)));
 
-test('email: positional wins over $PLAYWRIGHT_EMAIL', () => {
-  withEnv({ PLAYWRIGHT_EMAIL: 'env@x', PLAYWRIGHT_CODE: undefined }, () => {
+test('email: positional wins over $VERIFY_SUPPCO_EMAIL', () => {
+  withEnv({ VERIFY_SUPPCO_EMAIL: 'env@x', VERIFY_SUPPCO_CODE: undefined }, () => {
     assert.equal(parse(['flag@x']).email, 'flag@x');
     assert.equal(parse([]).email, 'env@x');
   });
 });
 
-test('code: --code wins over $PLAYWRIGHT_CODE; empty means headed', () => {
-  withEnv({ PLAYWRIGHT_EMAIL: 'e@x', PLAYWRIGHT_CODE: '111111' }, () => {
+test('code: --code wins over $VERIFY_SUPPCO_CODE; empty means headed', () => {
+  withEnv({ VERIFY_SUPPCO_EMAIL: 'e@x', VERIFY_SUPPCO_CODE: '111111' }, () => {
     assert.equal(parse(['--code', '222222']).code, '222222');
     assert.equal(parse(['--code=333333']).code, '333333');
     assert.equal(parse([]).code, '111111');
   });
-  withEnv({ PLAYWRIGHT_EMAIL: 'e@x', PLAYWRIGHT_CODE: undefined }, () => assert.equal(parse([]).code, ''));
+  withEnv({ VERIFY_SUPPCO_EMAIL: 'e@x', VERIFY_SUPPCO_CODE: undefined }, () => assert.equal(parse([]).code, ''));
 });
 
 test('no email anywhere → exit 2 with an export fix', () => {
-  withEnv({ PLAYWRIGHT_EMAIL: undefined }, () => throwsCode(() => parse([]), 2, /^export PLAYWRIGHT_EMAIL=<you>test@monsterinbox\.com$/));
+  withEnv({ VERIFY_SUPPCO_EMAIL: undefined }, () => throwsCode(() => parse([]), 2, /^export VERIFY_SUPPCO_EMAIL=<you>test@monsterinbox\.com$/));
 });
 
 test('two positionals or an unknown flag → exit 2', () => {
-  withEnv({ PLAYWRIGHT_EMAIL: 'e@x' }, () => {
+  withEnv({ VERIFY_SUPPCO_EMAIL: 'e@x' }, () => {
     throwsCode(() => parse(['a@x', 'b@x']), 2);
     throwsCode(() => parse(['--as', 'a@x']), 2);
     throwsCode(() => parse(['--code']), 2);
@@ -51,14 +51,14 @@ test('answers() is false for a closed port', async () => {
 });
 
 test('CLI: no email → exit 2, error + fix on stderr, nothing on stdout', () => {
-  const r = spawnSync('node', [cli, 'login'], { encoding: 'utf8', env: env({ PLAYWRIGHT_EMAIL: undefined, PLAYWRIGHT_CODE: undefined }) });
+  const r = spawnSync('node', [cli, 'login'], { encoding: 'utf8', env: env({ VERIFY_SUPPCO_EMAIL: undefined, VERIFY_SUPPCO_CODE: undefined }) });
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
-  assert.match(r.stderr, /^error: no email given and \$PLAYWRIGHT_EMAIL unset\nfix: export PLAYWRIGHT_EMAIL=<you>test@monsterinbox\.com\n$/);
+  assert.match(r.stderr, /^error: no email given and \$VERIFY_SUPPCO_EMAIL unset\nfix: export VERIFY_SUPPCO_EMAIL=<you>test@monsterinbox\.com\n$/);
 });
 
 test('CLI: the code is never echoed on a usage error', () => {
-  const r = spawnSync('node', [cli, 'login', 'a@x', 'b@x', '--code', '987654'], { encoding: 'utf8', env: env({ PLAYWRIGHT_CODE: '456789' }) });
+  const r = spawnSync('node', [cli, 'login', 'a@x', 'b@x', '--code', '987654'], { encoding: 'utf8', env: env({ VERIFY_SUPPCO_CODE: '456789' }) });
   assert.equal(r.status, 2);
   assert.doesNotMatch(r.stdout + r.stderr, /987654|456789/);
 });

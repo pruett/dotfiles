@@ -6,11 +6,11 @@ cd "$(dirname "$0")/.."
 CLI=./bin/verify-suppco
 ENV_FILE="${VERIFY_SUPPCO_ENV:-$PWD/.env}"
 
-if [ -z "${PLAYWRIGHT_EMAIL:-}" ] && [ -f "$ENV_FILE" ]; then
+if [ -z "${VERIFY_SUPPCO_EMAIL:-}" ] && [ -f "$ENV_FILE" ]; then
   set -a; . "$ENV_FILE"; set +a
 fi
-: "${PLAYWRIGHT_EMAIL:?PLAYWRIGHT_EMAIL unset and not found in $ENV_FILE}"
-: "${PLAYWRIGHT_CODE:?PLAYWRIGHT_CODE unset and not found in $ENV_FILE}"
+: "${VERIFY_SUPPCO_EMAIL:?VERIFY_SUPPCO_EMAIL unset and not found in $ENV_FILE}"
+: "${VERIFY_SUPPCO_CODE:?VERIFY_SUPPCO_CODE unset and not found in $ENV_FILE}"
 
 names=(); codes=()
 step() { # step <name> <cmd...>
@@ -24,13 +24,13 @@ step() { # step <name> <cmd...>
 E2E_WEB=${E2E_WEB:-local}; E2E_API=${E2E_API:-local}
 tgt=(--web "$E2E_WEB" --api "$E2E_API")
 
-pw_flags=(--as "$PLAYWRIGHT_EMAIL" --trace)
+pw_flags=(--as "$VERIFY_SUPPCO_EMAIL" --trace)
 [ "${E2E_HEADED:-}" = 1 ] && pw_flags+=(--headed)
 
 step doctor "$CLI" doctor
 step up "$CLI" up "${tgt[@]}"
 step login "$CLI" login "${tgt[@]}"
-step shot "$CLI" shot /home/today --as "$PLAYWRIGHT_EMAIL" "${tgt[@]}"
+step shot "$CLI" shot /home/today --as "$VERIFY_SUPPCO_EMAIL" "${tgt[@]}"
 step pw "$CLI" pw examples/click-around.mjs "${tgt[@]}" "${pw_flags[@]}"
 [ "${E2E_KEEP:-}" = 1 ] || step down "$CLI" down
 

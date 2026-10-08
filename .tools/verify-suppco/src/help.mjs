@@ -30,7 +30,7 @@ conventions:
   targets are never persisted; repeat --web/--api on every verb
   every input is a flag or an environment variable (verify-suppco doctor lists them); shell
   exports win, the CLI's own .env is the fallback. nothing is read from the checkouts
-  state lives under $SUPPCO_ROOT/.verify-suppco/ ($VERIFY_SUPPCO_STATE to relocate): auth/,
+  state lives under $VERIFY_SUPPCO_ROOT/.verify-suppco/ ($VERIFY_SUPPCO_STATE to relocate): auth/,
   runs/, logs/, up.json; safe to delete
 
 run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
@@ -40,8 +40,8 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
 
   one line per prerequisite: node/pnpm/ruby via mise, backend/ and web/ checkouts,
   rails credentials, postgres, redis, mkcert CA, playwright browsers, and one line per
-  environment variable: $SUPPCO_ROOT, $PLAYWRIGHT_EMAIL, $PLAYWRIGHT_CODE,
-  $OAUTH_CLIENT_SECRET_PROD, $OAUTH_CLIENT_SECRET_STAGING, $AUTH_SECRET (shell exports,
+  environment variable: $VERIFY_SUPPCO_ROOT, $VERIFY_SUPPCO_EMAIL, $VERIFY_SUPPCO_CODE,
+  $VERIFY_SUPPCO_OAUTH_SECRET_PROD, $VERIFY_SUPPCO_OAUTH_SECRET_STAGING, $VERIFY_SUPPCO_AUTH_SECRET (shell exports,
   then the CLI's .env). each failing line ends with its fix. environment lines warn,
   they do not fail: a human can still type the code.
 
@@ -56,7 +56,7 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   then waits for health. always a fresh instance: whatever already listens on a
   port it needs is stopped first, servers it started and foreign ones alike.
   remote targets (staging, prod, <url>) boot nothing; the local web is pointed at
-  the remote api (needs $OAUTH_CLIENT_SECRET_PROD / _STAGING in the environment or .env).
+  the remote api (needs $VERIFY_SUPPCO_OAUTH_SECRET_PROD / _STAGING in the environment or .env).
 
   --web local|<branch>     web checkout: the main clone, or a branch       [local]
   --api local|<branch>     backend checkout                                 [local]
@@ -80,8 +80,8 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   drives the passwordless login in Chromium and saves the session to
   .verify-suppco/auth/<email>.json for pw and shot to reuse.
 
-  <email>                  defaults to $PLAYWRIGHT_EMAIL
-  --code <n>               defaults to $PLAYWRIGHT_CODE
+  <email>                  defaults to $VERIFY_SUPPCO_EMAIL
+  --code <n>               defaults to $VERIFY_SUPPCO_CODE
                            with neither: headed browser, a human types the code
 
   credentials are the only values read from the environment. a flag wins over
@@ -99,7 +99,7 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   prints: email, target, expiry
   exit 1: the login page rejected the email or code
   exit 2: --web local but nothing runs on :3001 (fix: verify-suppco up)
-          no email given and $PLAYWRIGHT_EMAIL unset
+          no email given and $VERIFY_SUPPCO_EMAIL unset
 `,
 
   pw: `usage: verify-suppco pw <script.mjs> [--as <email>] [--web ...] [--api ...]
@@ -112,7 +112,7 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   await shots('name') saves shots/name.png in the run directory.
   stdout is the returned result (strings as-is, else JSON). everything else is stderr.
 
-  --as <email>             session to inject             [$PLAYWRIGHT_EMAIL, else guest]
+  --as <email>             session to inject             [$VERIFY_SUPPCO_EMAIL, else guest]
                            must exist (fix: verify-suppco login <email>)
   --headed                 visible browser; otherwise headless
   --trace / --video        save a Playwright trace / webm in the run directory
@@ -134,7 +134,7 @@ run \`verify-suppco <verb> --help\` for a verb's flags, output and exit codes
   shot.json (final url, redirected, status, title, console errors, failed requests).
   <route> is a path on --web, or a full url.
 
-  --as <email>             session to inject             [$PLAYWRIGHT_EMAIL, else guest]
+  --as <email>             session to inject             [$VERIFY_SUPPCO_EMAIL, else guest]
   --viewport <WxH>         default 1280x900
   --full                   full page
   --selector <css>         wait for this element first

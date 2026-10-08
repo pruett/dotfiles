@@ -94,11 +94,11 @@ test('up with remote targets only boots nothing', () => {
 });
 
 test('doctor: missing checkouts fail with the first fix; credentials only warn', () => {
-  const r = run(['doctor', '--root', tmpRoot()], { PLAYWRIGHT_EMAIL: 'someone@example.com', PLAYWRIGHT_CODE: '' });
+  const r = run(['doctor', '--root', tmpRoot()], { VERIFY_SUPPCO_EMAIL: 'someone@example.com', VERIFY_SUPPCO_CODE: '' });
   assert.equal(r.status, 1);
   assert.match(r.stdout, /^FAIL {2}backend\//m);
-  assert.match(r.stdout, /^warn {2}\$PLAYWRIGHT_EMAIL .*does not end with test@monsterinbox\.com/m);
-  assert.match(r.stdout, /^warn {2}\$PLAYWRIGHT_CODE +unset/m);
+  assert.match(r.stdout, /^warn {2}\$VERIFY_SUPPCO_EMAIL .*does not end with test@monsterinbox\.com/m);
+  assert.match(r.stdout, /^warn {2}\$VERIFY_SUPPCO_CODE +unset/m);
   assert.deepEqual(fixLines(r.stderr).length, 1);
   assert.match(fixLines(r.stderr)[0], /^fix: git clone .*backend/);
 });
@@ -131,20 +131,20 @@ test('doctor: env line is ok without a file, warns on a loose file, ok at 600', 
 
 test('doctor: one line per environment variable; unset required ones warn with an export fix', () => {
   const dir = tmpRoot();
-  const r = run(['doctor', '--root', dir], { VERIFY_SUPPCO_ENV: '/nonexistent', SUPPCO_ROOT: '', PLAYWRIGHT_EMAIL: 'me@example.com', PLAYWRIGHT_CODE: '', OAUTH_CLIENT_SECRET_PROD: 'x', OAUTH_CLIENT_SECRET_STAGING: '', AUTH_SECRET: '' });
-  assert.match(r.stdout, /^ok {4}\$SUPPCO_ROOT +unset \(optional\)$/m);
-  assert.match(r.stdout, /^warn {2}\$PLAYWRIGHT_EMAIL +me@example\.com does not end with test@monsterinbox\.com {2}fix: echo 'export PLAYWRIGHT_EMAIL=<you>test@monsterinbox\.com' >> .*\.zshrc\.local\.zsh or \/nonexistent$/m);
-  assert.match(r.stdout, /^warn {2}\$PLAYWRIGHT_CODE +unset {2}fix: echo 'export PLAYWRIGHT_CODE=<the bypass code>' >> /m);
-  assert.match(r.stdout, /^ok {4}\$OAUTH_CLIENT_SECRET_PROD +set$/m);
-  assert.match(r.stdout, /^warn {2}\$OAUTH_CLIENT_SECRET_STAGING +unset {2}fix: /m);
-  assert.match(r.stdout, /^ok {4}\$AUTH_SECRET +unset \(optional\)$/m);
-  assert.doesNotMatch(r.stdout, /PLAYWRIGHT_CODE +x/);
+  const r = run(['doctor', '--root', dir], { VERIFY_SUPPCO_ENV: '/nonexistent', VERIFY_SUPPCO_ROOT: '', VERIFY_SUPPCO_EMAIL: 'me@example.com', VERIFY_SUPPCO_CODE: '', VERIFY_SUPPCO_OAUTH_SECRET_PROD: 'x', VERIFY_SUPPCO_OAUTH_SECRET_STAGING: '', VERIFY_SUPPCO_AUTH_SECRET: '' });
+  assert.match(r.stdout, /^ok {4}\$VERIFY_SUPPCO_ROOT +unset \(optional\)$/m);
+  assert.match(r.stdout, /^warn {2}\$VERIFY_SUPPCO_EMAIL +me@example\.com does not end with test@monsterinbox\.com {2}fix: echo 'export VERIFY_SUPPCO_EMAIL=<you>test@monsterinbox\.com' >> .*\.zshrc\.local\.zsh or \/nonexistent$/m);
+  assert.match(r.stdout, /^warn {2}\$VERIFY_SUPPCO_CODE +unset {2}fix: echo 'export VERIFY_SUPPCO_CODE=<the bypass code>' >> /m);
+  assert.match(r.stdout, /^ok {4}\$VERIFY_SUPPCO_OAUTH_SECRET_PROD +set$/m);
+  assert.match(r.stdout, /^warn {2}\$VERIFY_SUPPCO_OAUTH_SECRET_STAGING +unset {2}fix: /m);
+  assert.match(r.stdout, /^ok {4}\$VERIFY_SUPPCO_AUTH_SECRET +unset \(optional\)$/m);
+  assert.doesNotMatch(r.stdout, /VERIFY_SUPPCO_CODE +x/);
 });
 
-test('up --api staging without OAUTH_CLIENT_SECRET_STAGING → exit 2 with the env-file fix, before touching anything', () => {
+test('up --api staging without VERIFY_SUPPCO_OAUTH_SECRET_STAGING → exit 2 with the env-file fix, before touching anything', () => {
   const dir = tmpRoot(); const file = path.join(dir, 'env');
-  const r = run(['up', '--root', dir, '--api', 'staging'], { VERIFY_SUPPCO_ENV: file, OAUTH_CLIENT_SECRET_STAGING: '' });
+  const r = run(['up', '--root', dir, '--api', 'staging'], { VERIFY_SUPPCO_ENV: file, VERIFY_SUPPCO_OAUTH_SECRET_STAGING: '' });
   assert.equal(r.status, 2);
-  assert.deepEqual(fixLines(r.stderr), [`fix: echo 'OAUTH_CLIENT_SECRET_STAGING=<secret>' >> ${file}`]);
+  assert.deepEqual(fixLines(r.stderr), [`fix: echo 'VERIFY_SUPPCO_OAUTH_SECRET_STAGING=<secret>' >> ${file}`]);
   assert.equal(r.stdout, '');
 });

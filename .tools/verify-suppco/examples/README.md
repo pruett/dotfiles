@@ -4,4 +4,4 @@ Example Playwright scripts for `verify-suppco pw` (see AGENTS.md for the script 
 - `click-around.mjs`: `verify-suppco pw examples/click-around.mjs --as <email> [--trace]` clicks through primary nav links.
 - Screenshots land in the run directory under `.verify-suppco/runs/`; stdout is the returned JSON.
 - Add `--headed` to watch; target flags (`--web`, `--api`) apply as on every verb.
-- Credentials (`PLAYWRIGHT_EMAIL`, `PLAYWRIGHT_CODE`) come from the environment (`verify-suppco doctor` checks them).
+- Credentials (`VERIFY_SUPPCO_EMAIL`, `VERIFY_SUPPCO_CODE`) come from the environment (`verify-suppco doctor` checks them).

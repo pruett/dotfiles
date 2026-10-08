@@ -41,12 +41,12 @@ test('parseArgs: --help / -h', () => {
 });
 
 test('resolveRoot precedence and ~ expansion', () => {
-  withEnv({ SUPPCO_ROOT: undefined }, () => assert.equal(resolveRoot({}), path.resolve(DEFAULT_ROOT)));
-  withEnv({ SUPPCO_ROOT: '/env/root' }, () => {
+  withEnv({ VERIFY_SUPPCO_ROOT: undefined }, () => assert.equal(resolveRoot({}), path.resolve(DEFAULT_ROOT)));
+  withEnv({ VERIFY_SUPPCO_ROOT: '/env/root' }, () => {
     assert.equal(resolveRoot({}), '/env/root');
     assert.equal(resolveRoot({ root: '/flag/root' }), '/flag/root');
   });
-  withEnv({ SUPPCO_ROOT: undefined }, () => {
+  withEnv({ VERIFY_SUPPCO_ROOT: undefined }, () => {
     assert.equal(resolveRoot({ root: '~/foo' }), path.join(os.homedir(), 'foo'));
     assert.equal(resolveRoot({ root: '~' }), os.homedir());
   });
@@ -69,11 +69,11 @@ test('resolveTargets defaults to local/local', () => {
 });
 
 test('credentials: flag wins over env', () => {
-  withEnv({ PLAYWRIGHT_EMAIL: 'env@x.com', PLAYWRIGHT_CODE: '111' }, () => {
+  withEnv({ VERIFY_SUPPCO_EMAIL: 'env@x.com', VERIFY_SUPPCO_CODE: '111' }, () => {
     assert.deepEqual(credentials({}), { email: 'env@x.com', code: '111' });
     assert.deepEqual(credentials({ email: 'f@x.com', code: '222' }), { email: 'f@x.com', code: '222' });
   });
-  withEnv({ PLAYWRIGHT_EMAIL: undefined, PLAYWRIGHT_CODE: undefined }, () => {
+  withEnv({ VERIFY_SUPPCO_EMAIL: undefined, VERIFY_SUPPCO_CODE: undefined }, () => {
     assert.deepEqual(credentials({}), { email: '', code: '' });
   });
 });
@@ -125,11 +125,11 @@ const webRoot = (envLocal) => {
   if (envLocal !== undefined) fs.writeFileSync(path.join(P.webapp, '.env.local'), envLocal);
   return P;
 };
-const CLEAN = { AUTH_SECRET: undefined, OAUTH_CLIENT_SECRET_PROD: undefined, OAUTH_CLIENT_SECRET_STAGING: undefined, OAUTH_CLIENT_SECRET: undefined,
+const CLEAN = { VERIFY_SUPPCO_AUTH_SECRET: undefined, VERIFY_SUPPCO_OAUTH_SECRET_PROD: undefined, VERIFY_SUPPCO_OAUTH_SECRET_STAGING: undefined, VERIFY_SUPPCO_OAUTH_SECRET: undefined,
   ...Object.fromEntries(WEB_BOOT_KEYS.map((k) => [k, undefined])) };
 
 test('webEnvFor local vs prod', () => {
-  withEnv({ ...CLEAN, OAUTH_CLIENT_SECRET_PROD: 'prod-secret' }, () => {
+  withEnv({ ...CLEAN, VERIFY_SUPPCO_OAUTH_SECRET_PROD: 'prod-secret' }, () => {
     const P = webRoot();
     const local = webEnvFor(resolveTarget('api', 'local'), P);
     assert.equal(local.PUBLIC_API_URL, 'http://localhost:3000/api');
@@ -156,11 +156,11 @@ test('loadEnvFile: loads, does not override, missing file is a no-op', () => {
 });
 
 test('oauthSecretFor: local fixed, remote from env, missing → code 2 with fix', () => {
-  withEnv({ ...CLEAN, OAUTH_CLIENT_SECRET: 'url-secret' }, () => {
+  withEnv({ ...CLEAN, VERIFY_SUPPCO_OAUTH_SECRET: 'url-secret' }, () => {
     assert.equal(oauthSecretFor(resolveTarget('api', 'local')), 'development_secret');
     assert.equal(oauthSecretFor(resolveTarget('api', 'https://api.example.com')), 'url-secret');
     assert.throws(() => oauthSecretFor(resolveTarget('api', 'staging')),
-      (e) => code2(e) && e.fix.includes('OAUTH_CLIENT_SECRET_STAGING') && e.fix.includes(ENV_FILE));
+      (e) => code2(e) && e.fix.includes('VERIFY_SUPPCO_OAUTH_SECRET_STAGING') && e.fix.includes(ENV_FILE));
   });
 });
 
@@ -179,9 +179,9 @@ test('WEB_BOOT_KEYS fillers: "" when absent, omitted when env or .env.local defi
   });
 });
 
-test('AUTH_SECRET precedence: env > .env.local > random 64-hex', () => {
+test('VERIFY_SUPPCO_AUTH_SECRET precedence: env > .env.local > random 64-hex', () => {
   const api = resolveTarget('api', 'local');
-  withEnv({ ...CLEAN, AUTH_SECRET: 'from-env' }, () =>
+  withEnv({ ...CLEAN, VERIFY_SUPPCO_AUTH_SECRET: 'from-env' }, () =>
     assert.equal(webEnvFor(api, webRoot('AUTH_SECRET=from-file\n')).AUTH_SECRET, 'from-env'));
   withEnv({ ...CLEAN }, () => {
     assert.equal(webEnvFor(api, webRoot('AUTH_SECRET=from-file\n')).AUTH_SECRET, 'from-file');
