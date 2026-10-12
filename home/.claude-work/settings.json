@@ -11,7 +11,7 @@
       "~/.dotfiles"
     ]
   },
-  "model": "opus",
+  "model": "fable",
   "hooks": {
     "SessionStart": [
       {
