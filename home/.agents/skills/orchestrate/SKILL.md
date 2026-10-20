@@ -20,13 +20,17 @@ Requires Herdr (`HERDR_ENV=1`).
 5. **Fan out.** Every prompt is self-contained: the agent has none of this conversation, so it carries the file paths, the done condition, and what to leave alone. Per chunk:
 
    ```bash
-   out=$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$PWD" --label <id> --no-focus <env-flags>)
+   env_flags=()
+   for v in CLAUDE_CONFIG_DIR ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN CODEX_HOME OPENAI_API_KEY; do
+     val=$(printenv "$v") && env_flags+=(--env "$v=$val")
+   done
+   out=$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$PWD" --label <id> --no-focus "${env_flags[@]}")
    pane=$(jq -r '.result.root_pane.pane_id' <<<"$out")
    herdr agent start <id> --kind <kind> --pane "$pane" -- <agent-args>
    herdr agent prompt <id> "<prompt>"
    ```
 
-   `<env-flags>`, `<kind>`, and `<agent-args>` come from the model table. If `agent start` returns `agent_not_ready`, the CLI is at a trust-this-folder prompt: answer it with `herdr agent send-keys`, then `herdr agent wait <id>` before prompting. Dispatch every chunk before waiting on any.
+   Herdr tabs do not inherit this session's environment, so the loop carries over whichever account and config variables this session has set, and leaves the rest unset. That is what keeps agents on the same subscription as the orchestrator. Never hardcode a config dir or token, and never echo `env_flags`: it can hold secrets. `<kind>` and `<agent-args>` come from the model table. If `agent start` returns `agent_not_ready`, the CLI is at a trust-this-folder prompt: answer it with `herdr agent send-keys`, then `herdr agent wait <id>` before prompting. Dispatch every chunk before waiting on any.
 6. **Collect.** For each agent: `herdr agent wait <id> --timeout 1800000`, then `herdr agent read <id> --source recent-unwrapped --lines 120`. On `blocked`, inspect and ask the user before answering the dialog.
 7. **Report** one line per chunk: done, blocked, or failed, and what it changed. Name any two chunks that touched the same file.
 
