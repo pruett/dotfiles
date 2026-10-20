@@ -59,8 +59,7 @@ echo ""
 # Custom Functions
 printf "${green}⚡ Custom Functions${nc}\n"
 printf "${blue}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${nc}\n"
-echo "  worktree <name> Create git worktree with new branch"
-echo "  tmuxn           Create/attach tmux session (named after cwd)"
+echo "  wt [verb]       Git worktrees beside their repos (wt help)"
 echo "  help            Show this cheatsheet"
 echo ""
 
