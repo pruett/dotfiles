@@ -1,0 +1,22 @@
+# cd-aware front for the wt script (~/.local/bin/wt); see `wt help`.
+# The script cannot change this shell's directory, so this function does it
+# for the two verbs that land somewhere. Hooks and agents call the script.
+# Usage: wt                 list worktrees (wt ls)
+#        wt new <target>    make one and cd into it
+#        wt cd <target>     cd into one
+#        wt <verb> ...      anything else passes straight through
+
+local out rc
+case ${1:-ls} in
+  new)
+    # The script prints only the path on stdout; progress stays on stderr.
+    out=$(command wt "$@"); rc=$?
+    [[ -n $out && -d $out ]] && cd "$out"
+    return $rc ;;
+  cd)
+    out=$(command wt path "${@:2}") && cd "$out" ;;
+  -*)
+    command wt ls "$@" ;;
+  *)
+    command wt "${@:-ls}" ;;
+esac

@@ -34,6 +34,28 @@
           }
         ]
       }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$HOME/.claude-work/hooks/wt-worktree.sh\" create",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$HOME/.claude-work/hooks/wt-worktree.sh\" remove",
+            "timeout": 120
+          }
+        ]
+      }
     ]
   },
   "statusLine": {

@@ -78,7 +78,7 @@ source "$XDG_CONFIG_HOME/zsh/extras/aliases.zsh"
 # Functions (using fpath autoload)
 # ---------
 fpath=("$XDG_CONFIG_HOME/zsh/functions" "${fpath[@]}")
-autoload -Uz worktree tmuxn dayta help fzf-file fzf-cd fzf-git-branch fzf-env
+autoload -Uz wt help fzf-file fzf-cd fzf-git-branch fzf-env
 
 # --------
 # Syntax Highlighting

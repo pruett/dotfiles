@@ -1,0 +1,26 @@
+# wt: which repos get managed worktrees, and the exact rules for each.
+# Format and placeholders: `wt help config`. Inspect one repo: `wt info <repo>`.
+
+branch_prefix = kevinpruett/
+
+[~/work/suppco/web]
+# mise.local.toml, apps/web/.env.local, apps/web/.svelte-kit/, playwright/.auth/
+include = .worktreeinclude
+setup   = pnpm install --frozen-lockfile --prefer-offline
+note    = `pnpm dev` binds WEB_PORT (default 3001). Login works only on https://localhost:3001 (seeded OAuth callbacks), so stop the main checkout's dev server before you start one here.
+note    = If the lockfile changes on this branch, run `pnpm install --frozen-lockfile` again.
+
+[~/work/suppco/backend]
+# .env, master.key, credentials, the prebuilt vite-test bundle + digest, mise.local.toml
+include  = .worktreeinclude
+# Each worktree gets its own test database, cloned from the main checkout's api_test.
+env      = TEST_DATABASE=api_test_{slug_id}
+setup    = bundle check >/dev/null || bundle install
+# node_modules lets Vite rebuild when the branch changes app/javascript. Without
+# it, Vite fails fast (backend PR #813) instead of the old vite_ruby fork-bomb.
+setup    = pnpm install --frozen-lockfile --prefer-offline
+setup    = dropdb --if-exists "$TEST_DATABASE" && createdb -T api_test "$TEST_DATABASE"
+teardown = dropdb --if-exists "$TEST_DATABASE"
+note     = Run Rails through mise so TEST_DATABASE=api_test_{slug_id} applies: `mise exec -- bin/rails test`. A bare `bin/rails test` uses the shared api_test.
+note     = After a new migration on this branch: `mise exec -- env RAILS_ENV=test bin/rails db:migrate`.
+note     = Ports 3000 (PORT) and 3036 (BACKEND_VITE_PORT) belong to the main checkout's bin/dev; set others before you run bin/dev here.
