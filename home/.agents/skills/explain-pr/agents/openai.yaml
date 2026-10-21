@@ -1,3 +1,0 @@
-interface:
-  display_name: "Explain PR"
-  short_description: "List a PR's major moving parts, one sentence each"

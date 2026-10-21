@@ -30,13 +30,19 @@ Codex skips symlinked `SKILL.md` files, which is why `dot` links
 `~/.agents/skills` as one directory symlink rather than file by file.
 
 Hand-written skills (not in the lockfile) live here too, e.g. `orchestrate`,
-`explain-pr`, `visual-pr` and `verify-suppco`. A skill that ships a CLI keeps the
-code out of the skill: the project lives in a root dot-directory (`.tools/verify-suppco/`,
-never stowed), a relative symlink in `home/.local/bin` points at its `bin/`
-(`verify-suppco -> ../../../.tools/verify-suppco/bin/verify-suppco`) so Stow puts it on
-`PATH`, and the skill holds only `SKILL.md` plus `references/` (symlinks into the project
-where the text must not drift). After adding one, run `dot link` for the CLI and
-`skills sync claude claude-work` to create the agent links.
+`pr` and `worktrees`. A skill that ships a CLI keeps the code out of the skill:
+the project lives in a root dot-directory (`.tools/<name>/`, never stowed), a
+relative symlink in `home/.local/bin` points at its `bin/` so Stow puts it on
+`PATH`, and the skill holds only `SKILL.md` plus `references/`. After adding
+one, run `dot link` for the CLI and `skills sync claude-code claude-work` to
+create the agent links.
+
+pstack skills come from the Claude Code copy
+(`https://github.com/cursor/plugins/tree/main/harness/pstack/claude-code`), never
+the Cursor copy at `pstack/`. They link to an adapter at
+`../../docs/harness/claude-code.md`; `docs/` here holds a copy, and
+`~/.claude/docs` and `~/.claude-work/docs` link to it so the path resolves from
+either profile. Refresh the copy when `skills update` changes pstack.
 
 `zed` is used as the installer target because its global skill directory is the
 shared `~/.agents/skills` directory. Run `skills sync <agent>` to create one

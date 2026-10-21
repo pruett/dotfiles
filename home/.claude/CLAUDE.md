@@ -1,0 +1,1 @@
+../.claude-work/CLAUDE.md

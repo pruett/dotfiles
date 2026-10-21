@@ -7,8 +7,8 @@ Four classes. Pick the class from the chunk, then the model from what is install
 | **Workhorse** | coding once the spec is laid out | Opus 5.5 (default) | `--kind claude -- --model claude-opus-5-5` |
 | | well-specified, mechanical chunks where speed and cost matter: migrations, test fixes, many parallel chunks. Not for repo-wide judgment calls | Sonnet 5.5 | `--kind claude -- --model claude-sonnet-5-5` |
 | | | GPT-6.1 Sol | `--kind codex -- -m gpt-6.1-sol` |
-| **Research** | read-only investigation: answer a question, map a codebase, gather docs or API facts | Haiku 5.5 | `--kind claude -- --model claude-haiku-5-5 --permission-mode plan` |
-| | | GPT-6 Luna | `--kind codex -- -m gpt-6-luna -s read-only` |
+| **Research** | read-only investigation: answer a question, map a codebase, gather docs or API facts | Haiku 5.5 | `--kind claude -- --model claude-haiku-5-5 --permission-mode auto` |
+| | no network in its sandbox: no `gh`, no GitHub | GPT-6 Luna | `--kind codex -- -m gpt-6-luna -s read-only` |
 | **Orchestrator** | orchestration, planning, demanding or ambiguous work; a chunk that needs its own breakdown | Fable 5.1 | `--kind claude -- --model claude-fable-5-1` |
 | | | GPT-6 Astra | `--kind codex -- -m gpt-6-astra` |
 | **Cloud** | long-running tasks, work that should run off this machine, tasks that may need collaboration | Devin Fusion: Opus 5.5 High + SWE-2 (default) | `--kind devin -- --cloud --permission-mode dangerous --model fusion-claude-opus-5-5-high-sidekick-swe-2-medium` |

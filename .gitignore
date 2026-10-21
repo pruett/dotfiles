@@ -10,3 +10,6 @@ home/.config/zsh/extras/.zshrc.local.zsh
 home/.config/cloudflared/token.local
 
 artifacts/
+
+# Installed at runtime by skill scripts (e.g. pstack watch-pr bootstrap)
+home/.agents/skills/*/scripts/node_modules/
