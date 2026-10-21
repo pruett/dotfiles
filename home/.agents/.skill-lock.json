@@ -6,9 +6,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/herdrdev/herdr.git",
       "skillPath": "skills/herdr/SKILL.md",
-      "skillFolderHash": "67042ed7910d4177a9000e0679e78b0346060927",
+      "skillFolderHash": "2be0d86d481d1bb29c62e11ef37b78d27d01b478",
       "installedAt": "2026-08-26T00:57:28.739Z",
-      "updatedAt": "2026-10-05T15:43:34.220Z"
+      "updatedAt": "2026-10-21T16:09:01.418Z"
     },
     "ask-matt": {
       "source": "mattpocock/skills",
@@ -173,9 +173,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git",
       "skillPath": "skills/engineering/wizard/SKILL.md",
-      "skillFolderHash": "47010ebd1f26c8263016f14cdba835355d278b9a",
+      "skillFolderHash": "e396d3ba97c723a78ffd350fb14a3c409137b306",
       "installedAt": "2026-08-26T18:59:49.346Z",
-      "updatedAt": "2026-10-08T20:03:04.084Z"
+      "updatedAt": "2026-10-21T16:09:04.750Z"
     },
     "grill-me": {
       "source": "mattpocock/skills",
@@ -258,9 +258,9 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "pstack/skills/create-verification-skill/SKILL.md",
-      "skillFolderHash": "38a3e016bb42ba7ba6f66315e04ef64242937660",
+      "skillFolderHash": "5aa2dae2726d09d219397fbbedc1e9500a239d28",
       "installedAt": "2026-09-03T14:34:12.273Z",
-      "updatedAt": "2026-09-03T14:34:12.273Z"
+      "updatedAt": "2026-10-21T16:09:06.561Z"
     },
     "maintain-verification-skill": {
       "source": "cursor/plugins",
