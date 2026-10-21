@@ -1,6 +1,6 @@
 # Dispatching reviewers
 
-Review and simplify both send one filled prompt to fresh-context, read-only reviewers. Two model families catch more than one.
+Review sends one filled prompt to fresh-context, read-only reviewers. Two model families catch more than one.
 
 ## With Herdr (`HERDR_ENV=1`)
 
