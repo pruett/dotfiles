@@ -8,15 +8,13 @@ Run once tests pass and requirements are met. Simplicity wins every tie; a requi
 
 3. **List the requirements.** Read the PR (`gh pr view --json title,body,url`), its linked ticket and the conversation. Number them; each names the code that implements it and the test that proves it (or "untested"). Show the list to the user if you inferred any item. Done when every behavior the diff adds maps to a requirement or is flagged as scope creep.
 
-4. **Dispatch reviewers.** Fill [`references/simplify-reviewer-prompt.md`](references/simplify-reviewer-prompt.md).
-   - **Herdr** (`HERDR_ENV=1`): two read-only reviewers from different model families, Opus 5.5 (Claude) and GPT-6 Luna (Codex, `-s read-only`), with the fan-out and collect commands in `~/.agents/skills/orchestrate/SKILL.md` and rows from its `references/models.md`. Skip orchestrate's chunking and approval; this is a fixed two-reviewer dispatch. Collect with `--lines 400`.
-   - **No Herdr:** one fresh `general-purpose` subagent with the filled prompt.
+4. **Dispatch reviewers.** Fill [`references/simplify-reviewer-prompt.md`](references/simplify-reviewer-prompt.md) and send it per [`references/reviewers.md`](references/reviewers.md). Without Herdr, one subagent is enough.
 
    Done when every reviewer has returned its closing verdict.
 
 5. **Judge.** Merge duplicate findings; two families flagging the same line is strong signal. For each finding:
    - **Reject** if it breaks a listed requirement, removes the only test proving one, or crosses the prompt's scope fence.
-   - **Tests:** accept `delete-test` only when the test still passes with the behavior broken (`~/.agents/skills/principle-test-behavior-not-implementation/SKILL.md`). A weak test that is the only proof of a requirement gets rewritten, not deleted.
+   - **Tests:** accept `delete-test` only when the test still passes with the behavior broken. A weak test that is the only proof of a requirement gets rewritten, not deleted.
    - **Accept** the rest, biggest structural win first.
 
    Done when every finding has a verdict with a one-clause reason.
