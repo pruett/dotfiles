@@ -53,6 +53,12 @@ Nothing named defaults to `drive`; a small or docs-only PR gets `check`. A "hold
 
 7. **Merge.** `gh pr merge <n> --squash --delete-branch` (or the repo's merge method). A stack merges bottom-up, one PR at a time: after each merge, retarget the next PR to trunk (`gh pr edit <next> --base <trunk>`), rebase it onto trunk, push with `--force-with-lease`, and merge it once its checks pass. Read each merge back with `gh pr view <n> --json state,mergedAt,baseRefName`; a queued or auto-merge request is not a merge. Done when state reads `MERGED` with trunk as its base.
 
-8. **Ticket and clean up.** If the PR links a Linear ticket the merge did not move, set it to the team's done state. Then, skipping anything the user asked to keep: `wt rm <repo>/<slug>` (worktrees skill) if the branch lived in a worktree, close this PR's Herdr tabs (herdr skill), delete the local branch.
+8. **Ticket and clean up.** If the PR links a Linear ticket the merge did not move, set it to the team's done state. Then, skipping anything the user asked to keep, with the `worktrees` skill:
+   - `cd` to the repo's main checkout, then `git switch <trunk> && git pull --ff-only`.
+   - `wt rm <repo>/<slug> --delete-branch`. The merge is already read back as `MERGED`, and a squash merge leaves the branch looking unmerged, so the flag is needed. Exit 2 for uncommitted changes: show `git -C <path> status --short` and ask; never `--force` on your own.
+   - `git worktree prune` to drop records of worktree folders that no longer exist.
+   - `wt prune` (dry run) and show its list to the user. Run `wt prune --yes` only on their word: it also deletes origin branches.
+   - Close this PR's Herdr tabs (herdr skill).
+   Done when `wt ls` no longer shows the slug and `git branch --list <branch>` prints nothing.
 
 9. **Report** one line: what merged (link), what was cleaned up, and anything left.

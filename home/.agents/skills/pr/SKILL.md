@@ -18,8 +18,9 @@ A PR moves through **phases**. Find the phase, read its file, follow it, then st
 ## Finding the phase
 
 1. **Resolve the PR.** An argument wins. Otherwise `gh pr view --json number,url,state,isDraft,headRefName,baseRefName,reviewDecision,mergeStateStatus` on the current branch. Done when you hold a PR number, or know the branch has none.
-2. **Match the request** to a row by its words. A request that chains phases ("simplify it, then merge when green") runs them in lifecycle order: draft → review → ship.
-3. **No phase named?** Use the state column: no PR → draft; PR open with unresolved threads or failing checks → ship; otherwise report the PR's state in two lines (checks, threads, review decision) and stop.
+2. **Isolate the work.** Load the `worktrees` skill and work in a worktree for the PR's branch (`headRefName`, or the current branch when there is no PR). Already inside a worktree on that branch: stay. Branch checked out in another worktree (`wt ls` shows it): `cd` there. Branch checked out in the main checkout: if `git status --porcelain` is empty, `git switch <base>` there, then make a worktree as below; if not, ask the user. Not checked out anywhere: `wt new <slug> --branch <branch>` and `cd` into the printed path. Done when `git branch --show-current` in the cwd prints the branch and the cwd is not the repo's main checkout.
+3. **Match the request** to a row by its words. A request that chains phases ("simplify it, then merge when green") runs them in lifecycle order: draft → review → ship.
+4. **No phase named?** Use the state column: no PR → draft; PR open with unresolved threads or failing checks → ship; otherwise report the PR's state in two lines (checks, threads, review decision) and stop.
 
 Done when one phase file, or an ordered chain of them, is chosen. Name it in one line ("Phase: ship (threads-only)") before reading the file.
 
