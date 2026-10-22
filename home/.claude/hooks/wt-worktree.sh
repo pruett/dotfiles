@@ -6,7 +6,7 @@
 # WT_INTEGRATION_VERSION=1
 
 # Routes the harness's WorktreeCreate/WorktreeRemove events through wt, so its
-# worktrees land beside allowed repos (~/.config/wt/config) and other repos keep
+# worktrees land beside the repos wt's config allows and other repos keep
 # the harness's default layout.
 wt="${WT_BIN:-$HOME/.local/bin/wt}"
 if [ ! -x "$wt" ]; then

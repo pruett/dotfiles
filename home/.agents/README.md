@@ -30,12 +30,12 @@ Codex skips symlinked `SKILL.md` files, which is why `dot` links
 `~/.agents/skills` as one directory symlink rather than file by file.
 
 Hand-written skills (not in the lockfile) live here too, e.g. `orchestrate`,
-`pr` and `worktrees`. A skill that ships a CLI keeps the code out of the skill:
-the project lives in a root dot-directory (`.tools/<name>/`, never stowed), a
-relative symlink in `home/.local/bin` points at its `bin/` so Stow puts it on
-`PATH`, and the skill holds only `SKILL.md` plus `references/`. After adding
-one, run `dot link` for the CLI and `skills sync claude-code claude-work` to
-create the agent links.
+`pr` and `worktrees`. A skill that ships a CLI keeps it inside the skill, so
+copying the skill folder carries everything: the code in `scripts/`, its
+default config beside it, and a relative symlink in `home/.local/bin` pointing
+at the script so Stow puts it on `PATH` (`worktrees` is the example). After
+adding one, run `dot link` for the CLI and `skills sync claude-code claude-work`
+to create the agent links.
 
 pstack skills come from the Claude Code copy
 (`https://github.com/cursor/plugins/tree/main/harness/pstack/claude-code`), never

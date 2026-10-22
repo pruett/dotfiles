@@ -5,7 +5,7 @@ description: "Make, find, remove and prune git worktrees with the `wt` CLI. Use 
 
 # Worktrees
 
-`wt` (on `PATH`) manages worktrees for the repos its config allows. Worktrees live **beside** the repos, never inside them, and `wt new` makes each one ready to run: it copies the repo's gitignored essentials, trusts mise and runs the repo's setup command. A bare `git worktree add` skips all of that.
+`wt` (on `PATH`; its source is [`scripts/wt`](scripts/wt), run that when `wt` is missing) manages worktrees for the repos its config allows. Worktrees live **beside** the repos, never inside them, and `wt new` makes each one ready to run: it copies the repo's gitignored essentials, trusts mise and runs the repo's setup command. A bare `git worktree add` skips all of that.
 
 ## Learn the current CLI
 
@@ -25,7 +25,7 @@ Run `wt ls --no-pr` from inside the repo. Exit 2 with "not inside an allowed rep
 
 ## When setup fails
 
-`~/.config/wt/config` decides how each repo's worktrees are stood up: which local files are copied (`include`), per-worktree variables (`env`), the commands run in order (`setup`) and before removal (`teardown`), and the rules for working there (`note`). `wt info <repo>` prints the entries that apply; `wt help config` explains each key.
+The config, [`config`](config) in this skill (or `~/.config/wt/config` when that file exists, or `$WT_CONFIG`), decides how each repo's worktrees are stood up: which local files are copied (`include`), per-worktree variables (`env`), the commands run in order (`setup`) and before removal (`teardown`), and the rules for working there (`note`). `wt info <repo>` prints the entries that apply; `wt help config` explains each key.
 
 When `wt new` exits 1, the worktree exists and its path is still printed, but setup stopped at the failed entry. Read the log the error names, fix the cause, then run `wt setup <repo>/<slug>`: it re-applies every entry in order and keeps files already in the worktree. When the entry itself is wrong (a stale command, a missing include file), the fix belongs in the config: show the user the entry and your proposed change, and edit it only on their word.
 
