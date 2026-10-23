@@ -10,10 +10,10 @@ Declare one before the first look:
 |---|---|---|
 | check on PR N, is it green, anything outstanding | `check` | one status read, report, stop |
 | address the comments, bugbot flagged, resolve the feedback | `threads-only` | steps 2–3, touches nothing else |
-| get it green, babysit, merge-ready, fix CI | `drive` | steps 1–5, looping until merge-ready |
-| merge, land, ship, merge when green | `land` | `drive`, then steps 6–9 |
+| get it green, babysit, merge-ready, fix CI | `drive` | steps 1–7, looping until merge-ready |
+| merge, land, ship, merge when green | `land` | steps 1–6, then 8–11 |
 
-Nothing named defaults to `drive`; a small or docs-only PR gets `check`. A "hold" anywhere in the conversation never reaches step 6.
+Nothing named defaults to `drive`; a small or docs-only PR gets `check`. A "hold" anywhere in the conversation never reaches step 8.
 
 ## Commands
 
@@ -43,17 +43,21 @@ Nothing named defaults to `drive`; a small or docs-only PR gets `check`. A "hold
    - Failure in code the diff never touches: check for a stale base (`git merge-base --is-ancestor origin/<base> HEAD`); stale means rebase per step 1.
    - Flake or infrastructure: one rerun (`gh run rerun <run id> --failed`). A second identical failure is not a flake; read the logs again.
 
-5. **Loop.** Run `drive` under `/loop` in dynamic mode. After each push, start `gh pr checks <n> --watch` in the background and wake when it exits; then re-read status and threads (bots post new threads after CI). Answer user questions mid-loop and continue. Done when `mergeStateStatus` is `CLEAN` (or only `BLOCKED` on a human approval) and no thread is unresolved.
+5. **Ready for review.** Once every check is green, a draft PR goes ready: `gh pr ready <n>`. Review bots (Bugbot, Seer, Devin) skip drafts, so this is what starts them; expect new threads and keep looping. Stay draft only when the user asked to keep it draft in this conversation.
 
-   Not landing: report in three lines (checks, threads resolved as fixed / dismissed counts, anything waiting on a human) and stop.
+6. **Loop.** Run `drive` under `/loop` in dynamic mode. After each push, start `gh pr checks <n> --watch` in the background and wake when it exits; then re-read status and threads (bots post new threads after CI and after the PR goes ready). Answer user questions mid-loop and continue. Done when the PR is not a draft, `mergeStateStatus` is `CLEAN` (or only `BLOCKED` on a human approval) and no thread is unresolved.
+
+   Not landing: report in three lines (checks, threads resolved as fixed / dismissed counts, anything waiting on a human).
+
+7. **Alert stakeholders (optional).** Ask the user whether to ask product or design for feedback before merging. On yes, write one line ready to post: `@stakeholder`, what changed in product words, and the preview URL for the head commit (the Vercel bot's PR comment, or `gh api "repos/<owner>/<repo>/deployments?sha=<head sha>"` → `statuses_url` → `environment_url`). Post it to the linked Linear ticket (`save_comment`) or Slack only after the user approves that exact text; otherwise hand it over to paste. Stop.
 
 ## Land
 
-6. **Verified, not just green.** A PR that changes user-facing behavior needs evidence an agent other than its author produced by running the change: a verify-skill run (such as `verify-suppco`), a reviewer verdict, or the user's own sign-off in this conversation. Missing evidence for behavior work: say so in one line and ask before merging. Tooling, docs and test-only PRs pass this step.
+8. **Verified, not just green.** A PR that changes user-facing behavior needs evidence an agent other than its author produced by running the change: a verify-skill run (such as `verify-suppco`), a reviewer verdict, or the user's own sign-off in this conversation. Missing evidence for behavior work: say so in one line and ask before merging. Tooling, docs and test-only PRs pass this step.
 
-7. **Merge.** `gh pr merge <n> --squash --delete-branch` (or the repo's merge method). A stack merges bottom-up, one PR at a time: after each merge, retarget the next PR to trunk (`gh pr edit <next> --base <trunk>`), rebase it onto trunk, push with `--force-with-lease`, and merge it once its checks pass. Read each merge back with `gh pr view <n> --json state,mergedAt,baseRefName`; a queued or auto-merge request is not a merge. Done when state reads `MERGED` with trunk as its base.
+9. **Merge.** `gh pr merge <n> --squash --delete-branch` (or the repo's merge method). A stack merges bottom-up, one PR at a time: after each merge, retarget the next PR to trunk (`gh pr edit <next> --base <trunk>`), rebase it onto trunk, push with `--force-with-lease`, and merge it once its checks pass. Read each merge back with `gh pr view <n> --json state,mergedAt,baseRefName`; a queued or auto-merge request is not a merge. Done when state reads `MERGED` with trunk as its base.
 
-8. **Ticket and clean up.** If the PR links a Linear ticket the merge did not move, set it to the team's done state. Then, skipping anything the user asked to keep, with the `worktrees` skill:
+10. **Ticket and clean up.** If the PR links a Linear ticket the merge did not move, set it to the team's done state. Then, skipping anything the user asked to keep, with the `worktrees` skill:
    - `cd` to the repo's main checkout, then `git switch <trunk> && git pull --ff-only`.
    - `wt rm <repo>/<slug> --delete-branch`. The merge is already read back as `MERGED`, and a squash merge leaves the branch looking unmerged, so the flag is needed. Exit 2 for uncommitted changes: show `git -C <path> status --short` and ask; never `--force` on your own.
    - `git worktree prune` to drop records of worktree folders that no longer exist.
@@ -61,4 +65,4 @@ Nothing named defaults to `drive`; a small or docs-only PR gets `check`. A "hold
    - Close this PR's Herdr tabs (herdr skill).
    Done when `wt ls` no longer shows the slug and `git branch --list <branch>` prints nothing.
 
-9. **Report** one line: what merged (link), what was cleaned up, and anything left.
+11. **Report** one line: what merged (link), what was cleaned up, and anything left.
