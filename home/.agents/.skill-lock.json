@@ -71,9 +71,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/typesafe-ai/skills.git",
       "skillPath": "skills/typesafe-ai/SKILL.md",
-      "skillFolderHash": "678c375b883794bf4292715a43acbba5c84681aa",
+      "skillFolderHash": "1d7aa7574f194619b5189d96c6f79bdd4cc452f2",
       "installedAt": "2026-09-28T19:32:25.026Z",
-      "updatedAt": "2026-09-28T19:32:25.026Z"
+      "updatedAt": "2026-10-23T22:48:43.467Z"
     },
     "retro": {
       "source": "mattpocock/skills",
