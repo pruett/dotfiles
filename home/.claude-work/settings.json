@@ -23,16 +23,6 @@
             "timeout": 10
           }
         ]
-      },
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$HOME/.claude-work/hooks/worktree-install.sh\"",
-            "timeout": 300
-          }
-        ]
       }
     ],
     "WorktreeCreate": [
