@@ -24,3 +24,8 @@ teardown = dropdb --if-exists "$TEST_DATABASE"
 note     = Run Rails through mise so TEST_DATABASE=api_test_{slug_id} applies: `mise exec -- bin/rails test`. A bare `bin/rails test` uses the shared api_test.
 note     = After a new migration on this branch: `mise exec -- env RAILS_ENV=test bin/rails db:migrate`.
 note     = Ports 3000 (PORT) and 3036 (BACKEND_VITE_PORT) belong to the main checkout's bin/dev; set others before you run bin/dev here.
+
+[~/work/functionhealth/frontend-mono]
+# No gitignored files to copy yet; add include = .worktreeinclude once the repo needs one.
+setup = bun install --frozen-lockfile
+note  = If bun.lock changes on this branch, run `bun install --frozen-lockfile` again.
