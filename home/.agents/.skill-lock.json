@@ -504,6 +504,24 @@
       "skillFolderHash": "81d7303540b87446dd012615c7b13cda19c92f43",
       "installedAt": "2026-10-21T18:09:09.372Z",
       "updatedAt": "2026-10-21T18:09:09.372Z"
+    },
+    "show-me": {
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git",
+      "skillPath": "plugins/show-me/skills/show-me/SKILL.md",
+      "skillFolderHash": "362200ac2fb3c17b765049444e88de73767e6d08",
+      "installedAt": "2026-10-29T19:49:02.741Z",
+      "updatedAt": "2026-10-29T19:49:02.741Z"
+    },
+    "visual-pr": {
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git",
+      "skillPath": "plugins/visual-pr/skills/visual-pr/SKILL.md",
+      "skillFolderHash": "2104d685d33ba9594a4dfe13241f0f7f02190401",
+      "installedAt": "2026-10-29T19:49:02.742Z",
+      "updatedAt": "2026-10-29T19:49:02.742Z"
     }
   },
   "dismissed": {}
