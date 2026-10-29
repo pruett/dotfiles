@@ -29,3 +29,9 @@ note     = Ports 3000 (PORT) and 3036 (BACKEND_VITE_PORT) belong to the main che
 # No gitignored files to copy yet; add include = .worktreeinclude once the repo needs one.
 setup = bun install --frozen-lockfile
 note  = If bun.lock changes on this branch, run `bun install --frozen-lockfile` again.
+
+[~/work/suppco/ai-tools]
+# ai-visibility/.env.local, .claude/settings.local.json
+include = .worktreeinclude
+setup   = bun install --frozen-lockfile
+note    = If bun.lock changes on this branch, run `bun install --frozen-lockfile` again.
