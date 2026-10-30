@@ -127,6 +127,9 @@ trust_level = "trusted"
 [projects."/Users/kevinpruett/.dotfiles"]
 trust_level = "trusted"
 
+[projects."/Users/kevinpruett/work/suppco/ai-tools"]
+trust_level = "trusted"
+
 [tui]
 screen_reader_detection_done = true
 
