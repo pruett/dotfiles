@@ -19,7 +19,7 @@
     "cmd-shift-p": "app.palette",
     "cmd-,": "app.settings",
     "cmd-d": "pane.split:right",
-    "cmd-shift-d": "pane.split:down",
+    "ctrl--": "pane.split:down",
     "cmd-shift-w": "pane.close",
     "cmd-shift-enter": "pane.zoom",
     "cmd-alt-left": "pane.go:left",
@@ -61,7 +61,7 @@
     "ctrl-j": "pane.go:down",
     "ctrl-k": "pane.go:up",
     "ctrl-l": "pane.go:right",
-    "cmd-\\": "pane.split:right"
+    "ctrl-\\": "pane.split:right"
   },
   "terminal": {
     "cmd-c": "terminal.copy",
