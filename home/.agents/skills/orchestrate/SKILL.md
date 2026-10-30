@@ -15,7 +15,7 @@ Requires Herdr. Use exactly one CLI, picked by environment:
 - Else `HC_TERMINAL_ID` set: Herdr Mac app. Run `hc --skill` and use `hc`.
 - Neither: stop and tell the user.
 
-Before the first dispatch, read [`references/herdr-gotchas.md`](references/herdr-gotchas.md).
+Before the first dispatch, read the sections of [`references/agent-gotchas.md`](references/agent-gotchas.md) for the agent kinds and Herdr CLI you use.
 
 ## Steps
 
