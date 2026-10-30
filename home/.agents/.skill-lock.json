@@ -15,9 +15,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git",
       "skillPath": "skills/engineering/codebase-design/SKILL.md",
-      "skillFolderHash": "07ba1cd60efc12d0d3a083005c1d9651cf15e39a",
+      "skillFolderHash": "4cbe1c131e1ea54109cb1e4e5f3c505810db6606",
       "installedAt": "2026-08-26T18:59:49.341Z",
-      "updatedAt": "2026-10-05T15:43:36.002Z"
+      "updatedAt": "2026-10-30T20:12:38.967Z"
     },
     "domain-modeling": {
       "source": "mattpocock/skills",
@@ -33,28 +33,27 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git",
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
-      "skillFolderHash": "39bd9cc130f7dfcc4e3ea0b3613f6ebed0d0ad2b",
+      "skillFolderHash": "587147dd230da299cc5e84971cb0a33f6676f8a6",
       "installedAt": "2026-08-26T18:59:49.343Z",
-      "updatedAt": "2026-10-05T15:43:38.416Z"
+      "updatedAt": "2026-10-30T20:12:39.813Z"
     },
     "research": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git",
       "skillPath": "skills/engineering/research/SKILL.md",
-      "skillFolderHash": "0a6796c5667e95ed2301ba7381c123b4acb2ae1a",
-      "pluginName": "mattpocock-skills",
+      "skillFolderHash": "2f8f36af48796faed5c687c75bb650071631a984",
       "installedAt": "2026-08-26T18:59:49.343Z",
-      "updatedAt": "2026-08-26T18:59:49.343Z"
+      "updatedAt": "2026-10-30T20:12:41.652Z"
     },
     "grilling": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git",
       "skillPath": "skills/productivity/grilling/SKILL.md",
-      "skillFolderHash": "28aceb4c9567b985cb47f7db88cf23c9f33af8b8",
+      "skillFolderHash": "f551b6e0d219fdda0b6abf277f8f915b3127d1e9",
       "installedAt": "2026-08-26T19:03:54.049Z",
-      "updatedAt": "2026-10-08T20:03:04.854Z"
+      "updatedAt": "2026-10-30T20:12:42.605Z"
     },
     "writing-for-agents": {
       "source": "mattpocock/skills",
@@ -101,9 +100,9 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/arena/SKILL.md",
-      "skillFolderHash": "21a4d08f94bc06b16a76d5478ebc2b5d4d724731",
+      "skillFolderHash": "1fe4ff6ac759ecc886c0f4087047ad48098df49c",
       "installedAt": "2026-10-21T18:09:09.353Z",
-      "updatedAt": "2026-10-21T18:09:09.353Z"
+      "updatedAt": "2026-10-30T20:12:44.350Z"
     },
     "benchmark-checklist": {
       "source": "cursor/plugins",
@@ -171,9 +170,9 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/interrogate/SKILL.md",
-      "skillFolderHash": "201905e5749c4b5185d9de398b104454d9b4f7c7",
+      "skillFolderHash": "6f150e30627fd8ee395f4c5860c50d1acde7bc15",
       "installedAt": "2026-10-21T18:09:09.355Z",
-      "updatedAt": "2026-10-21T18:09:09.355Z"
+      "updatedAt": "2026-10-30T20:12:46.089Z"
     },
     "maintain-verification-skill": {
       "source": "cursor/plugins",
@@ -201,9 +200,9 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/poteto-mode/SKILL.md",
-      "skillFolderHash": "01d75efb65328e299febc153f056f732014d49d1",
+      "skillFolderHash": "86c3b36ea41265ab232a04193be6669399f180af",
       "installedAt": "2026-10-21T18:09:09.356Z",
-      "updatedAt": "2026-10-21T18:09:09.356Z"
+      "updatedAt": "2026-10-30T20:12:48.438Z"
     },
     "principle-attack-the-premise": {
       "source": "cursor/plugins",
@@ -271,9 +270,9 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-explain-the-number/SKILL.md",
-      "skillFolderHash": "2f468162c9ce85478f1fb1198149646a2ef0f735",
+      "skillFolderHash": "7d97b8efd90780774b38ccb9dad1aa232bd51ff9",
       "installedAt": "2026-10-21T18:09:09.359Z",
-      "updatedAt": "2026-10-21T18:09:09.359Z"
+      "updatedAt": "2026-10-30T20:12:52.813Z"
     },
     "principle-fix-root-causes": {
       "source": "cursor/plugins",
@@ -461,9 +460,9 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/swarm/SKILL.md",
-      "skillFolderHash": "baeed6162474a4e739847342fd1ec7f19cdc0170",
+      "skillFolderHash": "19e3c7dafac8db18bed15644b3f544b96f39a009",
       "installedAt": "2026-10-21T18:09:09.369Z",
-      "updatedAt": "2026-10-21T18:09:09.369Z"
+      "updatedAt": "2026-10-30T20:12:54.442Z"
     },
     "teach": {
       "source": "cursor/plugins",
