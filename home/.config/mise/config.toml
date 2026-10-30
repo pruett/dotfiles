@@ -1,5 +1,4 @@
 [tools]
-claude = { version = "latest", auto_update = true }
 node = "lts"
 "npm:portless" = "latest"
 ruby = "3.4"
