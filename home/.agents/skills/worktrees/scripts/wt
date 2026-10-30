@@ -455,14 +455,15 @@ cmd_prune() {
   fi
 
   local rc=0 main path branch skip state
-  while IFS="$TAB" read -r main path branch skip state; do
+  # unit separator, not tab: read collapses runs of whitespace IFS, so an empty skip would swallow state
+  while IFS=$'\x1f' read -r main path branch skip state; do
     [ -n "$skip" ] && { log "skip    $(tilde "$path"): $skip (use --force)"; continue; }
     remove_worktree "$main" "$path" 1 yes </dev/null || { log "failed  $path"; rc=1; continue; }
     if [ -n "$branch" ] && { [ "$state" = MERGED ] || [ "$state" = CLOSED ]; } &&
       git -C "$main" ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1 </dev/null; then
       git -C "$main" push --quiet origin --delete "$branch" </dev/null >&2 && step remote "deleted origin/$branch"
     fi
-  done < <(jq -r '["\(.workspace)/\(.repo)", .path, (.branch // ""), (.skip // ""), (.pr.state // "")] | @tsv' <<<"$plan")
+  done < <(jq -r '["\(.workspace)/\(.repo)", .path, (.branch // ""), (.skip // ""), (.pr.state // "")] | join("\u001f")' <<<"$plan")
   return $rc
 }
 

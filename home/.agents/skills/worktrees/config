@@ -20,10 +20,22 @@ setup    = bundle check >/dev/null || bundle install
 # it, Vite fails fast (backend PR #813) instead of the old vite_ruby fork-bomb.
 setup    = pnpm install --frozen-lockfile --prefer-offline
 setup    = dropdb --if-exists "$TEST_DATABASE" && createdb -T api_test "$TEST_DATABASE"
+# bin/dev ports: 3000/3036 belong to the main checkout. Pick a free pair once
+# (Rails on an even port, Vite one above) and pin it in mise.local.toml.
+# VITE_RUBY_PORT tells Rails where Vite is; SUPP_API_TUNNEL points the staff
+# login's token exchange (config/initializers/doorkeeper.rb) back at this server.
+setup    = grep -q '^PORT' mise.local.toml || { p=$((3100 + $(printf %s "{slug}" | cksum | cut -d' ' -f1) % 400 * 2)); while lsof -nP -iTCP:$p -iTCP:$((p+1)) -sTCP:LISTEN >/dev/null; do p=$((p+2)); done; mise set --file mise.local.toml PORT=$p BACKEND_VITE_PORT=$((p+1)) VITE_RUBY_PORT=$((p+1)) SUPP_API_TUNNEL=localhost:$p; }
+# The dev DB is shared with the main checkout; bring it up to this branch's
+# migrations without rewriting model annotations, and keep the committed
+# structure.sql unless it already had uncommitted edits.
+setup    = if git diff --quiet db/structure.sql; then c=1; fi; ANNOTATERB_SKIP_ON_DB_TASKS=1 bin/rails db:migrate && { [ -z "$c" ] || git checkout -- db/structure.sql; }
+# Staff logins (admin, cms) accept only seeded callback URLs; allow this port's in the shared dev DB.
+setup    = bin/rails runner 'p = ENV.fetch("PORT"); %w[admin cms].each { |uid| a = Doorkeeper::Application.find_by(uid: uid) or next; u = "http://localhost:" + p + "/" + uid + "/oauth/callback"; a.update!(redirect_uri: (a.redirect_uri.split + [u]).uniq.join("\n")) }'
+teardown = bin/rails runner 'p = ENV.fetch("PORT"); %w[admin cms].each { |uid| a = Doorkeeper::Application.find_by(uid: uid) or next; u = "http://localhost:" + p + "/" + uid + "/oauth/callback"; a.update!(redirect_uri: (a.redirect_uri.split - [u]).join("\n")) }'
 teardown = dropdb --if-exists "$TEST_DATABASE"
 note     = Run Rails through mise so TEST_DATABASE=api_test_{slug_id} applies: `mise exec -- bin/rails test`. A bare `bin/rails test` uses the shared api_test.
 note     = After a new migration on this branch: `mise exec -- env RAILS_ENV=test bin/rails db:migrate`.
-note     = Ports 3000 (PORT) and 3036 (BACKEND_VITE_PORT) belong to the main checkout's bin/dev; set others before you run bin/dev here.
+note     = Start the app with `mise exec -- bin/dev`; it serves on $PORT (`mise exec -- printenv PORT`).
 
 [~/work/functionhealth/frontend-mono]
 # No gitignored files to copy yet; add include = .worktreeinclude once the repo needs one.
