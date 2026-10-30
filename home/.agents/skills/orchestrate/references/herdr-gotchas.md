@@ -11,3 +11,10 @@ Verified while running fan-outs (2026-10-06 → 10-21). Check `herdr agent --hel
 - Devin Cloud auto-monitors its PR ("I'll fix CI failures and address comments") and fixes Bugbot/Seer threads itself, often before guidance you send lands. Check the thread + commit before sending a fix; if a draft is queued behind a running turn, discard it with send-keys `up` then `backspace` in batches of ~40 (a single call with 1300 keys silently fails; `ctrl-c` is an unsupported key name).
 - `herdr agent wait` in a background Bash plus `herdr agent read --source recent-unwrapped` is the collection loop; `--source screen` is not a valid source.
 - A tab whose cwd is `$HOME` (or any folder not trusted yet) starts at Claude Code's trust-this-folder prompt and `agent start` returns `agent_not_ready`: `send-keys <id> down enter`, then `agent wait`. Prefer a repo or worktree cwd. (2026-10-21)
+
+## Mac app (herdr-core, `hc`) — verified 2026-10-30
+
+- `hc run` does not pass the caller's environment to the terminal (`CLAUDE_CONFIG_DIR` came through empty) and has no `--env` flag. Prefix the command with `env VAR=val`.
+- `hc run --label herdr.space=<id>` opens a new tab in that space without stealing focus. The tab is named by its number, so rename it with `herdr-app do tab.rename`. `herdr-app do tab.new` focuses the new tab and cannot set the environment, so don't use it for fan-out.
+- Terminals started with `hc run` are children of the caller and die with it by default. Pass `--outlive-parent` to keep them running.
+- `hc keys` takes key names one per argument, like `herdr agent send-keys`: `hc keys <t> down enter`.
