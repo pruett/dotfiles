@@ -1,4 +1,3 @@
-notify = ["/Users/kevinpruett/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
 model = "gpt-6-astra"
 model_reasoning_effort = "high"
 
@@ -8,6 +7,8 @@ approval_policy = "never"
 sandbox_mode = "danger-full-access"
 web_search = "live"
 service_tier = "priority"
+
+notify = ["/Users/pruett/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
 
 [features]
 hooks = true
@@ -19,11 +20,11 @@ ambient-suggestions-enabled = false
 
 [marketplaces.openai-bundled]
 source_type = "local"
-source = "/Users/kevinpruett/.codex/.tmp/bundled-marketplaces/openai-bundled"
+source = "/Users/pruett/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
 [marketplaces.openai-primary-runtime]
 source_type = "local"
-source = "/Users/kevinpruett/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
+source = "/Users/pruett/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [plugins."codex-app-tools@openai-bundled"]
 enabled = true
@@ -70,17 +71,17 @@ startup_timeout_sec = 120
 NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
 NODE_REPL_NODE_MODULE_DIRS = "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules"
 NODE_REPL_NODE_PATH = "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node"
-NODE_REPL_TRUSTED_CODE_PATHS = "/Users/kevinpruett/.codex:/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules"
-CODEX_HOME = "/Users/kevinpruett/.codex"
+NODE_REPL_TRUSTED_CODE_PATHS = "/Users/pruett/.codex:/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules"
+CODEX_HOME = "/Users/pruett/.codex"
 BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab,mcpapps"
 BROWSER_USE_TINYSKY_ENABLED = "1"
 NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = ""
 NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = ""
 NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE = ""
 BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
-BROWSER_USE_CODEX_APP_VERSION = "26.1002.52244"
-NODE_REPL_TRUSTED_SERVICES = '{"browser":"/Users/kevinpruett/.codex/plugins/cache/openai-bundled/browser/26.1002.52244/scripts/browser-service.mjs","sky":"@oai/sky/service"}'
-SKY_CUA_SERVICE_PATH = "/Users/kevinpruett/.codex/computer-use/Codex Computer Use.app"
+BROWSER_USE_CODEX_APP_VERSION = "26.930.51102"
+NODE_REPL_TRUSTED_SERVICES = '{"browser":"/Users/pruett/.codex/plugins/cache/openai-bundled/browser/26.930.51102/scripts/browser-service.mjs","sky":"@oai/sky/service"}'
+SKY_CUA_SERVICE_PATH = "/Users/pruett/.codex/computer-use/Codex Computer Use.app"
 CODEX_CLI_PATH = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
 
 [mcp_servers.computer-use]
