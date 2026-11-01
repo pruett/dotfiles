@@ -6,14 +6,17 @@
 # Resulting order (first wins):
 #   1. ~/.local/bin         user scripts (dotfiles home/.local/bin)
 #   2. language toolchains  cargo, go, bun
-#   3. Homebrew             /opt/homebrew/{bin,sbin}
+#   3. Homebrew             /opt/homebrew (macOS) or /home/linuxbrew/.linuxbrew (Linux)
 #   4. system               whatever login handed us
 #
 # Tools that manage their own PATH (mise activate, gcloud) run later in
 # .zshrc and prepend on top of this when active.
 
 # Homebrew goes in first so the user dirs below land ahead of it.
-eval "$(/opt/homebrew/bin/brew shellenv)"
+for brew_bin in /opt/homebrew/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+    [[ -x $brew_bin ]] && eval "$($brew_bin shellenv)" && break
+done
+unset brew_bin
 
 # Unique entries; first occurrence wins.
 typeset -U path

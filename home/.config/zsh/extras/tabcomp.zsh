@@ -8,7 +8,7 @@
 
 # Load Homebrew completions
 if type brew &>/dev/null; then
-  FPATH=/opt/homebrew/share/zsh-completions:$FPATH
+  FPATH=$HOMEBREW_PREFIX/share/zsh-completions:$FPATH
   autoload -Uz compinit
 
   # Only check for new completions once per day

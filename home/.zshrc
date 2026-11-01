@@ -38,7 +38,7 @@ source "$XDG_CONFIG_HOME/zsh/extras/depcheck.zsh"
 # brew shellenv runs in path.zsh. It only adds site-functions, not the core functions dir containing
 # is-at-least, add-zsh-hook, compinit, bashcompinit, etc. Add it explicitly so
 # plugins loaded below can find these. typeset -U prevents duplicates on reload.
-fpath=(/opt/homebrew/share/zsh/functions "${fpath[@]}")
+fpath=("$HOMEBREW_PREFIX/share/zsh/functions" "${fpath[@]}")
 typeset -U fpath
 
 # --------

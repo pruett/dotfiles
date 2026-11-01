@@ -20,6 +20,10 @@ The [`bootstrap`](bootstrap) script is idempotent (safe to re-run) and handles e
 
 Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checklist.
 
+## exe.dev VM setup
+
+From this repo on your Mac, run `./exe-bootstrap <vm-name>` (for example `./exe-bootstrap wombat-croissant`). [`exe-bootstrap`](exe-bootstrap) SSHes into `<vm-name>.exe.xyz` and installs Homebrew, the CLI tools from the Brewfile, these dotfiles (cloned from GitHub, so push first), and zsh as the login shell. Then run `gh auth login` on the VM.
+
 ## Manual pieces (reference)
 
 Everything below is done automatically by `bootstrap`, but documented here for one-off use.

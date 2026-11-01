@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+#
+# Bootstrap an exe.dev VM (Ubuntu) with these dotfiles. Run from your Mac:
+#
+#   ./exe-bootstrap <vm-name>        # e.g. ./exe-bootstrap wombat-croissant
+#
+# It copies itself to the VM over SSH and runs there with --remote, passing
+# your Mac's git name and email. Safe to re-run; every step is idempotent.
+#
+# On the VM it: installs apt build deps and Homebrew (Linux), installs the CLI
+# tools the zsh config needs, clones this repo over HTTPS, writes
+# home/.gitconfig.local, links everything with `dot link`, and makes zsh the
+# login shell. GitHub auth is left to you: run `gh auth login` on the VM.
+
+set -euo pipefail
+
+DOTFILES_REPO_HTTPS="https://github.com/pruett/dotfiles.git"
+DOTFILES_DIR="$HOME/.dotfiles"
+BREW_PREFIX="/home/linuxbrew/.linuxbrew"
+
+# CLI tools from the Brewfile that the zsh config and daily use need. Casks
+# and macOS-only entries are left out.
+BREW_FORMULAE=(
+  bat eza fd fzf gh git jq mise neovim ripgrep starship stow tmux tree zoxide
+  zsh zsh-autosuggestions zsh-completions zsh-syntax-highlighting zsh-vi-mode
+)
+
+info()    { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+success() { printf '\033[1;32m ok\033[0m %s\n' "$*"; }
+fail()    { printf '\033[1;31mERR\033[0m %s\n' "$*" >&2; exit 1; }
+
+# ------------------------------------------------------------------------------
+# Local mode (Mac): ship this script to the VM and run it there
+# ------------------------------------------------------------------------------
+
+if [[ "${1:-}" != "--remote" ]]; then
+  vm="${1:-}"
+  [[ -n "$vm" ]] || fail "Usage: $0 <vm-name>   (see 'ssh exe.dev ls')"
+  host="${vm%.exe.xyz}.exe.xyz"
+  git_name="$(git config --global user.name || true)"
+  git_email="$(git config --global user.email || true)"
+
+  info "Bootstrapping ${host}"
+  ssh -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new "$host" true \
+    || fail "Cannot SSH to ${host}. Check it is running with 'ssh exe.dev ls'."
+  # shellcheck disable=SC2029  # values are quoted for the remote shell on purpose
+  ssh "$host" "bash -s -- --remote $(printf '%q %q' "$git_name" "$git_email")" < "$0"
+  exit $?
+fi
+
+# ------------------------------------------------------------------------------
+# Remote mode (VM)
+# ------------------------------------------------------------------------------
+
+git_name="${2:-}"
+git_email="${3:-}"
+
+[[ "$(uname -s)" == "Linux" ]] || fail "--remote is meant to run on the Linux VM."
+sudo -n true 2>/dev/null || fail "Passwordless sudo is required on the VM."
+
+info "Installing apt packages Homebrew needs..."
+sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+  build-essential procps curl file git >/dev/null
+success "apt packages installed"
+
+if [[ ! -x "$BREW_PREFIX/bin/brew" ]]; then
+  info "Installing Homebrew..."
+  NONINTERACTIVE=1 /bin/bash -c \
+    "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+eval "$("$BREW_PREFIX/bin/brew" shellenv)"
+success "Homebrew ready"
+
+info "Installing brew formulae (first run takes a while)..."
+brew install --quiet "${BREW_FORMULAE[@]}"
+success "Formulae installed"
+
+if [[ -d "$DOTFILES_DIR/.git" ]]; then
+  info "Dotfiles repo present; pulling latest..."
+  git -C "$DOTFILES_DIR" pull --ff-only
+else
+  info "Cloning ${DOTFILES_REPO_HTTPS}..."
+  git clone "$DOTFILES_REPO_HTTPS" "$DOTFILES_DIR"
+fi
+success "Dotfiles repo ready"
+
+cd "$DOTFILES_DIR"
+
+if [[ ! -f home/.gitconfig.local ]]; then
+  cp home/.gitconfig.local.sample home/.gitconfig.local
+  if [[ -n "$git_name" && -n "$git_email" ]]; then
+    printf '\n[user]\n  name = %s\n  email = %s\n' "$git_name" "$git_email" \
+      >> home/.gitconfig.local
+  fi
+  success "home/.gitconfig.local created"
+fi
+
+info "Linking dotfiles..."
+./home/.local/bin/dot link
+success "Dotfiles linked"
+
+zsh_path="$BREW_PREFIX/bin/zsh"
+grep -qx "$zsh_path" /etc/shells || echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+if [[ "$(getent passwd "$USER" | cut -d: -f7)" != "$zsh_path" ]]; then
+  sudo chsh -s "$zsh_path" "$USER"
+fi
+success "Login shell is ${zsh_path}"
+
+cat <<EOF
+
+$(printf '\033[1;32mVM bootstrap complete!\033[0m')
+
+Next: ssh $(hostname).exe.xyz, then run 'gh auth login' to push from the VM.
+EOF
