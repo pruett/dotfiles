@@ -133,6 +133,22 @@ trust_level = "trusted"
 [projects."/Users/kevinpruett/work/functionhealth/frontend-mono"]
 trust_level = "trusted"
 
+# Codex has no glob for trust: list each repo under ~/projects (worktrees inherit).
+[projects."/Users/pruett/projects"]
+trust_level = "trusted"
+
+[projects."/Users/pruett/projects/commissioner"]
+trust_level = "trusted"
+
+[projects."/Users/pruett/projects/flight"]
+trust_level = "trusted"
+
+[projects."/Users/pruett/projects/halloween-2026"]
+trust_level = "trusted"
+
+[projects."/Users/pruett/projects/wpm"]
+trust_level = "trusted"
+
 [tui]
 screen_reader_detection_done = true
 
