@@ -1,21 +1,19 @@
-// Orchestrator mode: an agent with live sub-agents reporting to it.
+// Orchestrator: an agent with live sub-agents reporting to it.
 // hc send waits for a 3 s typing pause, not an empty input box, so a child's report
-// can submit a half-typed message with it (herdrdev/herdr-core#64). A draft box in the
-// side panel keeps the orchestrator's own input box empty; Cmd+Enter sends the draft.
+// can submit a half-typed message with it (herdrdev/herdr-core#64). A draft box in a
+// popup keeps the orchestrator's own input box empty; Cmd+Enter sends the draft and
+// closes the popup.
 //
-// Three roles, all placed by layouts/orchestrator-mode.json:
-// - panel (props.role "panel"): the "orchestrator" child of the side panel's stack,
-//   beside Files and Changes; one draft each.
-// - tabs (props.role "tabs"): Herdr's `tabs` bar, copied from mods/tabs/main.js, with an
-//   Orchestrator button right of Files and Changes. It opens the panel when the shown
-//   tab gains an orchestrator and puts the panel back when it loses one.
+// Three roles:
+// - popup (opened with mod.open, so props().overlay is set): the draft box for the shown
+//   tab's orchestrator; one draft each. The Orchestrator button, the pane badge and
+//   cmd-shift-o (keys.json) open it.
+// - tabs (props.role "tabs", layouts/orchestrator-mode.json): Herdr's `tabs` bar, copied
+//   from mods/tabs/main.js, with an Orchestrator button right of Files and Changes. It
+//   glows while the shown tab's agent has live helpers.
 // - header (props { pane, terminal } from the layout's pane header): Herdr's `pane`
 //   header, plus an "Orchestrating" badge on an orchestrator's pane. Mods can't
 //   import each other, so the header part is copied from mods/pane/main.js.
-//
-// Orchestrator mode can also be turned on by hand, helpers or not: the label
-// orchestrator=on on the agent's terminal (the Orchestrator button, cmd-alt-o, or
-// `hc label <t> orchestrator=on`).
 //
 // The draft box has vim keys, on by default (the "vim" chip in its footer turns them
 // off). Typing "/" at the start of a word, anywhere in the draft, lists the orchestrator's
@@ -26,10 +24,28 @@
 // transcript for the folder.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
-import { agents, spaces, terminals, panes, focused, layout, props, run, hc, exec, theme, home, nextCommand, shared, setShared, openOverlay, window, settings } from "herdr";
+import { agents, spaces, terminals, panes, focused, layout, props, run, hc, exec, theme, home, nextCommand, shared, setShared, openOverlay, closeOverlay, window, settings } from "herdr";
 
 const MOD = "orchestrator-mode";
-const PANEL = "panel", STACK = "panel-body", CHILD = "orchestrator"; // layout node ids
+const PANEL = "panel", STACK = "panel-body"; // layout node ids
+const POPUP_W = 600, POPUP_H = 340, GAP = 6;
+
+// Opens the popup hanging from the Orchestrator button, or closes it if it's open. The
+// tab bar keeps the button's window bounds in shared `${MOD}.button`; a layout without
+// the button gets mod.json's spot.
+function togglePopup() {
+  const open = shared(`${MOD}.popup`);
+  if (open?.id) { closeOverlay(open.id); setShared(`${MOD}.popup`, null); return; }
+  // A press beside the popup closes it before the button's click lands; don't reopen.
+  if (Date.now() - (open?.closedAt ?? 0) < 400) return;
+  const b = shared(`${MOD}.button`);
+  if (!b) { run("mod.open", { name: MOD }); return; }
+  // `at` is in window px; width and height are in element px.
+  const z = settings().zoom, x = Math.max(8, b.x + b.width - POPUP_W * z);
+  const id = openOverlay({ mod: MOD, kind: "popup", frame: "none", width: POPUP_W, height: POPUP_H,
+    at: { x, y: b.y + b.height + GAP * z } });
+  setShared(`${MOD}.popup`, { id });
+}
 
 // Built-in Claude Code commands; skills come from the transcript.
 const CLAUDE_BUILTINS = [
@@ -58,17 +74,11 @@ const CLAUDE_BUILTINS = [
 const helpersOf = (address, all = terminals()) =>
   all.filter((k) => k.parent === address && k.state === "live" && (k.program?.agent || k.status));
 
-const manual = (address, all = terminals()) => all.find((k) => k.address === address)?.labels?.orchestrator === "on";
-
-// An agent with helpers, or one turned on by hand.
-const orchestrating = (address, all = terminals()) => helpersOf(address, all).length > 0 || manual(address, all);
-
-function setManual(address, on) {
-  hc(["label", address, on ? "orchestrator=on" : "orchestrator="]).catch(() => {});
-}
-
-// The agent the shown tab's button and key act on: the focused pane's, else the first.
+// The agent the popup drafts to: the shown tab's orchestrator, else the focused pane's
+// agent, else the tab's first.
 function tabAgent() {
+  const o = shownOrchestrator();
+  if (o) return o;
   const f = focused();
   const inTab = agents().filter((a) => a.tab === f?.tab);
   return inTab.find((a) => a.address === f?.terminal) ?? inTab[0] ?? null;
@@ -80,7 +90,8 @@ function shownOrchestrator() {
   const all = terminals();
   for (const a of agents()) {
     if (a.tab !== tab) continue;
-    if (orchestrating(a.address, all)) return { ...a, helpers: helpersOf(a.address, all) };
+    const helpers = helpersOf(a.address, all);
+    if (helpers.length) return { ...a, helpers };
   }
   return null;
 }
@@ -92,77 +103,19 @@ function findNode(n, id) {
   return null;
 }
 
-function panelState() {
-  const root = layout(), panel = findNode(root, PANEL), body = findNode(root, STACK);
-  if (!panel || !findNode(body, CHILD)) return null;
-  return { panel, body, showing: !panel.hidden && body.active === CHILD };
-}
-
-function showPanel(child) {
-  run("layout.select", { stack: STACK, child });
-  run("layout.show", { id: PANEL });
-}
-
-// Open the panel once per orchestrator the shown tab gains, and put back what was there
-// when it loses it. Run by the tab bar: a panel that never showed has no running copy.
-function syncPanel() {
-  const s = panelState();
-  if (!s) return;
-  const o = shownOrchestrator(), opened = shared(`${MOD}.opened`) ?? null;
-  if (o && opened !== o.address) {
-    setShared(`${MOD}.opened`, o.address);
-    if (!s.showing) {
-      setShared(`${MOD}.before`, s.panel.hidden ? null : s.body.active);
-      showPanel(CHILD);
-    }
-  } else if (!o && opened) {
-    setShared(`${MOD}.opened`, null);
-    if (s.showing) {
-      const before = shared(`${MOD}.before`);
-      if (before) showPanel(before); else run("layout.hide", { id: PANEL });
-    }
-  }
-}
-
-function togglePanel() {
-  const s = panelState();
-  if (!s) return;
-  if (s.showing) run("layout.hide", { id: PANEL }); else showPanel(CHILD);
-}
-
-// The Orchestrator button and cmd-shift-o. No orchestrator: turn one on by hand (the
-// panel follows). Panel hidden: show it. Panel shown: leave a hand-turned mode, or
-// just hide the panel of one that has helpers.
-function pressOrchestrator() {
-  const o = shownOrchestrator(), s = panelState();
-  if (!o) { const a = tabAgent(); if (a) setManual(a.address, true); return; }
-  if (!s?.showing) { showPanel(CHILD); return; }
-  if (manual(o.address)) setManual(o.address, false); else run("layout.hide", { id: PANEL });
-}
-
 // Shortcuts (keys.json, layout:orchestrator-mode). A side panel's key opens it, or
 // closes it if it's already showing; closing hands the keyboard back to the pane.
 function togglePanelChild(child) {
-  const s = panelState();
-  if (!s) return;
-  if (!s.panel.hidden && s.body.active === child) {
+  const root = layout(), panel = findNode(root, PANEL), body = findNode(root, STACK);
+  if (!panel) return;
+  if (!panel.hidden && body?.active === child) {
     const pane = focused()?.pane;
     run("layout.hide", { id: PANEL });
     if (pane) run("pane.focus", { pane });
     return;
   }
-  showPanel(child);
-  // A command would reach the panel before it shows; the panel takes this when it draws.
-  if (child === CHILD) setShared(`${MOD}.focus`, Date.now());
-}
-
-// Orchestrator mode by hand for the shown tab's agent. An agent with helpers is in it
-// regardless.
-function toggleMode() {
-  const o = shownOrchestrator();
-  if (o) { if (manual(o.address)) setManual(o.address, false); return; }
-  const a = tabAgent();
-  if (a) setManual(a.address, true);
+  run("layout.select", { stack: STACK, child });
+  run("layout.show", { id: PANEL });
 }
 
 const isClaude = (k) => /claude/i.test([k?.agent, k?.program?.name, k?.status?.app].join(" "));
@@ -283,8 +236,8 @@ function folder(cwd) {
 
 export default class OrchestratorMode extends View {
   init(_props, cx) {
-    this.role = ["panel", "tabs"].includes(props()?.role) ? props().role : "header";
-    if (this.role === "panel") this.initPanel(cx);
+    this.role = props()?.overlay ? "popup" : props()?.role === "tabs" ? "tabs" : "header";
+    if (this.role === "popup") this.initPopup(cx);
     else if (this.role === "tabs") this.initTabs(cx);
     else this.hovered = false;
   }
@@ -294,16 +247,26 @@ export default class OrchestratorMode extends View {
   initTabs(cx) {
     this.pressed = null;
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
-    cx.timer.every(700, (cx) => { syncPanel(); cx.notify(); });
+    cx.timer.every(700, (cx) => cx.notify());
     const actions = {
       "panel-files": () => togglePanelChild("files"),
       "panel-changes": () => togglePanelChild("changes"),
-      "panel-orchestrator": () => togglePanelChild(CHILD),
-      "toggle-mode": toggleMode,
+      open: togglePopup,
     };
     cx.spawn(async (cx) => {
       for (;;) { const a = actions[await nextCommand()]; if (a) { a(); cx.notify(); } }
     });
+  }
+
+  // Where the Orchestrator button sits in the window, for the popup: the bar starts right
+  // of the sidebar and the button ends 10 px before the bar does. In window px, which
+  // are zoomed like measured sizes; the layout's px and element sizes aren't.
+  keepButton() {
+    if (!this.barSize || !this.buttonSize || this.windowButtons) return;
+    const z = settings().zoom, bar = this.barSize, btn = this.buttonSize;
+    const b = { x: this.sidebarWidth * z + bar.width - 10 * z - btn.width, y: (bar.height - btn.height) / 2, ...btn };
+    const was = shared(`${MOD}.button`);
+    if (!was || ["x", "y", "width", "height"].some((k) => Math.abs(was[k] - b[k]) > 0.5)) setShared(`${MOD}.button`, b);
   }
 
   // The side panel is remembered per space: switching shows that space's choice
@@ -365,7 +328,7 @@ export default class OrchestratorMode extends View {
       ? Math.max(10, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
       : 10;
     const panel = findNode(root, PANEL), body = findNode(root, STACK);
-    const enabled = [...(shared("workspace.panels") ?? ["files", "changes"]), CHILD];
+    const enabled = shared("workspace.panels") ?? ["files", "changes"];
     this.syncTabsPanel(space, panel, body, enabled);
     const panelButton = (id, label, icon) => {
       const on = panel && !panel.hidden && body?.active === id;
@@ -377,22 +340,27 @@ export default class OrchestratorMode extends View {
           else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }
         }).child(svg(icon).size(14)).child(label);
     };
-    // Muted unless the shown tab's orchestrator has live helpers; then it glows: an
+    // Opens the popup. Muted unless the shown tab has an orchestrator; then it glows: an
     // accent frame over a pulsing accent wash, and a pulsing dot.
-    const o = shownOrchestrator(), live = Boolean(o?.helpers.length);
-    const showing = panel && !panel.hidden && body?.active === CHILD;
-    const orchestratorButton = h_flex().id(`panel-${CHILD}`).relative().h(26).px(8).gap(5).flex_none().items_center().rounded(6)
+    const live = Boolean(shownOrchestrator()), open = Boolean(shared(`${MOD}.popup`)?.id);
+    const orchestratorButton = h_flex().id("orchestrator").relative().h(26).px(8).gap(5).flex_none().items_center().rounded(6)
       .text_size(12).on_mouse_down("left", stop)
-      .on_click((_e, cx) => { pressOrchestrator(); cx.notify(); })
-      .when(!live, el => el.bg(showing ? t.selected : t.chrome).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.muted)))
-      .when(live, el => el.bg(t.accent + (showing ? "38" : "26")).border_1().border_color(t.accent).text_color(t.accent)
+      .on_click(togglePopup)
+      .on_size_change((size) => { this.buttonSize = size; this.keepButton(); })
+      // Always bordered, so opening or glowing doesn't change its size.
+      .border_1().border_color(open || live ? t.accent : t.chrome)
+      .when(!live, el => el.bg(open ? t.accent + "26" : t.chrome).text_color(open ? t.accent : t.dim).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.muted)))
+      .when(live, el => el.bg(t.accent + "26").text_color(t.accent)
         .font_semibold().shadow_md().hover(s => s.bg(t.accent + "4d"))
         .child(div().absolute().top(-4).left(-4).right(-4).bottom(-4).rounded(10).bg(t.accent).loop("opacity", { from: 0, to: 0.22, period: 1800 }))
         .child(div().absolute().inset_0().rounded(6).bg(t.accent).loop("opacity", { from: 0.06, to: 0.4, period: 1800 })))
       .child(svg("mods/workspace-chrome/layers.svg").size(14))
       .child("Orchestrator")
       .when(live, el => el.child(div().size(6).rounded(3).bg(t.accent).loop("opacity", { from: 0.35, to: 1, period: 1800 })));
+    this.sidebarWidth = sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0;
+    this.windowButtons = Boolean(w?.buttons);
     return h_flex().size_full().min_w(0).px(10).pl(lightsPadding).gap(3).items_center().bg(t.chrome).border_b(1).border_color(t.border)
+      .on_size_change((size) => { this.barSize = size; this.keepButton(); })
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar().children(shown.map(item)))
@@ -405,9 +373,13 @@ export default class OrchestratorMode extends View {
         .child(button("close-window", w.platform === "windows" ? svg("mods/tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
   }
 
-  // Panel.
+  // Popup.
 
-  initPanel(cx) {
+  close() {
+    if (this.role === "popup") setShared(`${MOD}.popup`, { closedAt: Date.now() });
+  }
+
+  initPopup(cx) {
     this.address = null; // the orchestrator the box is drafting to
     this.status = null;
     this.sending = false;
@@ -416,13 +388,6 @@ export default class OrchestratorMode extends View {
     this.loadedAt = 0;
     this.pick = 0; // highlighted row of the slash menu
     this.menuScroll = VirtualListScrollHandle.new();
-    // The Orchestrator panel's key asks for the box once the panel shows.
-    cx.timer.every(150, () => {
-      const ask = shared(`${MOD}.focus`);
-      if (!ask || ask === this.focusAsk || !panelState()?.showing) return;
-      this.focusAsk = ask;
-      this.input.focus();
-    });
     this.dismissed = null; // the draft and slash position the menu was closed on with Escape
     this.typing = false;
     this.vim = localStorage.getItem("vim") !== "off";
@@ -468,9 +433,6 @@ export default class OrchestratorMode extends View {
     this.input.on("submit", (e, cx) => { if (e.secondary) this.send(cx); });
     this.input.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
     this.input.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
-    cx.spawn(async () => {
-      for (;;) if ((await nextCommand()) === "focus") this.input.focus();
-    });
     cx.timer.every(1500, (cx) => this.sync(cx));
     this.sync(cx);
   }
@@ -487,9 +449,9 @@ export default class OrchestratorMode extends View {
     localStorage.setItem("drafts", JSON.stringify(drafts));
   }
 
-  // Follow the shown tab's orchestrator: swap in its draft and its commands.
+  // Follow the shown tab's agent: swap in its draft and its commands.
   sync(cx) {
-    const o = shownOrchestrator();
+    const o = tabAgent();
     const address = o?.address ?? null;
     if (address !== this.address) {
       this.save();
@@ -783,10 +745,11 @@ export default class OrchestratorMode extends View {
         const drafts = this.drafts();
         delete drafts[address];
         localStorage.setItem("drafts", JSON.stringify(drafts));
-        this.status = { level: "ok", text: `Sent ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` };
-      } else {
-        this.status = { level: "error", text: (r.stderr || r.stdout || "hc send failed").trim().split("\n")[0] };
+        closeOverlay(props().overlay);
+        this.close();
+        return;
       }
+      this.status = { level: "error", text: (r.stderr || r.stdout || "hc send failed").trim().split("\n")[0] };
       this.input.focus();
       cx.notify();
     });
@@ -817,14 +780,14 @@ export default class OrchestratorMode extends View {
       .when(rows.length > 0 && Boolean(this.commandsNote), (el) => el.child(div().px(8).pt(4).text_size(11).text_color(t.dim).child(this.commandsNote)));
   }
 
-  renderPanel(t) {
+  renderPopup(t) {
     const o = this.address ? agents().find((a) => a.address === this.address) : null;
-    const card = v_flex().id("orchestrator").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background)
-      .border_1().border_color(t.border).text_color(t.foreground).text_size(13);
+    const card = v_flex().id("orchestrator").size_full().min_h(0).overflow_hidden().rounded(10).bg(t.background)
+      .border_1().border_color(t.accent).text_color(t.foreground).text_size(13);
     const head = h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
       .child(svg("mods/workspace-chrome/layers.svg").size(14).flex_none().text_color(t.accent))
       .child(div().font_semibold().child("Orchestrator"));
-    if (!o) return card.child(head).child(div().p(14).text_size(12).text_color(t.dim).child("No orchestrator in this tab. ⌥⌘O turns orchestrator mode on for its agent."));
+    if (!o) return card.child(head).child(div().p(14).text_size(12).text_color(t.dim).child("No agent in this tab."));
     const helpers = helpersOf(o.address);
     const working = helpers.filter((k) => k.status === "working").length;
     const empty = !this.input.value().trim();
@@ -839,10 +802,7 @@ export default class OrchestratorMode extends View {
       .child(head
         .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10)
           .text_color(working ? t.working : t.muted).child(working ? `${working}/${helpers.length} working` : plural(helpers.length, "helper")))
-        .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(o.title || o.address))
-        .when(manual(o.address), (el) => el.child(div().id("om-leave").flex_none().px(6).h(20).flex().items_center().rounded(5)
-          .text_size(11).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
-          .on_click((_e, cx) => { cx.stop_propagation(); setManual(o.address, false); }).child("Leave"))))
+        .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(o.title || o.address)))
       .child(div().id("om-draft").flex_1().min_h(80).p(10).cursor_text()
         .on_mouse_up("left", (_e, cx) => this.clicked(cx))
         .child(Textarea.new(this.input).size_full().p(8).rounded(8).border_1()
@@ -882,13 +842,13 @@ export default class OrchestratorMode extends View {
       .child(svg(`mods/pane/${icon}.svg`).size(14));
   }
 
-  // Clicking it opens or closes the Orchestrator panel.
+  // Clicking it opens the popup.
   badge(t, helpers) {
     const working = helpers.filter((k) => k.status === "working").length;
     return h_flex().id("om-badge").flex_none().h(20).px(7).gap(5).items_center().rounded(6)
       .bg(t.accent + "1f").border_1().border_color(t.accent + "40").text_color(t.accent)
       .text_size(10.5).font_semibold().cursor_pointer()
-      .on_click((_e, cx) => { cx.stop_propagation(); togglePanel(); })
+      .on_click((_e, cx) => { cx.stop_propagation(); togglePopup(); })
       .child(svg("mods/workspace-chrome/layers.svg").size(11).flex_none())
       .child("Orchestrating")
       .child(div().font_normal().opacity(0.8).child(working ? `${working}/${helpers.length}` : `${helpers.length}`));
@@ -902,7 +862,7 @@ export default class OrchestratorMode extends View {
     const st = p.status;
     const pane = p.pane;
     const helpers = p.terminal ? helpersOf(p.terminal) : [];
-    const on = Boolean(p.terminal) && (helpers.length > 0 || manual(p.terminal));
+    const on = helpers.length > 0;
     return h_flex()
       .id(`pane-head-${pane}`)
       .size_full()
@@ -932,6 +892,6 @@ export default class OrchestratorMode extends View {
   render() {
     const t = theme();
     if (this.role === "tabs") return this.renderTabs(t);
-    return this.role === "panel" ? this.renderPanel(t) : this.renderHeader(t);
+    return this.role === "popup" ? this.renderPopup(t) : this.renderHeader(t);
   }
 }

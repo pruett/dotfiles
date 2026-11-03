@@ -16,6 +16,7 @@
     "cmd-shift-l": "layout.switch",
     "cmd-n": "space.new",
     "cmd-p": "mod.open:picker",
+    "cmd-shift-o": "mod.open:orchestrator-mode",
     "cmd-shift-p": "app.palette",
     "cmd-,": "app.settings",
     "cmd-d": "pane.split:right",
@@ -78,8 +79,7 @@
   "layout:orchestrator-mode": {
     "cmd-shift-e": "orchestrator-mode.panel-files",
     "cmd-shift-g": "orchestrator-mode.panel-changes",
-    "cmd-shift-o": "orchestrator-mode.panel-orchestrator",
-    "cmd-alt-o": "orchestrator-mode.toggle-mode",
+    "cmd-shift-o": "orchestrator-mode.open",
     "cmd-alt-b": "layout.toggle:panel"
   }
 }

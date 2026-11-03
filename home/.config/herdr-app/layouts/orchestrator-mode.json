@@ -143,16 +143,6 @@
                       "content": {
                         "mod": "changes"
                       }
-                    },
-                    {
-                      "id": "orchestrator",
-                      "type": "block",
-                      "content": {
-                        "mod": "orchestrator-mode",
-                        "props": {
-                          "role": "panel"
-                        }
-                      }
                     }
                   ],
                   "active": "files"
