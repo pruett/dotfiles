@@ -79,7 +79,10 @@
           "id": "tabs",
           "type": "block",
           "content": {
-            "mod": "tabs"
+            "mod": "orchestrator-mode",
+            "props": {
+              "role": "tabs"
+            }
           },
           "size": {
             "px": 42
@@ -140,6 +143,16 @@
                       "content": {
                         "mod": "changes"
                       }
+                    },
+                    {
+                      "id": "orchestrator",
+                      "type": "block",
+                      "content": {
+                        "mod": "orchestrator-mode",
+                        "props": {
+                          "role": "panel"
+                        }
+                      }
                     }
                   ],
                   "active": "files"
@@ -155,21 +168,6 @@
           ],
           "padding": 8,
           "gap": 8
-        },
-        {
-          "id": "orchestrator-draft",
-          "type": "block",
-          "content": {
-            "mod": "orchestrator-mode",
-            "props": {
-              "role": "draft"
-            }
-          },
-          "size": {
-            "weight": 0.25
-          },
-          "min": 120,
-          "hidden": true
         },
         {
           "id": "status",

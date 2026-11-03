@@ -21,6 +21,11 @@
             "type": "command",
             "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "[ -n \"${HC_TERMINAL_ID:-}\" ] && command -v hc >/dev/null && command -v jq >/dev/null && hc label \"$HC_TERMINAL_ID\" claude.transcript=\"$(jq -r .transcript_path)\" >/dev/null 2>&1; exit 0",
+            "timeout": 10
           }
         ]
       }

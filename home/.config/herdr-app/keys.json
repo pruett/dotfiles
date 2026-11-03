@@ -74,5 +74,12 @@
     "cmd-right": "send:\u0005",
     "cmd-backspace": "send:\u0015",
     "ctrl-[": "send:\u001b"
+  },
+  "layout:orchestrator-mode": {
+    "cmd-shift-e": "orchestrator-mode.panel-files",
+    "cmd-shift-g": "orchestrator-mode.panel-changes",
+    "cmd-shift-o": "orchestrator-mode.panel-orchestrator",
+    "cmd-alt-o": "orchestrator-mode.toggle-mode",
+    "cmd-alt-b": "layout.toggle:panel"
   }
 }
