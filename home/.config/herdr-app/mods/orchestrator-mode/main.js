@@ -17,7 +17,9 @@
 // orchestrator=on on the agent's terminal (the Orchestrator button, cmd-alt-o, or
 // `hc label <t> orchestrator=on`).
 //
-// Typing "/" lists the orchestrator's slash commands. Claude Code records the skills it
+// The draft box has vim keys, on by default (the "vim" chip in its footer turns them
+// off). Typing "/" at the start of a word, anywhere in the draft, lists the orchestrator's
+// slash commands. Claude Code records the skills it
 // loaded as a `skill_listing` line in its transcript; a SessionStart hook in
 // ~/.claude*/settings.json labels the terminal with that transcript's path
 // (claude.transcript). Sessions started before the hook fall back to the newest
@@ -209,6 +211,62 @@ function matches(commands, query) {
     .map(([, c]) => c);
 }
 
+// Vim keys for the draft box. TextareaState can't report its caret, so the panel keeps
+// its own: an edit moves it by comparing the text before and after, and a click finds it
+// by typing MARK and looking for it. Ranges handed to the state count UTF-8 bytes.
+const MARK = "\u2063";
+const utf8 = (s) => { let n = 0; for (const ch of s) { const c = ch.codePointAt(0); n += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4; } return n; };
+const span = (s, start, end = start) => ({ start: utf8(s.slice(0, start)), end: utf8(s.slice(0, end)) });
+const lineStart = (s, i) => (i <= 0 ? 0 : s.lastIndexOf("\n", i - 1) + 1);
+const lineEnd = (s, i) => { const j = s.indexOf("\n", i); return j < 0 ? s.length : j; };
+const firstChar = (s, i) => { let j = lineStart(s, i); while (j < lineEnd(s, i) && /[ \t]/.test(s[j])) j++; return j; };
+// Normal mode's caret sits on a character, never past a line's last one.
+const onChar = (s, i) => { const ls = lineStart(s, i), le = lineEnd(s, i); return le > ls ? Math.max(ls, Math.min(i, le - 1)) : ls; };
+const kind = (ch) => (!ch || /\s/.test(ch) ? 0 : /\w/.test(ch) ? 1 : 2);
+function wordNext(s, i) {
+  const k = kind(s[i]);
+  if (k) while (i < s.length && kind(s[i]) === k) i++;
+  while (i < s.length && !kind(s[i])) i++;
+  return i;
+}
+function wordPrev(s, i) {
+  i--;
+  while (i > 0 && !kind(s[i])) i--;
+  const k = kind(s[i]);
+  while (i > 0 && kind(s[i - 1]) === k) i--;
+  return Math.max(i, 0);
+}
+function wordEnd(s, i) {
+  i++;
+  while (i < s.length && !kind(s[i])) i++;
+  const k = kind(s[i]);
+  while (i + 1 < s.length && kind(s[i + 1]) === k) i++;
+  return Math.min(i, s.length);
+}
+// The line n lines below (or above, n < 0) i's, keeping the column.
+function lineMove(s, i, n) {
+  let ls = lineStart(s, i);
+  const col = i - ls;
+  for (; n > 0; n--) { const le = lineEnd(s, ls); if (le >= s.length) break; ls = le + 1; }
+  for (; n < 0; n++) { if (ls === 0) break; ls = lineStart(s, ls - 1); }
+  return Math.min(ls + col, lineEnd(s, ls));
+}
+// Where the caret went when a went to b, preferring an edit at the caret it had.
+function caretAfter(a, b, at) {
+  const d = b.length - a.length;
+  if (at != null && at <= a.length) {
+    if (d >= 0 && a.slice(0, at) === b.slice(0, at) && a.slice(at) === b.slice(at + d)) return at + d;
+    if (d < 0 && at + d >= 0 && b === a.slice(0, at + d) + a.slice(at)) return at + d;
+    if (d < 0 && b === a.slice(0, at) + a.slice(at - d)) return at;
+  }
+  let p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  let q = 0;
+  while (q < a.length - p && q < b.length - p && a[a.length - 1 - q] === b[b.length - 1 - q]) q++;
+  return b.length - q;
+}
+const VIM_ALIASES = { x: "dl", X: "dh", D: "d$", C: "c$", s: "cl", S: "cc", Y: "yy" };
+
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // From mods/pane/main.js.
@@ -365,11 +423,48 @@ export default class OrchestratorMode extends View {
       this.focusAsk = ask;
       this.input.focus();
     });
-    this.dismissed = null; // the text the menu was closed on with Escape
+    this.dismissed = null; // the draft and slash position the menu was closed on with Escape
     this.typing = false;
+    this.vim = localStorage.getItem("vim") !== "off";
+    this.mode = "insert";
+    this.caret = 0; // where typing goes, as a string index; null when unknown
+    this.last = ""; // the text the caret was last worked out against
+    this.expected = null; // { text, caret } after an edit the panel made itself
+    this.pending = ""; // a half-typed normal-mode command, like "d" or "g"
+    this.count = "";
+    this.register = { text: "", lines: false };
+    this.undos = [];
+    this.redos = [];
+    this.unit = false; // whether this insert-mode stretch has its undo step
     this.input = TextareaState.new({ placeholder: "Message the orchestrator. Type / for commands and skills." });
     this.input.set_soft_wrap(true);
-    this.input.on("change", (_e, cx) => { this.pick = 0; this.menuScroll.scroll_to_item(0); this.save(); cx.notify(); });
+    this.input.on("change", (_e, cx) => {
+      const text = this.input.value();
+      if (text.includes(MARK)) return; // halfway through a probe
+      // The textarea handles Enter and Tab before the panel's keys see them. With the
+      // menu open, take the newline or tab back out and complete the pick instead.
+      const c = this.caret, rows = this.expected ? null : this.menu(this.last, c);
+      if (rows?.length && [`\n`, `\t`].some((k) => text === this.last.slice(0, c) + k + this.last.slice(c))) {
+        this.expected = { text: this.last, caret: c };
+        this.input.set_selected_range(span(text, c, c + 1));
+        this.input.replace("");
+        this.caret = c;
+        this.choose(rows[Math.min(this.pick, rows.length - 1)], cx);
+        return;
+      }
+      if (this.vim && this.mode === "insert" && !this.unit && this.expected?.text !== text) {
+        // Typing in insert mode undoes as one step, back to where it began.
+        this.undos.push({ text: this.last, caret: this.caret });
+        this.redos = [];
+        this.unit = true;
+      }
+      if (this.expected?.text === text) this.caret = this.expected.caret;
+      else if (text !== this.last) this.caret = caretAfter(this.last, text, this.caret);
+      this.expected = null;
+      this.last = text;
+      if (this.vim && this.mode === "normal") this.show();
+      this.pick = 0; this.menuScroll.scroll_to_item(0); this.save(); cx.notify();
+    });
     this.input.on("submit", (e, cx) => { if (e.secondary) this.send(cx); });
     this.input.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
     this.input.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
@@ -403,7 +498,11 @@ export default class OrchestratorMode extends View {
       this.commands = [];
       this.commandsNote = null;
       this.loadedAt = 0;
-      if (address) this.input.set_value(this.drafts()[address] ?? "");
+      this.undos = [];
+      this.redos = [];
+      const draft = this.drafts()[address] ?? "";
+      if (address) { this.setText(draft, draft.length); this.moveTo(draft.length); }
+      if (address && this.vim && this.mode === "normal") this.show();
       if (address) this.input.focus();
       cx.notify();
     }
@@ -422,27 +521,240 @@ export default class OrchestratorMode extends View {
     });
   }
 
-  // The slash menu's rows while the draft is "/" and a partial name, else null.
-  menu() {
-    const text = this.input.value();
-    const m = /^\/([\w:.-]*)$/.exec(text);
-    if (!m || this.dismissed === text) return null;
-    return matches(this.commands, m[1]);
+  // The "/" word the caret ends, wherever it is in the draft: { start, query }, else null.
+  slash(text = this.input.value(), c = this.caret) {
+    if (c == null || (this.vim && this.mode === "normal")) return null;
+    const m = /(?:^|\s)\/([\w:.-]*)$/.exec(text.slice(0, c));
+    if (!m || (text[c] ?? " ").trim()) return null;
+    return { start: c - m[1].length - 1, query: m[1] };
+  }
+
+  // The slash menu's rows while the caret ends a "/" word, else null.
+  menu(text = this.input.value(), c = this.caret) {
+    const s = this.slash(text, c);
+    if (!s || this.dismissed === `${s.start}:${text}`) return null;
+    return matches(this.commands, s.query);
   }
 
   choose(c, cx) {
-    // Replacing the selection leaves the caret after the name; set_value would select it.
-    this.input.set_selected_range({ start: 0, end: this.input.value().length });
-    this.input.replace(`/${c.name} `);
+    const s = this.slash();
+    if (!s) return;
+    // Mid-text, the space already after the caret is the one after the name.
+    const spaced = this.input.value()[this.caret] === " ";
+    this.edit(s.start, this.caret, `/${c.name}${spaced ? "" : " "}`);
+    if (spaced) this.moveTo(this.caret + 1);
     this.input.focus();
     this.save();
     cx.notify();
   }
 
+  // Text editing the panel does itself, keeping its caret.
+
+  setText(text, caret) {
+    this.expected = { text, caret };
+    this.last = text;
+    this.caret = caret;
+    this.input.set_value(text);
+  }
+
+  // Replaces [start, end) with str and leaves the caret at caret.
+  edit(start, end, str, caret = start + str.length) {
+    const text = this.input.value();
+    this.expected = { text: text.slice(0, start) + str + text.slice(end), caret };
+    this.input.set_selected_range(span(text, start, end));
+    this.input.replace(str);
+    this.caret = caret;
+  }
+
+  moveTo(c) {
+    this.caret = c;
+    this.input.set_selected_range(span(this.input.value(), c));
+  }
+
+  // Finds the caret by typing MARK over the selection, then puts the text back.
+  probe() {
+    const before = this.input.value();
+    this.input.replace(MARK);
+    const after = this.input.value();
+    const i = after.indexOf(MARK);
+    if (i < 0) return null;
+    const picked = before.slice(i, i + before.length - after.length + 1);
+    this.expected = { text: before, caret: picked ? null : i };
+    this.input.set_selected_range(span(after, i, i + 1));
+    this.input.replace(picked);
+    if (picked) this.input.set_selected_range(span(before, i, i + picked.length));
+    this.caret = picked ? null : i;
+    return i;
+  }
+
+  // Normal mode shows its caret as the character under it, selected.
+  show() {
+    const s = this.input.value();
+    const c = (this.caret = onChar(s, this.caret ?? s.length));
+    this.input.set_selected_range(span(s, c, Math.min(c + 1, lineEnd(s, c))));
+  }
+
+  clicked(cx) {
+    if (!this.vim) { this.caret = null; return; }
+    const c = this.probe();
+    if (this.mode === "normal") { this.caret = c; this.show(); }
+    cx.notify();
+  }
+
+  toggleVim(cx) {
+    this.vim = !this.vim;
+    localStorage.setItem("vim", this.vim ? "on" : "off");
+    if (!this.vim && this.mode === "normal") this.insert(this.caret, true);
+    this.mode = "insert";
+    this.input.focus();
+    cx.notify();
+  }
+
+  snap() {
+    const text = this.input.value();
+    if (this.undos.at(-1)?.text !== text) this.undos.push({ text, caret: this.caret });
+    if (this.undos.length > 200) this.undos.shift();
+    this.redos = [];
+  }
+
+  undo(from, to) {
+    const s = from.pop();
+    if (!s) return;
+    to.push({ text: this.input.value(), caret: this.caret });
+    this.setText(s.text, s.caret);
+    this.unit = false;
+    if (this.mode === "normal") this.show(); else this.moveTo(s.caret ?? s.text.length);
+  }
+
+  insert(c, snapped) {
+    if (!snapped) this.snap();
+    this.mode = "insert";
+    this.unit = true;
+    this.moveTo(c);
+  }
+
+  normal() {
+    if (this.caret == null) this.caret = this.probe();
+    const s = this.input.value();
+    let c = this.caret ?? s.length;
+    if (c > lineStart(s, c)) c--;
+    this.mode = "normal";
+    this.unit = false;
+    this.caret = c;
+    this.show();
+  }
+
+  // Where a motion key takes the caret from c: { to, lines, inclusive }, else null.
+  motion(s, c, key, n, op) {
+    const ls = lineStart(s, c), le = lineEnd(s, c);
+    const times = (f) => { let i = c; for (let k = 0; k < n; k++) i = f(s, i); return i; };
+    switch (key) {
+      case "h": return { to: Math.max(ls, c - n) };
+      case "l": return { to: Math.min(c + n, le) };
+      case "j": return { to: lineMove(s, c, n), lines: true };
+      case "k": return { to: lineMove(s, c, -n), lines: true };
+      case "w": return op === "c" ? { to: times(wordEnd), inclusive: true } : { to: op ? Math.min(times(wordNext), le) : times(wordNext) };
+      case "b": return { to: times(wordPrev) };
+      case "e": return { to: times(wordEnd), inclusive: true };
+      case "0": return { to: ls };
+      case "^": return { to: firstChar(s, c) };
+      case "$": return { to: le };
+      case "G": return { to: this.count ? lineMove(s, 0, n - 1) : lineStart(s, s.length), lines: true };
+      case "gg": return { to: lineMove(s, 0, this.count ? n - 1 : 0), lines: true };
+    }
+    return null;
+  }
+
+  // A normal-mode key. Returns false for one that should reach the textarea.
+  normalKey(e, cx) {
+    const k = e.keystroke;
+    if (k === "escape" || k === "ctrl-[") { this.pending = this.count = ""; return true; }
+    if (k === "enter") { this.send(cx); return true; }
+    if (k === "ctrl-r") { this.undo(this.redos, this.undos); return true; }
+    if (k === "cmd-v") { const s = this.input.value(); this.moveTo(Math.min(this.caret + 1, lineEnd(s, this.caret))); return false; }
+    if (/(cmd|alt)-/.test(k)) return false;
+    const arrows = { left: "h", right: "l", up: "k", down: "j", backspace: "h", home: "0", end: "$" };
+    const ch = arrows[k] ?? (k.startsWith("ctrl-") ? null : e.key_char);
+    if (!ch) return true;
+    const s = this.input.value(), c = this.caret;
+    if (this.pending === "r") {
+      this.pending = "";
+      if (c < lineEnd(s, c)) { this.snap(); this.edit(c, c + 1, ch, c); }
+      this.show();
+      return true;
+    }
+    if (/[1-9]/.test(ch) || (ch === "0" && this.count)) { this.count += ch; return true; }
+    const keys = this.pending + (this.pending ? ch : VIM_ALIASES[ch] ?? ch);
+    const op = /^[dcy]/.test(keys) ? keys[0] : null;
+    const rest = op ? keys.slice(1) : keys;
+    if (rest === "g" || (!op && rest === "r") || (op && !rest)) { this.pending = keys; return true; }
+    const n = Math.max(1, Number(this.count) || 1);
+    const m = this.motion(s, c, rest, n, op);
+    this.pending = "";
+    this.count = "";
+    if (op) {
+      let a, b, lines = rest === op || m?.lines;
+      if (rest === op) { a = c; b = lineMove(s, c, n - 1); } else if (m) { a = Math.min(c, m.to); b = Math.max(c, m.to) + (m.inclusive ? 1 : 0); } else return true;
+      if (lines) {
+        a = lineStart(s, Math.min(a, b));
+        b = lineEnd(s, Math.max(a, b));
+        this.register = { text: s.slice(a, b), lines: true };
+        if (op === "c") { this.snap(); this.edit(a, b, ""); this.insert(a, true); return true; }
+        if (b < s.length) b++; else if (a > 0) a--;
+      } else {
+        b = Math.min(b, s.length);
+        this.register = { text: s.slice(a, b), lines: false };
+      }
+      if (op === "y") { this.caret = Math.min(c, m?.to ?? c); this.show(); return true; }
+      if (a < b) { this.snap(); this.edit(a, b, ""); }
+      const t = this.input.value();
+      if (op === "c") this.insert(a, true); else { this.caret = lines ? firstChar(t, Math.min(a, t.length)) : a; this.show(); }
+      return true;
+    }
+    if (m) { this.caret = m.lines && (rest === "G" || rest === "gg") ? firstChar(s, m.to) : m.to; this.show(); return true; }
+    const ls = lineStart(s, c), le = lineEnd(s, c), r = this.register;
+    switch (rest) {
+      case "i": this.insert(c); break;
+      case "a": this.insert(Math.min(c + 1, le)); break;
+      case "I": this.insert(firstChar(s, c)); break;
+      case "A": this.insert(le); break;
+      case "o": this.snap(); this.edit(le, le, "\n"); this.insert(le + 1, true); break;
+      case "O": this.snap(); this.edit(ls, ls, "\n", ls); this.insert(ls, true); break;
+      case "p": case "P":
+        if (!r.text) break;
+        this.snap();
+        if (r.lines && rest === "p") this.edit(le, le, "\n" + r.text, le + 1);
+        else if (r.lines) this.edit(ls, ls, r.text + "\n", ls);
+        else { const at = rest === "p" ? Math.min(c + 1, le) : c; this.edit(at, at, r.text, at + r.text.length - 1); }
+        this.show();
+        break;
+      case "u": this.undo(this.undos, this.redos); break;
+    }
+    return true;
+  }
+
   onKey(e, cx) {
+    const k = e.keystroke;
+    if (this.vim && (k === "cmd-z" || k === "cmd-shift-z")) {
+      // Vim keeps its own history; the textarea's has the caret probes in it.
+      if (k === "cmd-z") this.undo(this.undos, this.redos); else this.undo(this.redos, this.undos);
+      cx.stop_propagation(); cx.notify(); return;
+    }
+    if (this.vim && this.mode === "normal") {
+      if (this.normalKey(e, cx)) cx.stop_propagation();
+      cx.notify();
+      return;
+    }
     const rows = this.menu();
-    if (!rows) return;
-    if (e.keystroke === "escape") { this.dismissed = this.input.value(); cx.stop_propagation(); cx.notify(); return; }
+    if (rows && k === "escape") { this.dismissed = `${this.slash().start}:${this.input.value()}`; cx.stop_propagation(); cx.notify(); return; }
+    if (this.vim && (k === "escape" || k === "ctrl-[")) { this.normal(); cx.stop_propagation(); cx.notify(); return; }
+    if (!rows?.length) {
+      // Typing is followed through change events; arrows and the like move the caret unseen.
+      if (this.caret != null && k === "left") this.caret = Math.max(0, this.caret - 1);
+      else if (this.caret != null && k === "right") this.caret = Math.min(this.input.value().length, this.caret + 1);
+      else if (/(^|-)(up|down|left|right|home|end|pageup|pagedown)$/.test(k) || k === "cmd-a") this.caret = null;
+      return;
+    }
     if (!rows.length) return;
     if (e.keystroke === "down" || e.keystroke === "ctrl-n") this.pick = (this.pick + 1) % rows.length;
     else if (e.keystroke === "up" || e.keystroke === "ctrl-p") this.pick = (this.pick - 1 + rows.length) % rows.length;
@@ -467,7 +779,7 @@ export default class OrchestratorMode extends View {
       const r = await hc(["send", address, text, "--json"]).catch((e) => ({ code: 1, stderr: String(e) }));
       this.sending = false;
       if (r.code === 0) {
-        if (this.address === address) this.input.set_value("");
+        if (this.address === address) this.setText("", 0);
         const drafts = this.drafts();
         delete drafts[address];
         localStorage.setItem("drafts", JSON.stringify(drafts));
@@ -517,6 +829,10 @@ export default class OrchestratorMode extends View {
     const working = helpers.filter((k) => k.status === "working").length;
     const empty = !this.input.value().trim();
     const rows = this.menu();
+    const normal = this.vim && this.mode === "normal";
+    const hint = rows ? "↑↓ pick · ⇥ complete · esc close"
+      : normal ? `NORMAL${this.count || this.pending ? ` ${this.count}${this.pending}` : ""} · i insert · ↵ send`
+      : this.vim ? "INSERT · esc normal · ⌘↵ send" : "⌘↵ send";
     const statusColor = { ok: t.done, error: t.blocked, info: t.dim }[this.status?.level] ?? t.dim;
     return card
       .on_key_down((e, cx) => this.onKey(e, cx))
@@ -528,12 +844,17 @@ export default class OrchestratorMode extends View {
           .text_size(11).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
           .on_click((_e, cx) => { cx.stop_propagation(); setManual(o.address, false); }).child("Leave"))))
       .child(div().id("om-draft").flex_1().min_h(80).p(10).cursor_text()
-        .child(Textarea.new(this.input).size_full().p(8).rounded(8).border_1().border_color(this.typing ? t.accent : t.border)
+        .on_mouse_up("left", (_e, cx) => this.clicked(cx))
+        .child(Textarea.new(this.input).size_full().p(8).rounded(8).border_1()
+          .border_color(!this.typing ? t.border : normal ? t.working : t.accent)
           .bg(t.background).text_color(t.foreground).text_size(13)))
       .when(Boolean(rows), (el) => el.child(this.menuRows(t, rows)))
       .child(h_flex().flex_none().p(10).gap(8).items_center().border_t(1).border_color(t.border)
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(statusColor)
-          .child(this.status?.text ?? (rows ? "↑↓ pick · ⇥ complete · esc close" : "⌘↵ send")))
+          .child(this.status?.text ?? hint))
+        .child(div().id("om-vim").flex_none().px(6).h(20).flex().items_center().rounded(5).border_1().border_color(t.border)
+          .text_size(11).text_color(this.vim ? t.foreground : t.muted).cursor_pointer().hover((s) => s.bg(t.hover))
+          .on_click((_e, cx) => { cx.stop_propagation(); this.toggleVim(cx); }).child("vim"))
         .child(div().id("om-send").h(32).px(14).flex().items_center().rounded(8).text_size(12)
           .bg(empty ? t.raised : t.solid).text_color(empty ? t.dim : t.solid_foreground)
           .when(!empty, (el) => el.cursor_pointer())
