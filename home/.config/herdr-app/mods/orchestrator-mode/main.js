@@ -28,22 +28,15 @@ import { agents, spaces, terminals, panes, focused, layout, props, run, hc, exec
 
 const MOD = "orchestrator-mode";
 const PANEL = "panel", STACK = "panel-body"; // layout node ids
-const POPUP_W = 600, POPUP_H = 340, GAP = 6;
+const POPUP_W = 600, POPUP_H = 0.45; // POPUP_H: a share of the window (dialogs take one)
 
-// Opens the popup hanging from the Orchestrator button, or closes it if it's open. The
-// tab bar keeps the button's window bounds in shared `${MOD}.button`; a layout without
-// the button gets mod.json's spot.
+// Opens the popup as a centered modal dialog, or closes it if it's open.
 function togglePopup() {
   const open = shared(`${MOD}.popup`);
   if (open?.id) { closeOverlay(open.id); setShared(`${MOD}.popup`, null); return; }
   // A press beside the popup closes it before the button's click lands; don't reopen.
   if (Date.now() - (open?.closedAt ?? 0) < 400) return;
-  const b = shared(`${MOD}.button`);
-  if (!b) { run("mod.open", { name: MOD }); return; }
-  // `at` is in window px; width and height are in element px.
-  const z = settings().zoom, x = Math.max(8, b.x + b.width - POPUP_W * z);
-  const id = openOverlay({ mod: MOD, kind: "popup", frame: "none", width: POPUP_W, height: POPUP_H,
-    at: { x, y: b.y + b.height + GAP * z } });
+  const id = openOverlay({ mod: MOD, kind: "dialog", modal: true, frame: "none", width: POPUP_W, height: POPUP_H });
   setShared(`${MOD}.popup`, { id });
 }
 
