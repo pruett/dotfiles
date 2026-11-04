@@ -113,19 +113,34 @@ function togglePanelChild(child) {
 
 const isClaude = (k) => /claude/i.test([k?.agent, k?.program?.name, k?.status?.app].join(" "));
 
-// Slash commands an orchestrator's session offers: Claude Code's built-ins and the
-// skills its transcript lists. Other agents get none yet.
+// Slash commands an orchestrator's session offers: Claude Code's built-ins, the skills
+// its transcript lists, and the user-only skills (disable-model-invocation) the
+// transcript leaves out, read from the config dir's and the folder's skills/. The
+// SessionStart hook labels the config dir (claude.config, CLAUDE_CONFIG_DIR or ~/.claude);
+// older sessions fall back to the transcript's dir. Other agents get none yet.
 async function loadCommands(address) {
   const k = terminals().find((x) => x.address === address);
   if (!isClaude(k)) return { commands: [], note: "Slash commands are listed for Claude Code only" };
   const on = address.includes("/") ? address.split("/")[0] : null;
   const slug = (k.cwd ?? "").replace(/[^a-zA-Z0-9]/g, "-");
-  const script = 'f="$2"; [ -n "$f" ] || f=$(ls -t "$HOME"/.claude*/projects/"$1"/*.jsonl 2>/dev/null | head -1); '
-    + '[ -n "$f" ] || exit 3; grep -F \'"attachment":{"type":"skill_listing"\' "$f"';
-  const r = await exec("sh", ["-c", script, "sh", slug, k.labels?.["claude.transcript"] ?? ""], { on }).catch(() => null);
+  // Disk skills print as "skill<TAB>name<TAB>description"; user-invocable: false ones are hidden.
+  const script = 'c="$4"; f="$2"; [ -n "$f" ] || f=$(if [ -n "$c" ]; then ls -t "$c"/projects/"$1"/*.jsonl; '
+    + 'else ls -t "$HOME"/.claude*/projects/"$1"/*.jsonl; fi 2>/dev/null | head -1); '
+    + '[ -n "$c" ] || c="${f%/projects/*}"; [ -n "$c" ] || exit 3; '
+    + '[ -n "$f" ] && grep -F \'"attachment":{"type":"skill_listing"\' "$f"; '
+    + 'for s in "$c"/skills/*/SKILL.md "$3"/.claude/skills/*/SKILL.md; do [ -f "$s" ] || continue; '
+    + 'awk -v n="$(basename "$(dirname "$s")")" \'NR==1&&$0!="---"{exit} NR>1&&$0=="---"{exit} '
+    + '/^name:/{sub(/^name: */,"");n=$0} /^description:/{sub(/^description: */,"");gsub(/^["\\047]|["\\047]$/,"");d=$0} '
+    + '/^user-invocable: *false/{h=1} END{if(!h)print "skill\\t" n "\\t" d}\' "$s"; done';
+  const r = await exec("sh", ["-c", script, "sh", slug, k.labels?.["claude.transcript"] ?? "", k.cwd ?? "", k.labels?.["claude.config"] ?? ""], { on }).catch(() => null);
   const about = new Map(), names = [];
   for (const line of (r?.stdout ?? "").split("\n")) {
     if (!line.trim()) continue;
+    if (line.startsWith("skill\t")) {
+      const [, n, d] = line.split("\t");
+      if (n && !names.includes(n)) { names.push(n); about.set(n, d ?? ""); }
+      continue;
+    }
     let a;
     try { a = JSON.parse(line).attachment; } catch { continue; }
     for (const l of (a.content ?? "").split("\n")) {
