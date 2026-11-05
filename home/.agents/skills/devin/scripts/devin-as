@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+#
+# devin-as — run the devin CLI as one of several logged-in accounts.
+#
+# Devin reads its login from $XDG_DATA_HOME/devin/credentials.toml, so each
+# account gets its own XDG_DATA_HOME. Credentials and session history stay
+# separate; all accounts share ~/.config/devin (config, skills, rules).
+#
+#   suppco          ~/.local/share/devin            (devin's default)
+#   <other name>    ~/.local/share/devin-<name>/devin
+#
+# Usage:
+#   devin-as                      list accounts and whether each is logged in
+#   devin-as <account> [args...]  run devin with that account's login
+#   devin-as <new> auth login     add an account
+
+set -euo pipefail
+
+DATA_ROOT="$HOME/.local/share"
+DEFAULT_ACCOUNT=suppco
+
+data_home() {
+  if [[ "$1" == "$DEFAULT_ACCOUNT" ]]; then
+    echo "$DATA_ROOT"
+  else
+    echo "$DATA_ROOT/devin-$1"
+  fi
+}
+
+list() {
+  local accounts=("$DEFAULT_ACCOUNT") dir name state
+  for dir in "$DATA_ROOT"/devin-*/; do
+    [[ -d "$dir" ]] && accounts+=("$(basename "$dir" | sed 's/^devin-//')")
+  done
+  for name in "${accounts[@]}"; do
+    if [[ -f "$(data_home "$name")/devin/credentials.toml" ]]; then
+      state="logged in"
+    else
+      state="not logged in"
+    fi
+    printf '%-16s %-14s %s\n' "$name" "$state" "$(data_home "$name")/devin"
+  done
+}
+
+if [[ $# -eq 0 ]]; then
+  list
+  exit 0
+fi
+
+account=$1
+shift
+[[ "$account" =~ ^[a-z0-9_-]+$ ]] || { echo "devin-as: bad account name: $account" >&2; exit 2; }
+
+XDG_DATA_HOME=$(data_home "$account")
+export XDG_DATA_HOME
+mkdir -p "$XDG_DATA_HOME"
+exec devin "$@"

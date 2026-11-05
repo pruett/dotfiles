@@ -45,11 +45,10 @@ alias ccw="CLAUDE_CONFIG_DIR=$HOME/.claude-work claude"
 # ---------
 # Devin
 # ---------
-# `dvs` runs devin as usual (SuppCo, ~/.local/share/devin); `dvf` runs it
-# against the Function Health login, kept in its own XDG_DATA_HOME so its
-# credentials and session history stay separate. Both share ~/.config/devin.
-alias dvs="devin"
-alias dvf="XDG_DATA_HOME=$HOME/.local/share/devin-functionhealth devin"
+# `devin-as <account>` (~/.local/bin/devin-as) runs devin with that account's
+# login; bare `devin-as` lists accounts. `dvs` is SuppCo, `dvf` Function Health.
+alias dvs="devin-as suppco"
+alias dvf="devin-as functionhealth"
 
 # ---------
 # Homebrew maintenance
