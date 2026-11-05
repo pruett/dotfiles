@@ -47,3 +47,9 @@ note  = If bun.lock changes on this branch, run `bun install --frozen-lockfile` 
 include = .worktreeinclude
 setup   = bun install --frozen-lockfile
 note    = If bun.lock changes on this branch, run `bun install --frozen-lockfile` again.
+
+[~/work/functionhealth/member-app-middleware]
+# No gitignored files to copy yet (no .env in the main checkout); add include = .worktreeinclude once there is one.
+setup = UV_KEYRING_PROVIDER=subprocess uv sync --frozen
+note  = Needs `gcloud auth application-default login` for the FH internal package index.
+note  = If uv.lock changes on this branch, run `UV_KEYRING_PROVIDER=subprocess uv sync --frozen` again.

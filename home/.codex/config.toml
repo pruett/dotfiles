@@ -134,6 +134,9 @@ trust_level = "trusted"
 [projects."/Users/kevinpruett/work/functionhealth/frontend-mono"]
 trust_level = "trusted"
 
+[projects."/Users/kevinpruett/work/functionhealth/member-app-middleware"]
+trust_level = "trusted"
+
 # Codex has no glob for trust: list each repo under ~/projects (worktrees inherit).
 [projects."/Users/pruett/projects"]
 trust_level = "trusted"
