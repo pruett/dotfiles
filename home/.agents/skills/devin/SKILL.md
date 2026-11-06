@@ -18,7 +18,8 @@ Everything after the account name goes to `devin` unchanged: `devin-as functionh
 
 ## Check and add logins
 
-- `devin-as` alone prints each account, whether it is logged in, and its data folder.
+- `devin-as` alone prints each account, whether it is logged in, the Devin host its login uses, and its data folder.
+- `devin-as` refuses to run when an account's login uses the wrong host (`suppco` must be `app.devin.ai`, `functionhealth` must be `functionhealth.devinenterprise.com`), and prints the fix: `devin-as <account> auth logout && devin-as <account> auth login`. Hand that to the user; they must sign in to the right account in the browser. `auth` commands skip the check.
 - `devin-as <new-name> auth login` adds an account; it then appears in the list. The login opens a browser, so hand that command to the user.
 
 ## Gotcha: inherited `XDG_DATA_HOME`

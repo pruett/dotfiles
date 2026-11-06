@@ -13,11 +13,28 @@
 #   devin-as                      list accounts and whether each is logged in
 #   devin-as <account> [args...]  run devin with that account's login
 #   devin-as <new> auth login     add an account
+#
+# Before running devin, it checks that the account's login points at the
+# Devin host that account should use, so a login made in the wrong browser
+# session fails fast instead of running as the other company.
 
 set -euo pipefail
 
 DATA_ROOT="$HOME/.local/share"
 DEFAULT_ACCOUNT=suppco
+
+# Devin webapp host each account's login must use. Accounts not listed are
+# not checked.
+expected_host() {
+  case "$1" in
+    suppco) echo app.devin.ai ;;
+    functionhealth) echo functionhealth.devinenterprise.com ;;
+  esac
+}
+
+login_host() {
+  sed -n 's/^devin_webapp_host *= *"\(.*\)"/\1/p' "$1" 2>/dev/null
+}
 
 data_home() {
   if [[ "$1" == "$DEFAULT_ACCOUNT" ]]; then
@@ -28,17 +45,24 @@ data_home() {
 }
 
 list() {
-  local accounts=("$DEFAULT_ACCOUNT") dir name state
+  local accounts=("$DEFAULT_ACCOUNT") dir name state creds host want
   for dir in "$DATA_ROOT"/devin-*/; do
     [[ -d "$dir" ]] && accounts+=("$(basename "$dir" | sed 's/^devin-//')")
   done
   for name in "${accounts[@]}"; do
-    if [[ -f "$(data_home "$name")/devin/credentials.toml" ]]; then
-      state="logged in"
+    creds="$(data_home "$name")/devin/credentials.toml"
+    host="" want=$(expected_host "$name")
+    if [[ -f "$creds" ]]; then
+      host=$(login_host "$creds")
+      if [[ -n "$want" && "$host" != "$want" ]]; then
+        state="WRONG LOGIN"
+      else
+        state="logged in"
+      fi
     else
       state="not logged in"
     fi
-    printf '%-16s %-14s %s\n' "$name" "$state" "$(data_home "$name")/devin"
+    printf '%-16s %-14s %-36s %s\n' "$name" "$state" "${host:--}" "$(data_home "$name")/devin"
   done
 }
 
@@ -54,4 +78,17 @@ shift
 XDG_DATA_HOME=$(data_home "$account")
 export XDG_DATA_HOME
 mkdir -p "$XDG_DATA_HOME"
+
+# `auth` commands skip the check so a wrong login can be replaced.
+creds="$XDG_DATA_HOME/devin/credentials.toml"
+want=$(expected_host "$account")
+if [[ "${1:-}" != auth && -n "$want" && -f "$creds" ]]; then
+  host=$(login_host "$creds")
+  if [[ "$host" != "$want" ]]; then
+    echo "devin-as: the $account login is for ${host:-an unknown host}, expected $want." >&2
+    echo "Fix: devin-as $account auth logout && devin-as $account auth login" >&2
+    echo "(sign in to the $account Devin account in the browser)" >&2
+    exit 1
+  fi
+fi
 exec devin "$@"
