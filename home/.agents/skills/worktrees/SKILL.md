@@ -38,4 +38,4 @@ When `wt new` exits 1, the worktree exists and its path is still printed, but se
 
 ## Open one in Herdr
 
-Only when the user asks for a Herdr tab or workspace: make the worktree with `wt new`, then load the `herdr` skill and open the printed path with `herdr worktree open --path <path>`. `herdr worktree create` skips the copy and the setup.
+Only when the user asks for a Herdr tab or workspace: make the worktree with `wt new`, then load the `herdr-app` skill and open the printed path with `herdr-app do space.new --name <slug> --folder <path>`.

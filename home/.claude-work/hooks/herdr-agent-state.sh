@@ -1,1 +1,0 @@
-../../.claude/hooks/herdr-agent-state.sh

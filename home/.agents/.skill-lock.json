@@ -1,15 +1,6 @@
 {
   "version": 3,
   "skills": {
-    "herdr": {
-      "source": "herdrdev/herdr",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/herdrdev/herdr.git",
-      "skillPath": "skills/herdr/SKILL.md",
-      "skillFolderHash": "2be0d86d481d1bb29c62e11ef37b78d27d01b478",
-      "installedAt": "2026-08-26T00:57:28.739Z",
-      "updatedAt": "2026-10-21T16:09:01.418Z"
-    },
     "codebase-design": {
       "source": "mattpocock/skills",
       "sourceType": "github",

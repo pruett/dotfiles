@@ -62,7 +62,7 @@ Nothing named defaults to `drive`; a small or docs-only PR gets `check`. A "hold
    - `wt rm <repo>/<slug> --delete-branch`. The merge is already read back as `MERGED`, and a squash merge leaves the branch looking unmerged, so the flag is needed. Exit 2 for uncommitted changes: show `git -C <path> status --short` and ask; never `--force` on your own.
    - `git worktree prune` to drop records of worktree folders that no longer exist.
    - `wt prune` (dry run) and show its list to the user. Run `wt prune --yes` only on their word: it also deletes origin branches.
-   - Close this PR's Herdr tabs (herdr skill).
+   - Close this PR's Herdr tabs (`herdr-app` skill).
    Done when `wt ls` no longer shows the slug and `git branch --list <branch>` prints nothing.
 
 11. **Report** one line: what merged (link), what was cleaned up, and anything left.
