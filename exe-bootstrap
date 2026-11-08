@@ -11,8 +11,10 @@
 # y runs it, s skips it, q quits. When a stage fails you can retry or skip it.
 # Every stage is safe to re-run.
 #
-# Stages: connect, tools, dotfiles, zsh, git, herdr, tailscale, github, claude,
-# codex.
+# Stages: connect, skills, git, herdr, tailscale, github, claude, codex.
+#
+# The box keeps exe.dev's own shell and config. Only your agent skills come
+# from these dotfiles; the rest of them is Mac config.
 #
 # Logins use a token from your Mac's Keychain when one is stored there, and a
 # browser login otherwise. To store one (it prompts for the value):
@@ -22,22 +24,14 @@
 #
 # Remote work runs by piping this file to bash on the VM with --remote <stage>.
 # Everything is inside functions and the last line calls main, so bash has read
-# the whole file before any command (apt, brew) can read stdin.
+# the whole file before any command it runs can read stdin.
 
 set -euo pipefail
 
 SELF="${BASH_SOURCE[0]:-}"  # empty on the VM, where the script arrives on stdin
 DOTFILES_REPO_HTTPS="https://github.com/pruett/dotfiles.git"
-BREW_PREFIX="/home/linuxbrew/.linuxbrew"
 
-# CLI tools from the Brewfile that the zsh config and daily use need. Casks
-# and macOS-only entries are left out.
-BREW_FORMULAE=(
-  bat eza fd fzf gh git jq mise neovim ripgrep starship stow tmux tree zoxide
-  zsh zsh-autosuggestions zsh-completions zsh-syntax-highlighting zsh-vi-mode
-)
-
-STAGES=(connect tools dotfiles zsh git herdr tailscale github claude codex)
+STAGES=(connect skills git herdr tailscale github claude codex)
 
 bold()    { printf '\033[1m%s\033[0m\n' "$*"; }
 info()    { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -73,44 +67,22 @@ run_connect() {
     || { warn "Cannot reach ${host} or sudo needs a password. Is it running? 'ssh exe.dev ls'"; return 1; }
 }
 
-# --- tools --------------------------------------------------------------------
-title_tools() { echo "Homebrew and CLI tools"; }
-about_tools() {
-  echo "apt install build-essential procps curl file git, install Homebrew"
-  echo "in ${BREW_PREFIX}, then brew install:"
-  echo "  ${BREW_FORMULAE[*]}"
-  echo "The first run is slow (10+ minutes on a small box)."
+# --- skills -------------------------------------------------------------------
+title_skills() { echo "Agent skills"; }
+about_skills() {
+  echo "Clone ${DOTFILES_REPO_HTTPS} to ~/.dotfiles (or pull if present)"
+  echo "and link only your skills: ~/.agents/skills (Codex and Pi read it), one"
+  echo "link per skill in ~/.claude/skills, and skill CLIs such as wt in ~/.local/bin."
+  echo "Nothing else from the dotfiles is linked. Push new skills first."
 }
-check_tools() { qssh "$BREW_PREFIX/bin/brew list --formula ${BREW_FORMULAE[*]}" >/dev/null 2>&1; }
-run_tools() { remote_stage tools; }
-
-# --- dotfiles -----------------------------------------------------------------
-title_dotfiles() { echo "Dotfiles"; }
-about_dotfiles() {
-  echo "Clone ${DOTFILES_REPO_HTTPS} to ~/.dotfiles (or pull if present),"
-  echo "create home/.gitconfig.local from the sample, and run 'dot link'."
-  echo "Existing files that would be replaced are kept as <file>.pre-dotfiles."
-  echo "Needs the tools stage (stow). Push local dotfiles changes first."
-}
-check_dotfiles() { qssh 'test -d ~/.dotfiles/.git && test -L ~/.gitconfig' >/dev/null 2>&1; }
-run_dotfiles() { remote_stage dotfiles; }
-
-# --- zsh ----------------------------------------------------------------------
-title_zsh() { echo "zsh as login shell"; }
-about_zsh() {
-  echo "Add ${BREW_PREFIX}/bin/zsh to /etc/shells and make it your login shell."
-  echo "Needs the tools stage."
-}
-check_zsh() { [[ "$(qssh 'getent passwd "$USER" | cut -d: -f7' 2>/dev/null)" == "$BREW_PREFIX/bin/zsh" ]]; }
-run_zsh() { remote_stage zsh; }
+check_skills() { qssh 'test -L ~/.agents/skills && test -L ~/.claude/skills/worktrees' >/dev/null 2>&1; }
+run_skills() { remote_stage skills; }
 
 # --- git ----------------------------------------------------------------------
 title_git() { echo "Git identity"; }
 about_git() {
   echo "Set git user.name and user.email on the box to your Mac's:"
   echo "  ${git_name:-<unset>} <${git_email:-unset}>"
-  echo "Written to ~/.dotfiles/home/.gitconfig.local when dotfiles are linked,"
-  echo "otherwise to ~/.gitconfig."
 }
 check_git() { [[ -n "$git_email" && "$(qssh 'git config --get user.email' 2>/dev/null)" == "$git_email" ]]; }
 run_git() {
@@ -172,14 +144,7 @@ run_github() {
   else
     ssh -t "$host" 'gh auth login --hostname github.com --git-protocol https --web' || return 1
   fi
-  # setup-git writes to the global git config. With dotfiles linked, ~/.gitconfig
-  # is a symlink into the repo, so point it at the gitignored .gitconfig.local.
-  qssh 'local_cfg="$HOME/.dotfiles/home/.gitconfig.local"
-    if [ -L "$HOME/.gitconfig" ] && [ -f "$local_cfg" ]; then
-      GIT_CONFIG_GLOBAL="$local_cfg" gh auth setup-git
-    else
-      gh auth setup-git
-    fi'
+  qssh 'gh auth setup-git'
 }
 
 # --- claude -------------------------------------------------------------------
@@ -284,73 +249,54 @@ main_local() {
 # VM side: stages that run on the box (--remote <stage>)
 # ==============================================================================
 
-remote_tools() {
-  info "Installing apt packages Homebrew needs..."
-  sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    build-essential procps curl file git >/dev/null
-  success "apt packages installed"
-
-  if [[ ! -x "$BREW_PREFIX/bin/brew" ]]; then
-    info "Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c \
-      "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  fi
-  eval "$("$BREW_PREFIX/bin/brew" shellenv)"
-  success "Homebrew ready"
-
-  info "Installing brew formulae (first run takes a while)..."
-  brew install --quiet "${BREW_FORMULAE[@]}"
-  success "Formulae installed"
-}
-
-remote_dotfiles() {
-  [[ -x "$BREW_PREFIX/bin/stow" ]] || fail "stow is missing; run the tools stage first."
-  eval "$("$BREW_PREFIX/bin/brew" shellenv)"
-  local dir="$HOME/.dotfiles"
-  if [[ -d "$dir/.git" ]]; then
+remote_skills() {
+  local repo="$HOME/.dotfiles" s bin
+  if [[ -d "$repo/.git" ]]; then
     info "Dotfiles repo present; pulling latest..."
-    git -C "$dir" pull --ff-only
+    git -C "$repo" pull --ff-only
   else
     info "Cloning ${DOTFILES_REPO_HTTPS}..."
-    git clone "$DOTFILES_REPO_HTTPS" "$dir"
+    git clone "$DOTFILES_REPO_HTTPS" "$repo"
   fi
-  cd "$dir"
-  if [[ ! -f home/.gitconfig.local ]]; then
-    cp home/.gitconfig.local.sample home/.gitconfig.local
-    success "home/.gitconfig.local created"
-  fi
-  info "Linking dotfiles..."
-  ./home/.local/bin/dot link
-  success "Dotfiles linked"
-}
 
-remote_zsh() {
-  local zsh_path="$BREW_PREFIX/bin/zsh"
-  [[ -x "$zsh_path" ]] || fail "zsh is missing; run the tools stage first."
-  grep -qx "$zsh_path" /etc/shells || echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
-  if [[ "$(getent passwd "$USER" | cut -d: -f7)" != "$zsh_path" ]]; then
-    sudo chsh -s "$zsh_path" "$USER"
-  fi
-  success "Login shell is ${zsh_path}"
+  cd "$HOME"
+  mkdir -p .agents .claude/skills .local/bin
+  ln -sfn "$repo/home/.agents/skills" .agents/skills
+  ln -sfn "$repo/home/.agents/docs" .agents/docs
+  ln -sfn ../.agents/docs .claude/docs  # pstack skills link through ~/.claude/docs
+
+  # One link per skill, as `skills sync claude-code` makes; never replace a real
+  # folder Claude Code created.
+  for s in "$repo"/home/.agents/skills/*/; do
+    s="$(basename "$s")"
+    [[ -e ".claude/skills/$s" && ! -L ".claude/skills/$s" ]] && continue
+    ln -sfn "../../.agents/skills/$s" ".claude/skills/$s"
+  done
+  # Drop links to skills that were removed from the repo.
+  for s in .claude/skills/*; do
+    [[ -L "$s" && ! -e "$s" ]] && rm "$s"
+  done
+
+  # CLIs that ship inside a skill (home/.local/bin/wt -> ../../.agents/skills/...).
+  for bin in "$repo"/home/.local/bin/*; do
+    [[ "$(readlink "$bin" || true)" == *".agents/skills/"* ]] || continue
+    ln -sfn "$(cd "$(dirname "$bin")" && cd "$(dirname "$(readlink "$bin")")" && pwd)/$(basename "$(readlink "$bin")")" \
+      ".local/bin/$(basename "$bin")"
+  done
+  success "Linked $(find .claude/skills -maxdepth 1 -type l | wc -l | tr -d ' ') skills"
 }
 
 remote_git() {
-  local git_name="$1" git_email="$2" file="$HOME/.gitconfig"
-  # With dotfiles linked, ~/.gitconfig is a symlink into the repo; the identity
-  # belongs in the gitignored .gitconfig.local instead.
-  [[ -f "$HOME/.dotfiles/home/.gitconfig.local" && -L "$HOME/.gitconfig" ]] \
-    && file="$HOME/.dotfiles/home/.gitconfig.local"
-  git config --file "$file" user.name "$git_name"
-  git config --file "$file" user.email "$git_email"
-  success "Git identity written to ${file}"
+  git config --global user.name "$1"
+  git config --global user.email "$2"
+  success "Git identity written to ~/.gitconfig"
 }
 
 main_remote() {
   [[ "$(uname -s)" == "Linux" ]] || fail "--remote is meant to run on the Linux VM."
   local stage="$1"; shift
   case "$stage" in
-    tools|dotfiles|zsh|git) "remote_$stage" "$@" ;;
+    skills|git) "remote_$stage" "$@" ;;
     *) fail "Unknown remote stage: $stage" ;;
   esac
 }
