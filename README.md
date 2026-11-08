@@ -22,7 +22,9 @@ Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checkl
 
 ## exe.dev VM setup
 
-From this repo on your Mac, run `./exe-bootstrap <vm-name>` (for example `./exe-bootstrap wombat-croissant`). [`exe-bootstrap`](exe-bootstrap) SSHes into `<vm-name>.exe.xyz` and installs Homebrew, the CLI tools from the Brewfile, these dotfiles (cloned from GitHub, so push first), and zsh as the login shell. Then run `gh auth login` on the VM.
+From this repo on your Mac, run `./exe-bootstrap <vm-name> [--name <short-name>]` (for example `./exe-bootstrap pruett --name exe`). [`exe-bootstrap`](exe-bootstrap) is a wizard: each stage says what it will do and whether it is already done, then waits for `y` (run), `s` (skip) or `q` (quit). Stages: connect, Homebrew and CLI tools, dotfiles (cloned from GitHub, so push first), zsh as login shell, git identity, herdr-core (`hc machine add`), Tailscale, and GitHub, Claude Code and Codex logins.
+
+Logins use a token from your Mac's Keychain when one is stored (`security add-generic-password -U -a "$USER" -s exe-bootstrap/tailscale -w` for a Tailscale auth key, `exe-bootstrap/github` for a GitHub token), and a browser login otherwise.
 
 ## Manual pieces (reference)
 

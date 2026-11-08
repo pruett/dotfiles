@@ -1,21 +1,33 @@
 #!/usr/bin/env bash
 #
-# Bootstrap an exe.dev VM (Ubuntu) with these dotfiles. Run from your Mac:
+# Set up an exe.dev VM one stage at a time. Run from your Mac:
 #
-#   ./exe-bootstrap <vm-name>        # e.g. ./exe-bootstrap wombat-croissant
+#   ./exe-bootstrap <vm-name> [--name <short-name>]
 #
-# It copies itself to the VM over SSH and runs there with --remote, passing
-# your Mac's git name and email. Safe to re-run; every step is idempotent.
+#   <vm-name>      the box, e.g. pruett (meaning pruett.exe.xyz); see 'ssh exe.dev ls'
+#   --name <n>     what herdr-core and Tailscale call it (default: <vm-name>)
 #
-# On the VM it: installs apt build deps and Homebrew (Linux), installs the CLI
-# tools the zsh config needs, clones this repo over HTTPS, writes
-# home/.gitconfig.local, links everything with `dot link`, and makes zsh the
-# login shell. GitHub auth is left to you: run `gh auth login` on the VM.
+# Each stage says what it will do, shows whether it is already done, and waits:
+# y runs it, s skips it, q quits. When a stage fails you can retry or skip it.
+# Every stage is safe to re-run.
+#
+# Stages: connect, tools, dotfiles, zsh, git, herdr, tailscale, github, claude,
+# codex.
+#
+# Logins use a token from your Mac's Keychain when one is stored there, and a
+# browser login otherwise. To store one (it prompts for the value):
+#
+#   security add-generic-password -U -a "$USER" -s exe-bootstrap/tailscale -w   # Tailscale auth key
+#   security add-generic-password -U -a "$USER" -s exe-bootstrap/github -w      # GitHub token
+#
+# Remote work runs by piping this file to bash on the VM with --remote <stage>.
+# Everything is inside functions and the last line calls main, so bash has read
+# the whole file before any command (apt, brew) can read stdin.
 
 set -euo pipefail
 
+SELF="${BASH_SOURCE[0]:-}"  # empty on the VM, where the script arrives on stdin
 DOTFILES_REPO_HTTPS="https://github.com/pruett/dotfiles.git"
-DOTFILES_DIR="$HOME/.dotfiles"
 BREW_PREFIX="/home/linuxbrew/.linuxbrew"
 
 # CLI tools from the Brewfile that the zsh config and daily use need. Casks
@@ -25,91 +37,323 @@ BREW_FORMULAE=(
   zsh zsh-autosuggestions zsh-completions zsh-syntax-highlighting zsh-vi-mode
 )
 
+STAGES=(connect tools dotfiles zsh git herdr tailscale github claude codex)
+
+bold()    { printf '\033[1m%s\033[0m\n' "$*"; }
 info()    { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 success() { printf '\033[1;32m ok\033[0m %s\n' "$*"; }
+warn()    { printf '\033[1;33m !!\033[0m %s\n' "$*" >&2; }
 fail()    { printf '\033[1;31mERR\033[0m %s\n' "$*" >&2; exit 1; }
 
-# ------------------------------------------------------------------------------
-# Local mode (Mac): ship this script to the VM and run it there
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# Mac side: the wizard
+# ==============================================================================
 
-if [[ "${1:-}" != "--remote" ]]; then
-  vm="${1:-}"
-  [[ -n "$vm" ]] || fail "Usage: $0 <vm-name>   (see 'ssh exe.dev ls')"
+# Quiet, non-interactive ssh for status checks; fails instead of prompting.
+qssh() { ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes "$host" "$@"; }
+
+# Run one remote stage of this script on the VM.
+remote_stage() {
+  # shellcheck disable=SC2029  # values are quoted for the remote shell on purpose
+  ssh -o ConnectTimeout=20 "$host" "bash -s -- --remote $(printf '%q ' "$@")" < "$SELF"
+}
+
+keychain() { security find-generic-password -s "exe-bootstrap/$1" -w 2>/dev/null || true; }
+
+# --- connect ------------------------------------------------------------------
+title_connect() { echo "Connect to ${host}"; }
+about_connect() {
+  echo "Save the box's host key to ~/.ssh/known_hosts (first connection only),"
+  echo "then check that ssh logs in and that passwordless sudo works."
+  echo "Every later stage needs this one."
+}
+check_connect() { qssh 'sudo -n true' >/dev/null 2>&1; }
+run_connect() {
+  ssh -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new "$host" 'sudo -n true' \
+    || { warn "Cannot reach ${host} or sudo needs a password. Is it running? 'ssh exe.dev ls'"; return 1; }
+}
+
+# --- tools --------------------------------------------------------------------
+title_tools() { echo "Homebrew and CLI tools"; }
+about_tools() {
+  echo "apt install build-essential procps curl file git, install Homebrew"
+  echo "in ${BREW_PREFIX}, then brew install:"
+  echo "  ${BREW_FORMULAE[*]}"
+  echo "The first run is slow (10+ minutes on a small box)."
+}
+check_tools() { qssh "$BREW_PREFIX/bin/brew list --formula ${BREW_FORMULAE[*]}" >/dev/null 2>&1; }
+run_tools() { remote_stage tools; }
+
+# --- dotfiles -----------------------------------------------------------------
+title_dotfiles() { echo "Dotfiles"; }
+about_dotfiles() {
+  echo "Clone ${DOTFILES_REPO_HTTPS} to ~/.dotfiles (or pull if present),"
+  echo "create home/.gitconfig.local from the sample, and run 'dot link'."
+  echo "Existing files that would be replaced are kept as <file>.pre-dotfiles."
+  echo "Needs the tools stage (stow). Push local dotfiles changes first."
+}
+check_dotfiles() { qssh 'test -d ~/.dotfiles/.git && test -L ~/.gitconfig' >/dev/null 2>&1; }
+run_dotfiles() { remote_stage dotfiles; }
+
+# --- zsh ----------------------------------------------------------------------
+title_zsh() { echo "zsh as login shell"; }
+about_zsh() {
+  echo "Add ${BREW_PREFIX}/bin/zsh to /etc/shells and make it your login shell."
+  echo "Needs the tools stage."
+}
+check_zsh() { [[ "$(qssh 'getent passwd "$USER" | cut -d: -f7' 2>/dev/null)" == "$BREW_PREFIX/bin/zsh" ]]; }
+run_zsh() { remote_stage zsh; }
+
+# --- git ----------------------------------------------------------------------
+title_git() { echo "Git identity"; }
+about_git() {
+  echo "Set git user.name and user.email on the box to your Mac's:"
+  echo "  ${git_name:-<unset>} <${git_email:-unset}>"
+  echo "Written to ~/.dotfiles/home/.gitconfig.local when dotfiles are linked,"
+  echo "otherwise to ~/.gitconfig."
+}
+check_git() { [[ -n "$git_email" && "$(qssh 'git config --get user.email' 2>/dev/null)" == "$git_email" ]]; }
+run_git() {
+  [[ -n "$git_name" && -n "$git_email" ]] || { warn "Set git user.name and user.email on this Mac first."; return 1; }
+  remote_stage git "$git_name" "$git_email"
+}
+
+# --- herdr --------------------------------------------------------------------
+title_herdr() { echo "herdr-core"; }
+about_herdr() {
+  echo "Run 'hc machine add ${host} --name ${name} --install' on this Mac."
+  echo "It copies hc to the box, so 'hc run --on ${name} claude' starts agents there."
+  echo "Undo with 'hc machine rm ${name}'."
+}
+check_herdr() { command -v hc >/dev/null && hc machine ls --json 2>/dev/null | grep -q "\"target\":\"${host}\""; }
+run_herdr() {
+  command -v hc >/dev/null || { warn "hc (herdr-core) is not installed on this Mac."; return 1; }
+  hc machine add "$host" --name "$name" --install
+}
+
+# --- tailscale ----------------------------------------------------------------
+title_tailscale() { echo "Tailscale"; }
+about_tailscale() {
+  echo "Start tailscaled now and on every boot, and join your tailnet as '${name}'."
+  if [[ -n "$(keychain tailscale)" ]]; then
+    echo "Uses the auth key in Keychain (exe-bootstrap/tailscale)."
+  else
+    echo "Prints a login link; open it and approve the device. The stage waits."
+  fi
+}
+check_tailscale() { qssh 'tailscale status --json' 2>/dev/null | grep -q '"BackendState": *"Running"'; }
+run_tailscale() {
+  qssh 'sudo systemctl enable --now tailscaled' || return 1
+  local key; key="$(keychain tailscale)"
+  if [[ -n "$key" ]]; then
+    # The key goes over stdin so it never appears in a process list on the box.
+    qssh "sudo tailscale up --hostname=$(printf '%q' "$name") --auth-key=file:/dev/stdin" <<<"$key"
+  else
+    ssh -t "$host" "sudo tailscale up --hostname=$(printf '%q' "$name")"
+  fi
+}
+
+# --- github -------------------------------------------------------------------
+title_github() { echo "GitHub (gh)"; }
+about_github() {
+  echo "Log gh into github.com over HTTPS, then 'gh auth setup-git' so git"
+  echo "clone and push work without an ssh key on the box."
+  if [[ -n "$(keychain github)" ]]; then
+    echo "Uses the token in Keychain (exe-bootstrap/github)."
+  else
+    echo "Shows a one-time code; enter it at github.com/login/device."
+  fi
+}
+check_github() { qssh 'gh auth status' >/dev/null 2>&1; }
+run_github() {
+  local token; token="$(keychain github)"
+  if [[ -n "$token" ]]; then
+    qssh 'gh auth login --hostname github.com --git-protocol https --with-token' <<<"$token" || return 1
+  else
+    ssh -t "$host" 'gh auth login --hostname github.com --git-protocol https --web' || return 1
+  fi
+  qssh 'gh auth setup-git'
+}
+
+# --- claude -------------------------------------------------------------------
+title_claude() { echo "Claude Code login"; }
+about_claude() {
+  echo "Open Claude Code on the box. Log in (type /login if it doesn't ask),"
+  echo "finish in your browser, then type /exit to come back here."
+}
+check_claude() { qssh 'test -s ~/.claude/.credentials.json' >/dev/null 2>&1; }
+run_claude() { ssh -t "$host" 'claude'; check_claude || { warn "No Claude login found on the box."; return 1; }; }
+
+# --- codex --------------------------------------------------------------------
+title_codex() { echo "Codex login"; }
+about_codex() {
+  echo "Run 'codex login --device-auth' on the box: it shows a code to enter"
+  echo "in your browser."
+}
+check_codex() { qssh 'codex login status' >/dev/null 2>&1; }
+run_codex() { ssh -t "$host" 'codex login --device-auth'; }
+
+# --- wizard loop --------------------------------------------------------------
+
+# ask <prompt> <allowed letters>: read until the answer is one of them.
+ask() {
+  local answer
+  while true; do
+    read -r -p "$1 " answer </dev/tty || exit 1
+    answer="$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')"
+    if [[ -n "$answer" && "$2" == *"${answer:0:1}"* && ${#answer} -le 4 ]]; then
+      REPLY="${answer:0:1}"; return
+    fi
+  done
+}
+
+wizard() {
+  local total=${#STAGES[@]} i=0 s status results=()
+  bold "exe.dev setup for ${host} (named '${name}')"
+  echo "Each stage waits for you. y = run, s = skip, q = quit."
+
+  for s in "${STAGES[@]}"; do
+    i=$((i + 1))
+    echo
+    bold "[$i/$total] $("title_$s")"
+    "about_$s" | sed 's/^/    /'
+    if "check_$s"; then status="already done"; else status="not done"; fi
+    echo "    Status: ${status}"
+
+    if [[ "$s" == connect ]]; then
+      ask "Run it? [y]es [q]uit:" yq
+    elif [[ "$status" == "already done" ]]; then
+      ask "Run it again anyway? [y]es [s]kip [q]uit:" ysq
+    else
+      ask "Run it? [y]es [s]kip [q]uit:" ysq
+    fi
+
+    while true; do
+      case "$REPLY" in
+        q) results+=("$s: quit here"); summary "${results[@]}"; exit 0 ;;
+        s) results+=("$s: skipped"); break ;;
+        y)
+          if "run_$s"; then
+            success "$("title_$s") done"; results+=("$s: done"); break
+          fi
+          warn "$("title_$s") failed."
+          if [[ "$s" == connect ]]; then ask "[r]etry [q]uit:" rq; else ask "[r]etry [s]kip [q]uit:" rsq; fi
+          [[ "$REPLY" == r ]] && REPLY=y
+          ;;
+      esac
+    done
+  done
+  summary "${results[@]}"
+}
+
+summary() {
+  echo
+  bold "Summary"
+  printf '    %s\n' "$@"
+  echo
+  echo "Log in with: ssh ${host}"
+}
+
+main_local() {
+  local vm=""
+  name=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name) name="${2:-}"; shift 2 ;;
+      -h|--help) sed -n '3,22p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+      -*) fail "Unknown option $1" ;;
+      *) vm="$1"; shift ;;
+    esac
+  done
+  [[ -n "$vm" ]] || fail "Usage: $0 <vm-name> [--name <short-name>]   (see 'ssh exe.dev ls')"
   host="${vm%.exe.xyz}.exe.xyz"
+  name="${name:-${vm%.exe.xyz}}"
   git_name="$(git config --global user.name || true)"
   git_email="$(git config --global user.email || true)"
+  wizard
+}
 
-  info "Bootstrapping ${host}"
-  ssh -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new "$host" true \
-    || fail "Cannot SSH to ${host}. Check it is running with 'ssh exe.dev ls'."
-  # shellcheck disable=SC2029  # values are quoted for the remote shell on purpose
-  ssh "$host" "bash -s -- --remote $(printf '%q %q' "$git_name" "$git_email")" < "$0"
-  exit $?
-fi
+# ==============================================================================
+# VM side: stages that run on the box (--remote <stage>)
+# ==============================================================================
 
-# ------------------------------------------------------------------------------
-# Remote mode (VM)
-# ------------------------------------------------------------------------------
+remote_tools() {
+  info "Installing apt packages Homebrew needs..."
+  sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    build-essential procps curl file git >/dev/null
+  success "apt packages installed"
 
-git_name="${2:-}"
-git_email="${3:-}"
-
-[[ "$(uname -s)" == "Linux" ]] || fail "--remote is meant to run on the Linux VM."
-sudo -n true 2>/dev/null || fail "Passwordless sudo is required on the VM."
-
-info "Installing apt packages Homebrew needs..."
-sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-  build-essential procps curl file git >/dev/null
-success "apt packages installed"
-
-if [[ ! -x "$BREW_PREFIX/bin/brew" ]]; then
-  info "Installing Homebrew..."
-  NONINTERACTIVE=1 /bin/bash -c \
-    "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
-eval "$("$BREW_PREFIX/bin/brew" shellenv)"
-success "Homebrew ready"
-
-info "Installing brew formulae (first run takes a while)..."
-brew install --quiet "${BREW_FORMULAE[@]}"
-success "Formulae installed"
-
-if [[ -d "$DOTFILES_DIR/.git" ]]; then
-  info "Dotfiles repo present; pulling latest..."
-  git -C "$DOTFILES_DIR" pull --ff-only
-else
-  info "Cloning ${DOTFILES_REPO_HTTPS}..."
-  git clone "$DOTFILES_REPO_HTTPS" "$DOTFILES_DIR"
-fi
-success "Dotfiles repo ready"
-
-cd "$DOTFILES_DIR"
-
-if [[ ! -f home/.gitconfig.local ]]; then
-  cp home/.gitconfig.local.sample home/.gitconfig.local
-  if [[ -n "$git_name" && -n "$git_email" ]]; then
-    printf '\n[user]\n  name = %s\n  email = %s\n' "$git_name" "$git_email" \
-      >> home/.gitconfig.local
+  if [[ ! -x "$BREW_PREFIX/bin/brew" ]]; then
+    info "Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c \
+      "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   fi
-  success "home/.gitconfig.local created"
-fi
+  eval "$("$BREW_PREFIX/bin/brew" shellenv)"
+  success "Homebrew ready"
 
-info "Linking dotfiles..."
-./home/.local/bin/dot link
-success "Dotfiles linked"
+  info "Installing brew formulae (first run takes a while)..."
+  brew install --quiet "${BREW_FORMULAE[@]}"
+  success "Formulae installed"
+}
 
-zsh_path="$BREW_PREFIX/bin/zsh"
-grep -qx "$zsh_path" /etc/shells || echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
-if [[ "$(getent passwd "$USER" | cut -d: -f7)" != "$zsh_path" ]]; then
-  sudo chsh -s "$zsh_path" "$USER"
-fi
-success "Login shell is ${zsh_path}"
+remote_dotfiles() {
+  [[ -x "$BREW_PREFIX/bin/stow" ]] || fail "stow is missing; run the tools stage first."
+  eval "$("$BREW_PREFIX/bin/brew" shellenv)"
+  local dir="$HOME/.dotfiles"
+  if [[ -d "$dir/.git" ]]; then
+    info "Dotfiles repo present; pulling latest..."
+    git -C "$dir" pull --ff-only
+  else
+    info "Cloning ${DOTFILES_REPO_HTTPS}..."
+    git clone "$DOTFILES_REPO_HTTPS" "$dir"
+  fi
+  cd "$dir"
+  if [[ ! -f home/.gitconfig.local ]]; then
+    cp home/.gitconfig.local.sample home/.gitconfig.local
+    success "home/.gitconfig.local created"
+  fi
+  info "Linking dotfiles..."
+  ./home/.local/bin/dot link
+  success "Dotfiles linked"
+}
 
-cat <<EOF
+remote_zsh() {
+  local zsh_path="$BREW_PREFIX/bin/zsh"
+  [[ -x "$zsh_path" ]] || fail "zsh is missing; run the tools stage first."
+  grep -qx "$zsh_path" /etc/shells || echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+  if [[ "$(getent passwd "$USER" | cut -d: -f7)" != "$zsh_path" ]]; then
+    sudo chsh -s "$zsh_path" "$USER"
+  fi
+  success "Login shell is ${zsh_path}"
+}
 
-$(printf '\033[1;32mVM bootstrap complete!\033[0m')
+remote_git() {
+  local git_name="$1" git_email="$2" file="$HOME/.gitconfig"
+  # With dotfiles linked, ~/.gitconfig is a symlink into the repo; the identity
+  # belongs in the gitignored .gitconfig.local instead.
+  [[ -f "$HOME/.dotfiles/home/.gitconfig.local" && -L "$HOME/.gitconfig" ]] \
+    && file="$HOME/.dotfiles/home/.gitconfig.local"
+  git config --file "$file" user.name "$git_name"
+  git config --file "$file" user.email "$git_email"
+  success "Git identity written to ${file}"
+}
 
-Next: ssh $(hostname).exe.xyz, then run 'gh auth login' to push from the VM.
-EOF
+main_remote() {
+  [[ "$(uname -s)" == "Linux" ]] || fail "--remote is meant to run on the Linux VM."
+  local stage="$1"; shift
+  case "$stage" in
+    tools|dotfiles|zsh|git) "remote_$stage" "$@" ;;
+    *) fail "Unknown remote stage: $stage" ;;
+  esac
+}
+
+main() {
+  if [[ "${1:-}" == "--remote" ]]; then
+    shift; main_remote "$@"
+  else
+    main_local "$@"
+  fi
+}
+
+main "$@"
