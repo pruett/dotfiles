@@ -172,7 +172,14 @@ run_github() {
   else
     ssh -t "$host" 'gh auth login --hostname github.com --git-protocol https --web' || return 1
   fi
-  qssh 'gh auth setup-git'
+  # setup-git writes to the global git config. With dotfiles linked, ~/.gitconfig
+  # is a symlink into the repo, so point it at the gitignored .gitconfig.local.
+  qssh 'local_cfg="$HOME/.dotfiles/home/.gitconfig.local"
+    if [ -L "$HOME/.gitconfig" ] && [ -f "$local_cfg" ]; then
+      GIT_CONFIG_GLOBAL="$local_cfg" gh auth setup-git
+    else
+      gh auth setup-git
+    fi'
 }
 
 # --- claude -------------------------------------------------------------------
