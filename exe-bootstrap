@@ -94,7 +94,7 @@ about_skills() {
   echo "Nothing else from the dotfiles is linked. Push new skills first."
 }
 check_skills() {
-  qssh 'test -L ~/.claude/skills/worktrees && systemctl --user is-active -q skills-sync.timer' >/dev/null 2>&1
+  qssh 'test -L ~/.claude/skills/worktrees && systemctl is-active -q skills-sync.timer' >/dev/null 2>&1
 }
 run_skills() { remote_stage skills; }
 
@@ -271,7 +271,7 @@ main_local() {
 # ==============================================================================
 
 remote_skills() {
-  local repo="$HOME/.dotfiles" units="$HOME/.config/systemd/user"
+  local repo="$HOME/.dotfiles" units=/etc/systemd/system
   if [[ ! -d "$repo/.git" ]]; then
     # Sparse: only the skills (home/.agents) and the bin links that point into
     # them land on the box. Commits and pushes from here work as usual.
@@ -281,17 +281,21 @@ remote_skills() {
   fi
   "$repo/home/.local/bin/skills-sync"
 
+  # A system unit that runs as you: a user unit (systemctl --user) can't be
+  # managed from a plain ssh command, which has no user session bus.
   info "Installing the skills-sync timer (every 10 minutes)..."
-  mkdir -p "$units"
-  cat >"$units/skills-sync.service" <<'EOF'
+  sudo tee "$units/skills-sync.service" >/dev/null <<EOF
 [Unit]
 Description=Sync agent skills with the dotfiles repo
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/bin/skills-sync
+User=$USER
+ExecStart=$HOME/.local/bin/skills-sync
 EOF
-  cat >"$units/skills-sync.timer" <<'EOF'
+  sudo tee "$units/skills-sync.timer" >/dev/null <<'EOF'
 [Unit]
 Description=Run skills-sync every 10 minutes
 
@@ -302,11 +306,9 @@ OnUnitActiveSec=10min
 [Install]
 WantedBy=timers.target
 EOF
-  # Linger keeps user timers running when nobody is logged in.
-  sudo loginctl enable-linger "$USER"
-  systemctl --user daemon-reload
-  systemctl --user enable --now skills-sync.timer
-  success "skills-sync timer on ('systemctl --user list-timers' shows it)"
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now skills-sync.timer
+  success "skills-sync timer on ('systemctl list-timers skills-sync.timer' shows it)"
 }
 
 remote_git() {
