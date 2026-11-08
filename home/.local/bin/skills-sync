@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+#
+# Keep agent skills in sync across this Mac and exe.dev boxes. The dotfiles
+# repo on GitHub is the meeting point: every machine pulls from it and pushes
+# its own skill commits to it.
+#
+#   skills-sync            pull, push commits this machine made, relink skills
+#   skills-sync --boxes    the same, then run skills-sync on every exe.dev box
+#                          herdr-core knows (hc machine ls)
+#
+# Edit a skill anywhere, commit it in ~/.dotfiles, then run skills-sync there.
+# Uncommitted changes are never committed or pushed; the pull keeps them
+# (--autostash). Boxes also run this every 10 minutes from a systemd timer that
+# exe-bootstrap installs, so a push from the Mac reaches them on its own.
+#
+# Linking: on the Mac, `skills sync claude-code claude-work` (dot already links
+# ~/.agents/skills). On Linux boxes, which get only the skills from the repo:
+# ~/.agents/{skills,docs}, one link per skill in ~/.claude/skills, ~/.claude/docs,
+# and the CLIs that ship inside skills (plus this command) in ~/.local/bin.
+
+set -euo pipefail
+
+repo="${DOTFILES:-$HOME/.dotfiles}"
+
+info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m !!\033[0m %s\n' "$*" >&2; }
+fail() { printf '\033[1;31mERR\033[0m %s\n' "$*" >&2; exit 1; }
+
+sync_repo() {
+  [[ -d "$repo/.git" ]] || fail "No dotfiles repo at $repo."
+  git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 \
+    || fail "$(git -C "$repo" branch --show-current) has no upstream branch; nothing to sync with."
+
+  info "Pulling $(hostname -s)..."
+  if ! git -C "$repo" pull --quiet --rebase --autostash; then
+    fail "Pull stopped on a conflict in $repo. Resolve it there ('git status'), then run skills-sync again."
+  fi
+
+  if [[ -n "$(git -C "$repo" log --oneline '@{u}..' 2>/dev/null)" ]]; then
+    info "Pushing $(git -C "$repo" log --oneline '@{u}..' | wc -l | tr -d ' ') local commit(s)..."
+    git -C "$repo" push --quiet || warn "Push failed; the commits stay here. Is 'gh auth status' logged in?"
+  fi
+
+  if [[ -n "$(git -C "$repo" status --porcelain -- home/.agents)" ]]; then
+    warn "Uncommitted skill changes in $repo/home/.agents; commit them to share them."
+  fi
+}
+
+link_mac() {
+  if [[ -x "$repo/home/.local/bin/skills" ]]; then
+    "$repo/home/.local/bin/skills" sync claude-code claude-work >/dev/null
+  fi
+}
+
+link_linux() {
+  local s bin target
+  cd "$HOME"
+  mkdir -p .agents .claude/skills .local/bin
+  ln -sfn "$repo/home/.agents/skills" .agents/skills
+  ln -sfn "$repo/home/.agents/docs" .agents/docs
+  ln -sfn ../.agents/docs .claude/docs  # pstack skills link through ~/.claude/docs
+
+  # One link per skill, as `skills sync claude-code` makes on the Mac. Never
+  # replace a real folder Claude Code created.
+  for s in "$repo"/home/.agents/skills/*/; do
+    s="$(basename "$s")"
+    [[ -e ".claude/skills/$s" && ! -L ".claude/skills/$s" ]] && continue
+    ln -sfn "../../.agents/skills/$s" ".claude/skills/$s"
+  done
+  for s in .claude/skills/*; do  # skills removed from the repo
+    [[ -L "$s" && ! -e "$s" ]] && rm "$s"
+  done
+
+  # CLIs that ship inside a skill (home/.local/bin/wt -> ../../.agents/skills/...).
+  for bin in "$repo"/home/.local/bin/*; do
+    target="$(readlink "$bin" || true)"
+    [[ "$target" == *".agents/skills/"* ]] || continue
+    ln -sfn "$(cd "$(dirname "$bin")/$(dirname "$target")" && pwd)/$(basename "$target")" \
+      ".local/bin/$(basename "$bin")"
+  done
+  ln -sfn "$repo/home/.local/bin/skills-sync" .local/bin/skills-sync
+}
+
+sync_boxes() {
+  command -v hc >/dev/null || fail "--boxes needs hc (herdr-core) on this Mac."
+  local box found=false
+  for box in $(hc machine ls --json | grep -o '"target":"[^"]*\.exe\.xyz"' | cut -d'"' -f4); do
+    found=true
+    info "Syncing ${box}..."
+    ssh -o ConnectTimeout=15 "$box" '~/.local/bin/skills-sync' || warn "${box} did not sync."
+  done
+  $found || warn "No exe.dev boxes in 'hc machine ls'."
+}
+
+case "${1:-}" in
+  "") ;;
+  --boxes) ;;
+  -h|--help) sed -n '3,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  *) fail "Unknown option $1 (see --help)" ;;
+esac
+
+sync_repo
+if [[ "$(uname -s)" == Darwin ]]; then link_mac; else link_linux; fi
+info "$(find "$HOME/.claude/skills" -maxdepth 1 -type l | wc -l | tr -d ' ') skills linked for Claude Code"
+[[ "${1:-}" == --boxes ]] && sync_boxes
+exit 0
