@@ -275,8 +275,8 @@ main_local() {
   [[ -n "$vm" ]] || fail "Usage: $0 <vm-name> [--name <short-name>]   (see 'ssh exe.dev ls')"
   host="${vm%.exe.xyz}.exe.xyz"
   name="${name:-${vm%.exe.xyz}}"
-  git_name="$(git config --global user.name || true)"
-  git_email="$(git config --global user.email || true)"
+  git_name="$(git config --global --includes user.name || true)"
+  git_email="$(git config --global --includes user.email || true)"
   wizard
 }
 
