@@ -53,3 +53,7 @@ note    = If bun.lock changes on this branch, run `bun install --frozen-lockfile
 setup = UV_KEYRING_PROVIDER=subprocess uv sync --frozen
 note  = Needs `gcloud auth application-default login` for the FH internal package index.
 note  = If uv.lock changes on this branch, run `UV_KEYRING_PROVIDER=subprocess uv sync --frozen` again.
+
+[~/.dotfiles]
+# No gitignored files to copy and no install step; add include/setup when that changes.
+note = Edits here do not reach ~/ until merged to main in ~/.dotfiles (the home links point at the main checkout).
