@@ -74,7 +74,7 @@ A queue answer arrives as `[queue answer] <id> … -> <verdict>: <text>`:
 
 1. Pass it to the lead that asked, word for word plus what it means for their plan: `hc send lead-<p> "CEO on <id>: <answer>"`. An answer of `changes` or `feedback` is a work order; the lead reports back when it is addressed.
 2. Record it in the project's `decisions.md`.
-3. **Learn**: when the answer shows a preference that will recur (or the CEO overrode your recommendation), add one line to `ceo.md` under *Preferences* that would have let you answer it yourself. Keep `ceo.md` to rules, one per line, newest last; merge a new line with an old one that says the same thing.
+3. **Learn**: one answer about one PR is a decision for that project's `decisions.md`, not a rule. Propose a `ceo.md` line only when the CEO has answered the same kind of question the same way across items, or says outright "always" or "never": put the line in the queue as an `approval` item, and add it to *Preferences* only once approved. Keep `ceo.md` to rules, one per line, newest last; merge a new line with an old one that says the same thing. Never re-add a line the CEO removed.
 4. When the lead reports the answer addressed and you have checked the evidence, `cos close <id> --note "<what was done>"`. If the lead's fix is itself new work to look at, `cos reopen <id> --note "<what changed>"` with the new screenshots, or make a new `review` item.
 
 An item stays `answered` until it is closed. Run `cos queue` at least once a shift and chase any item that has been `answered` for more than a day.
