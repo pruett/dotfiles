@@ -16,7 +16,6 @@
     "cmd-shift-l": "layout.switch",
     "cmd-n": "space.new",
     "cmd-p": "mod.open:my-picker",
-    "cmd-shift-o": "mod.open:orchestrator-mode",
     "cmd-shift-p": "app.palette",
     "cmd-,": "app.settings",
     "cmd-d": "pane.split:right",
@@ -124,10 +123,10 @@
     "cmd-backspace": "send:\u0015",
     "ctrl-[": "send:\u001b"
   },
-  "layout:orchestrator-mode": {
-    "cmd-shift-e": "orchestrator-mode.panel-files",
-    "cmd-shift-g": "orchestrator-mode.panel-changes",
-    "cmd-shift-o": "orchestrator-mode.open",
+  "layout:cos": {
+    "cmd-shift-e": "cos-queue.panel-files",
+    "cmd-shift-g": "cos-queue.panel-changes",
+    "cmd-shift-i": "cos-queue.panel-queue",
     "cmd-alt-b": "layout.toggle:panel"
   }
 }
