@@ -14,8 +14,8 @@ the panel touch that shared state, so its file layout stays consistent:
     queue/<id>.json              one item waiting for (or answered by) you
     queue/<id>/                  its attachments: screenshots, videos, notes
 
-$COS_HOME is a private git repo (github.com/pruett/cos-state); queue/ stays local.
-`cos save` commits and pushes everything else.
+The default $COS_HOME links into the dotfiles repo (home/.local/state/cos), whose
+.gitignore tracks ceo.md only; the queue and project notes stay local.
 
 Terminals (hc names): the CoS is `cos`; a project's lead is `lead-<p>`.
 Messages between them are plain `hc send`. Answers you give in the panel go to the
@@ -377,24 +377,6 @@ def cmd_answer(a):
     print(it["id"])
 
 
-def cmd_save(a):
-    """Commit ceo.md and the project notes to the state repo and push. Quiet when nothing changed."""
-    git = lambda *args: subprocess.run(["git", "-C", str(HOME), *args], capture_output=True, text=True)
-    if git("rev-parse", "--git-dir").returncode != 0:
-        raise Fail(f"{HOME} is not a git repo; clone it with `gh repo clone pruett/cos-state {HOME}`", 2)
-    git("add", "-A")
-    if git("diff", "--cached", "--quiet").returncode == 0:
-        log("Nothing to save.")
-        return
-    r = git("commit", "-m", a.message)
-    if r.returncode != 0:
-        raise Fail(f"git commit failed: {(r.stderr or r.stdout).strip()}")
-    r = git("push", "--quiet")
-    if r.returncode != 0:
-        log(f"Committed, but the push failed (it goes with the next save): {r.stderr.strip()}")
-    print(git("rev-parse", "--short", "HEAD").stdout.strip())
-
-
 def cmd_close(a):
     p = item_path(a.id)
     it = read_json(p)
@@ -488,8 +470,6 @@ def main():
     s.add_argument("--no-send", action="store_true", help="record only")
     s.set_defaults(fn=cmd_answer)
 
-    s = sub.add_parser("save", help="commit and push ceo.md and the project notes (queue/ stays local)")
-    s.add_argument("message", help="what changed, e.g. 'web: plan after checkout review'"); s.set_defaults(fn=cmd_save)
     s = sub.add_parser("close", help="close an item once its answer is acted on")
     s.add_argument("id"); s.add_argument("--note"); s.set_defaults(fn=cmd_close)
     s = sub.add_parser("reopen", help="put an answered or closed item back in front of the CEO")

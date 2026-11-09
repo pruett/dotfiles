@@ -14,6 +14,7 @@ folded_dirs=(
   .agents/skills
   .config/herdr-core/templates
   .config/zsh
+  .local/state/cos  # the CoS writes here on purpose; its .gitignore keeps all but ceo.md out
 )
 
 # Paths in the home package that stay in the repo and never get a link in ~.
