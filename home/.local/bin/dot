@@ -12,7 +12,7 @@ target="$HOME"
 # in the repo.
 folded_dirs=(
   .agents/skills
-  .config/herdr-core/templates
+  .config/herdr-core  # only templates/; stow folds it whole anyway
   .config/zsh
   .local/state/cos  # the CoS writes here on purpose; its .gitignore keeps all but ceo.md out
 )

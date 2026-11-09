@@ -3,7 +3,7 @@
 
 You talk only to the Chief of Staff (CoS). The CoS runs one lead per project; each
 lead runs short-lived workers. Anything that needs your judgment is a queue item,
-answered in the cos-queue panel beside the CoS. This CLI is the one way agents and
+answered in the Brass panel (Queue tab) beside the CoS. This CLI is the one way agents and
 the panel touch that shared state, so its file layout stays consistent:
 
   $COS_HOME (default ~/.local/state/cos)
@@ -219,7 +219,7 @@ def cmd_init(a):
 
 
 def cmd_up(a):
-    """Open HQ: start the CoS in its own space with the queue panel beside it. Safe to rerun."""
+    """Open HQ: start the CoS in its own space with the Brass panel beside it. Safe to rerun."""
     ensure_home()
     if live(COS):
         log("CoS is already running as `cos`.")
@@ -234,9 +234,9 @@ def cmd_up(a):
         return
     app("do", "space.rename", "--id", HQ_SPACE, "--name", "HQ", check=False)
     app("do", "space.select", "--id", HQ_SPACE, check=False)
-    # The queue is a side-panel child (layouts/cos.json), next to Files and Changes.
+    # Brass (queue + org chart) is a side-panel child (layouts/cos.json), next to Files and Changes.
     app("do", "layout.switch", json.dumps({"name": "cos"}), check=False)
-    app("do", "layout.select", json.dumps({"stack": "panel-body", "child": "queue"}), check=False)
+    app("do", "layout.select", json.dumps({"stack": "panel-body", "child": "brass"}), check=False)
     app("do", "layout.show", json.dumps({"id": "panel"}), check=False)
     print(COS)
 
@@ -395,6 +395,101 @@ def cmd_reopen(a):
     print(it["id"])
 
 
+# Claude API rates in $/MTok (claude-api skill, cached 2026-10-06): input, output, cache
+# read. Cache writes bill 1.25x input (5 min) or 2x (1 h). Subscription seats aren't
+# billed per token, so `cos stats` reports what the same tokens would cost on the API.
+PRICES = {
+    "claude-fable-5-1": (10.0, 50.0, 0.25),
+    "claude-opus-5-5": (4.0, 20.0, 0.20),
+    "claude-sonnet-5-5": (2.0, 10.0, 0.20),
+    "claude-haiku-5-5": (0.10, 0.50, 0.01),
+}
+CONTEXT_WINDOW = 1_000_000  # all four models above
+
+
+def transcript_usage(path):
+    """Model, context in use and API-rate cost of one Claude Code transcript.
+
+    Each assistant message is logged once per content block with the same usage, so
+    messages are counted once by id. Context is the last message's whole prompt."""
+    seen, cost, last, model = set(), 0.0, None, None
+    try:
+        f = open(path, encoding="utf-8")
+    except OSError:
+        return None
+    with f:
+        for line in f:
+            if '"usage"' not in line:
+                continue
+            try:
+                m = json.loads(line).get("message") or {}
+            except json.JSONDecodeError:
+                continue
+            u, mid = m.get("usage"), m.get("id")
+            if not u or mid in seen:
+                continue
+            seen.add(mid)
+            model = m.get("model") or model
+            pin, pout, pread = PRICES.get(model, PRICES["claude-opus-5-5"])
+            split = u.get("cache_creation") or {}
+            w1h = split.get("ephemeral_1h_input_tokens", 0)
+            w5m = u.get("cache_creation_input_tokens", 0) - w1h
+            cost += (u.get("input_tokens", 0) * pin + w5m * pin * 1.25 + w1h * pin * 2
+                     + u.get("cache_read_input_tokens", 0) * pread + u.get("output_tokens", 0) * pout) / 1e6
+            last = u
+    if last is None:
+        return {"model": model, "context": 0, "window": CONTEXT_WINDOW, "cost": 0.0, "messages": 0}
+    context = last.get("input_tokens", 0) + last.get("cache_creation_input_tokens", 0) + last.get("cache_read_input_tokens", 0)
+    return {"model": model, "context": context, "window": CONTEXT_WINDOW, "cost": round(cost, 4), "messages": len(seen)}
+
+
+def agent_row(t, role, depth):
+    """One terminal for `cos stats`: hc's status plus, for Claude, its transcript's usage."""
+    full = hc_json("get", t["address"]) or {}
+    labels = full.get("labels") or {}
+    row = {"address": t["address"], "name": t.get("name") or t["address"], "agent": t.get("agent"),
+           "role": role, "depth": depth, "status": word(t), "where": t.get("where")}
+    path = labels.get("claude.transcript")
+    if path:
+        row.update(transcript_usage(path) or {})
+    return row
+
+
+def cmd_stats(a):
+    """The org for Brass's Org tab: the CoS, then each project's lead and its workers."""
+    ls = (hc_json("ls") or {}).get("terminals", [])
+    by_parent = {}
+    for t in ls:
+        by_parent.setdefault(t.get("parent"), []).append(t)
+
+    def tree(t, role, depth):
+        rows = [agent_row(t, role, depth)]
+        for k in by_parent.get(t["address"], []):
+            rows += tree(k, "worker", depth + 1)
+        return rows
+
+    by_name = {t.get("name"): t for t in ls if t.get("name")}
+    cos_t = by_name.get(COS)
+    out = {"cos": agent_row(cos_t, "cos", 0) if cos_t else {"name": COS, "status": "stopped", "role": "cos"},
+           "projects": [], "queue": {"open": 0, "answered": 0}}
+    for i in items():
+        if i.get("status") in out["queue"]:
+            out["queue"][i["status"]] += 1
+    for p in projects():
+        plan = (HOME / "projects" / p["name"] / "plan.md")
+        goal = ""
+        if plan.exists():
+            m = re.search(r"## Goal\n(.+)", plan.read_text())
+            goal = m.group(1).strip() if m else ""
+        lead = by_name.get(p["lead"])
+        agents = tree(lead, "lead", 0) if lead else []
+        out["projects"].append({"name": p["name"], "goal": goal, "lead_status": word(lead), "agents": agents,
+                                "queue_open": sum(1 for i in items() if i.get("project") == p["name"] and i.get("status") == "open"),
+                                "cost": round(sum(r.get("cost", 0) for r in agents), 4)})
+    out["cost"] = round(out["cos"].get("cost", 0) + sum(p["cost"] for p in out["projects"]), 4)
+    print(json.dumps(out, indent=2))
+
+
 def cmd_status(a):
     ensure_home()
     ps = projects()
@@ -426,7 +521,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("init", help="create the state folder; prints its path").set_defaults(fn=cmd_init)
-    sub.add_parser("up", help="open HQ: start the CoS and the queue panel (safe to rerun)").set_defaults(fn=cmd_up)
+    sub.add_parser("up", help="open HQ: start the CoS and the Brass panel (safe to rerun)").set_defaults(fn=cmd_up)
 
     s = sub.add_parser("status", help="CoS, leads, their workers and queue counts")
     s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_status)
@@ -470,6 +565,7 @@ def main():
     s.add_argument("--no-send", action="store_true", help="record only")
     s.set_defaults(fn=cmd_answer)
 
+    sub.add_parser("stats", help="JSON for Brass's Org tab: agents' status, context and API-rate cost").set_defaults(fn=cmd_stats)
     s = sub.add_parser("close", help="close an item once its answer is acted on")
     s.add_argument("id"); s.add_argument("--note"); s.set_defaults(fn=cmd_close)
     s = sub.add_parser("reopen", help="put an answered or closed item back in front of the CEO")

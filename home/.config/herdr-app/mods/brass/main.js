@@ -1,4 +1,8 @@
-// cos-queue: the CEO's one queue in the Chief of Staff org.
+// brass: the CEO's panel in the Chief of Staff org, shown only in HQ. Two tabs:
+// Queue (decisions waiting on the CEO) and Org (each project's lead and workers, with
+// status, context in use and an API-rate cost estimate, from `cos stats`).
+//
+// The Queue tab is the CEO's one queue.
 //
 // Every item is a decision, review or approval a lead raised through the CoS
 // (`cos ask`, stored as ~/.local/state/cos/queue/<id>.json). This panel lists the
@@ -8,14 +12,14 @@
 // lead reports it addressed.
 //
 // Two roles (layouts/cos.json):
-// - panel (no props): the queue itself, a child of the side panel's stack next to
+// - panel (no props): Brass itself, a child of the side panel's stack next to
 //   Files and Changes.
 // - tabs (props.role "tabs"): Herdr's `tabs` bar, copied from mods/tabs/main.js
-//   (mods can't import each other), with a Queue button right of Files and Changes
-//   showing the open and answered counts. It is always on screen, so it also raises
+//   (mods can't import each other), with a Brass button (in HQ only) right of Files and
+//   Changes showing the open and answered queue counts. It is always on screen, so it also raises
 //   the toast for new p0/p1 items.
 //
-// The list fills the panel; Enter or a click opens an item full height, Esc goes back.
+// t switches Queue / Org. In Queue, the list fills the panel; Enter or a click opens an item full height, Esc goes back.
 //
 // Keys (panel focused): j/k or arrows move · Enter open · Esc back · a approve · c request changes ·
 // f feedback · x reject · 1-9 pick an option · o open the first attachment ·
@@ -23,13 +27,18 @@
 // sends and Esc returns to the list.
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextView } from "gpui-base";
-import { exec, home, appHome, theme, nextCommand, watchFolder, notify, props, spaces, panes, run, openOverlay, window, shared, layout, settings, focused } from "herdr";
+import { exec, home, appHome, theme, nextCommand, watchFolder, notify, props, spaces, panes, terminals, run, openOverlay, window, shared, layout, settings, focused } from "herdr";
 
 const STATE = () => `${home()}/.local/state/cos`;
 const COS = () => `${home()}/.local/bin/cos`;
-const IMG_DIR = "mods/cos-queue/.shots"; // image() reads from the app folder, so screenshots are copied here
-const PANEL = "panel", STACK = "panel-body", CHILD = "queue"; // layout node ids
+const IMG_DIR = "mods/brass/.shots"; // image() reads from the app folder, so screenshots are copied here
+const PANEL = "panel", STACK = "panel-body", CHILD = "brass"; // layout node ids
+const HQ = "cos-hq"; // the CoS's space id (`cos up`); the queue shows only there
+const inHQ = () => spaces().find((p) => p.active)?.id === HQ;
 const KIND_LABEL = { decision: "Decision", review: "Review", approval: "Approval", idea: "Idea", fyi: "FYI" };
+const MODEL = { "claude-fable-5-1": "Fable 5.1", "claude-opus-5-5": "Opus 5.5", "claude-sonnet-5-5": "Sonnet 5.5", "claude-haiku-5-5": "Haiku 5.5" };
+const money = (n) => (n == null ? "—" : n < 10 ? `$${n.toFixed(2)}` : `$${Math.round(n)}`);
+const tokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n ?? 0));
 const VERB = { approve: "Approved", changes: "Changes requested", feedback: "Feedback", choose: "Chose", reject: "Rejected" };
 
 function age(iso) {
@@ -94,6 +103,9 @@ export default class Queue extends View {
     this.input.on("submit", (_e, cx) => this.submitNote(cx));
 
     watchQueue(cx, (cx) => this.reload(cx));
+    this.page = "queue"; // or "org"
+    this.org = null; // `cos stats`, loaded while the Org tab shows
+    cx.timer.every(10000, (cx) => { if (this.page === "org") this.loadOrg(cx); });
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
@@ -132,7 +144,7 @@ export default class Queue extends View {
     const actions = {
       "panel-files": () => togglePanelChild("files"),
       "panel-changes": () => togglePanelChild("changes"),
-      "panel-queue": () => togglePanelChild(CHILD),
+      "panel-brass": () => { if (inHQ()) togglePanelChild(CHILD); },
     };
     cx.spawn(async (cx) => {
       for (;;) { const a = actions[await nextCommand()]; if (a) { a(); cx.notify(); } }
@@ -198,9 +210,12 @@ export default class Queue extends View {
       ? Math.max(10, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
       : 10;
     const panel = findNode(root, PANEL), body = findNode(root, STACK);
-    const enabled = [...(shared("workspace.panels") ?? ["files", "changes"]), CHILD];
+    const hq = space?.id === HQ;
+    const enabled = [...(shared("workspace.panels") ?? ["files", "changes"]), ...(hq ? [CHILD] : [])];
     this.syncTabsPanel(space, panel, body, enabled);
     const isOn = (id) => Boolean(panel && !panel.hidden && body?.active === id);
+    // The queue belongs to HQ: leaving it closes the panel if the queue was showing.
+    if (!hq && isOn(CHILD)) run("layout.hide", { id: PANEL });
     const panelButton = (id, label, icon, extra) => {
       const on = isOn(id);
       return h_flex().id(`panel-${id}`).h(26).px(8).gap(5).flex_none().items_center().rounded(6)
@@ -228,10 +243,26 @@ export default class Queue extends View {
       .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
-      .child(panelButton(CHILD, "Queue", "mods/workspace-chrome/circle-check.svg", counts))
+      .when(hq, el => el.child(panelButton(CHILD, "Brass", "mods/workspace-chrome/circle-check.svg", counts)))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(button("close-window", w.platform === "windows" ? svg("mods/tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
+  }
+
+  loadOrg(cx) {
+    cx.spawn(async (cx) => {
+      const r = await exec(COS(), ["stats"]).catch((e) => ({ code: 1, stderr: String(e) }));
+      if (r.code !== 0) { this.orgError = r.stderr.trim() || "cos stats failed"; cx.notify(); return; }
+      try { this.org = JSON.parse(r.stdout); this.orgError = null; } catch { this.orgError = "cos stats printed something unexpected"; }
+      cx.notify();
+    });
+  }
+
+  setPage(page, cx) {
+    this.page = page;
+    if (page === "org") this.loadOrg(cx);
+    this.handle.focus();
+    cx.notify();
   }
 
   // A toast for new p0/p1 items, after the first load.
@@ -316,9 +347,11 @@ export default class Queue extends View {
       if (k === "escape") { this.mode = null; this.handle.focus(); cx.stop_propagation(); cx.notify(); }
       return;
     }
+    const handled = () => { cx.stop_propagation(); cx.notify(); };
+    if (k === "t") { this.setPage(this.page === "queue" ? "org" : "queue", cx); return handled(); }
+    if (this.page === "org") return;
     const it = this.current();
     const n = this.shown().length;
-    const handled = () => { cx.stop_propagation(); cx.notify(); };
     if (k === "j" || k === "down") { this.sel = Math.min(n - 1, this.sel + 1); return handled(); }
     if (k === "k" || k === "up") { this.sel = Math.max(0, this.sel - 1); return handled(); }
     if (k === "v") { this.view = this.view === "open" ? "answered" : "open"; this.sel = 0; this.opened = false; return handled(); }
@@ -349,12 +382,21 @@ export default class Queue extends View {
       .child(div().text_size(12).font_medium().child(label))
       .child(div().text_size(11).text_color(t.dim).child(String(count)));
 
-    const header = h_flex().px(12).pt(10).pb(8).gap(6).items_center().border_b_1().border_color(t.border)
-      .child(div().text_size(13).font_semibold().pr(6).child("Queue"))
-      .child(tab("open", "Open", openN))
-      .child(tab("answered", "Answered", answeredN))
+    const pageTab = (id, label, count) => h_flex().id(`page-${id}`).gap(5).px(9).h(24).items_center().rounded(6).cursor_pointer()
+      .bg(this.page === id ? t.raised : t.chrome).border_1().border_color(this.page === id ? t.border : t.chrome)
+      .text_color(this.page === id ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => this.setPage(id, cx))
+      .child(div().text_size(12).font_medium().child(label))
+      .when(count != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(count))));
+    const top = h_flex().px(12).pt(10).pb(8).gap(6).items_center().border_b_1().border_color(t.border)
+      .child(div().text_size(13).font_semibold().pr(6).child("Brass"))
+      .child(pageTab("queue", "Queue", openN))
+      .child(pageTab("org", "Org", null))
       .child(div().flex_1())
       .when(this.busy, (el) => el.child(div().text_size(11).text_color(t.dim).frames(["sending ·", "sending ··", "sending ···"], 300)));
+    const header = h_flex().px(12).py(6).gap(6).items_center().border_b_1().border_color(t.border)
+      .child(tab("open", "Open", openN))
+      .child(tab("answered", "Answered", answeredN));
 
     const row = (i, idx) => h_flex().id(`row-${i.id}`).gap(8).px(12).py(7).items_center().cursor_pointer()
       .bg(idx === this.sel ? t.selected : t.surface).hover((s) => s.bg(idx === this.sel ? t.selected : t.hover))
@@ -380,12 +422,71 @@ export default class Queue extends View {
       .child(`← ${this.view === "open" ? "Open" : "Answered"} · ${this.sel + 1} of ${shown.length}`);
     const body = this.opened && it ? v_flex().flex_1().min_h(0).child(back).child(this.detail(it, t, chip, prioColor)) : list;
 
-    return v_flex().id("root").size_full().on_size_change((size, cx) => { this.width = size.width; cx.notify(); }).bg(t.surface).text_color(t.foreground)
+    const root = v_flex().id("root").size_full().on_size_change((size, cx) => { this.width = size.width; cx.notify(); }).bg(t.surface).text_color(t.foreground)
       .track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
-      .child(header)
+      .child(top);
+    if (this.page === "org") return root.child(this.renderOrg(t)).child(this.footer(null, t));
+    return root.child(header)
       .when(Boolean(this.error), (el) => el.child(div().px(12).py(6).bg(t.raised).text_size(11.5).text_color(t.blocked).child(this.error)))
       .child(body)
       .child(this.footer(it, t));
+  }
+
+  // The Org tab, sized for the side panel: tiles in two rows, then one card per
+  // project with two lines per agent (status and name, then model, context and cost).
+  renderOrg(t) {
+    const d = this.org;
+    if (!d) return v_flex().flex_1().p(16).child(div().text_size(12.5).text_color(this.orgError ? t.blocked : t.muted).child(this.orgError ?? "Loading…"));
+    const statusColor = { working: t.working, blocked: t.blocked, done: t.done };
+    const dot = (s) => div().size(7).flex_none().rounded(4).bg(statusColor[s] ?? t.dim);
+    const word = (s) => div().text_size(11).text_color(s === "working" || s === "blocked" ? t.foreground : t.muted).child(s);
+    const tile = (label, value, note) => v_flex().flex_1().min_w(0).px(10).py(8).gap(1).rounded(8).bg(t.raised).border_1().border_color(t.border)
+      .child(div().text_size(10).font_semibold().text_color(t.dim).child(label.toUpperCase()))
+      .child(div().text_size(19).font_semibold().text_color(t.foreground).child(value))
+      .child(div().text_size(10.5).text_color(t.muted).truncate().child(note));
+    // Context in use, of the model's window: one hue; past 80% it turns to the blocked
+    // color, and the percentage beside it always says the same in words.
+    const meter = (r) => {
+      if (!r.window) return div().flex_1().text_size(11).text_color(t.dim).child(r.agent === "devin" ? "Devin · no transcript" : "—");
+      const share = Math.min(1, r.context / r.window), hot = share >= 0.8;
+      return h_flex().flex_1().min_w(0).gap(6).items_center()
+        .child(div().flex_1().h(5).rounded(3).bg(t.raised).relative().overflow_hidden()
+          .child(div().absolute().top(0).bottom(0).left(0).w(`${Math.max(1, share * 100)}%`).rounded(3).bg(hot ? t.blocked : t.accent)))
+        .child(div().flex_none().text_size(10.5).text_color(hot ? t.foreground : t.muted).child(`${Math.round(share * 100)}% · ${tokens(r.context)}`));
+    };
+    const row = (r) => v_flex().id(`agent-${r.address ?? r.name}`).px(8).py(5).gap(3).rounded(6).cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_click(() => r.address && this.focusAgent(r.address))
+      .child(h_flex().gap(6).items_center().pl(r.depth * 14)
+        .child(dot(r.status))
+        .child(div().flex_1().min_w(0).text_size(12.5).text_color(t.foreground).truncate().child(r.name))
+        .child(word(r.status))
+        .child(div().w(46).flex_none().text_size(11.5).text_color(t.foreground).text_right().child(money(r.cost))))
+      .child(h_flex().gap(8).items_center().pl(r.depth * 14 + 13)
+        .child(div().w(58).flex_none().text_size(10.5).text_color(t.dim).child(MODEL[r.model] ?? (r.agent === "devin" ? "Devin" : r.model ?? "—")))
+        .child(meter(r)));
+    const card = (title, note, status, cost, rows) => v_flex().p(8).gap(2).rounded(10).bg(t.background).border_1().border_color(t.border)
+      .child(h_flex().px(8).pt(2).gap(6).items_center()
+        .child(div().flex_1().min_w(0).text_size(13).font_semibold().truncate().child(title))
+        .child(dot(status)).child(word(status))
+        .child(div().text_size(11.5).text_color(t.muted).child(`${money(cost)} est.`)))
+      .when(Boolean(note), (el) => el.child(div().px(8).pb(4).text_size(11).text_color(t.dim).truncate().child(note)))
+      .children(rows.length ? rows.map(row) : [div().px(8).py(4).text_size(11.5).text_color(t.dim).child("Lead stopped; the CoS starts it on its next shift.")]);
+    const live = [d.cos, ...d.projects.flatMap((p) => p.agents)].filter((r) => r.status !== "stopped");
+    return v_flex().id("org").flex_1().min_h(0).overflow_y_scrollbar().p(12).gap(10)
+      .child(h_flex().gap(8)
+        .child(tile("Projects", String(d.projects.length), `${d.projects.filter((p) => p.lead_status !== "stopped").length} running`))
+        .child(tile("Agents", String(live.length), `${live.filter((r) => r.status === "working").length} working`)))
+      .child(h_flex().gap(8)
+        .child(tile("Est. cost", money(d.cost), "at API rates"))
+        .child(tile("Queue", String(d.queue.open), `${d.queue.answered} answered`)))
+      .child(card("Chief of Staff", null, d.cos.status, d.cos.cost, [{ ...d.cos, depth: 0 }]))
+      .children(d.projects.map((p) => card(p.name, p.goal, p.lead_status, p.cost, p.agents)));
+  }
+
+  // Shows an agent's pane, wherever it is.
+  focusAgent(address) {
+    const pane = terminals().find((k) => k.address === address)?.pane;
+    run("pane.focus", pane ? { pane } : { terminal: address });
   }
 
   detail(it, t, chip, prioColor) {
@@ -426,6 +527,8 @@ export default class Queue extends View {
       .child(div().px(5).rounded(4).bg(t.raised).border_1().border_color(t.border).text_size(10.5).font_medium().child(k))
       .child(div().text_size(11).text_color(t.muted).child(label));
     const modeLabel = { changes: "What should change?", feedback: "Your feedback", reject: "Why not?" }[this.mode];
+    if (this.page === "org") return h_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(10)
+      .child(key("t", "queue")).child(div().text_size(11).text_color(t.dim).child("Click an agent to show it · cost is at Claude API rates"));
     const open = this.view === "open" && it;
     const nav = this.opened ? key("esc", "back") : key("enter", "open");
     return v_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(6)
@@ -439,6 +542,7 @@ export default class Queue extends View {
           .when((it?.options || []).length > 0, (el) => el.child(key("1-9", "pick")))
           .when((it?.attachments || []).length > 0, (el) => el.child(key("o", "open"))))
         .when(this.view === "answered" && Boolean(it), (el) => el.child(key("u", "reopen")))
-        .child(key("v", this.view === "open" ? "answered" : "open")));
+        .child(key("v", this.view === "open" ? "answered" : "open"))
+        .child(key("t", "org")));
   }
 }

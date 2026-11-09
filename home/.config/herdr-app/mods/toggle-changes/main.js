@@ -1,6 +1,6 @@
 // keys.json binds this (mod.open:toggle-changes): show the side panel on "changes", or hide it
 // if it already shows "changes". Opened as an overlay; it toggles and closes itself.
-// Same logic as togglePanelChild in mods/cos-queue/main.js.
+// Same logic as togglePanelChild in mods/brass/main.js.
 import { View, div } from "gpui-kit";
 import { layout, focused, run, closeOverlay, props } from "herdr";
 

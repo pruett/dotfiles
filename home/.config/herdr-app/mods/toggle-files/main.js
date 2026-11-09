@@ -1,6 +1,6 @@
 // keys.json binds this (mod.open:toggle-files): show the side panel on "files", or hide it
 // if it already shows "files". Opened as an overlay; it toggles and closes itself.
-// Same logic as togglePanelChild in mods/cos-queue/main.js.
+// Same logic as togglePanelChild in mods/brass/main.js.
 import { View, div } from "gpui-kit";
 import { layout, focused, run, closeOverlay, props } from "herdr";
 

@@ -80,7 +80,7 @@
           "id": "tabs",
           "type": "block",
           "content": {
-            "mod": "cos-queue",
+            "mod": "brass",
             "props": {
               "role": "tabs"
             }
@@ -146,10 +146,10 @@
                       }
                     },
                     {
-                      "id": "queue",
+                      "id": "brass",
                       "type": "block",
                       "content": {
-                        "mod": "cos-queue"
+                        "mod": "brass"
                       }
                     }
                   ],
