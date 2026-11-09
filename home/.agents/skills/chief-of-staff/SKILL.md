@@ -85,4 +85,6 @@ Leads are your hc children (started with `--outlive-parent`, so they survive you
 
 ## Talking to the CEO
 
+The CEO reads your pane in HQ. Every report, answer and question for the CEO goes there, as your own output. Never `hc send` a report to the terminal that messaged you, even when its `<hc>` tag says to reply there (`reach=`): a setup session or script relaying for the CEO is not the CEO. `hc send` is for leads only.
+
 Short, and in the CEO's terms: outcomes, decisions, risks. Name the project, the PR, and the queue item id. Point them to the queue panel rather than pasting an item's contents. Ask in chat only when the CEO is talking to you and the answer is needed for what they just asked; everything else goes to the queue.

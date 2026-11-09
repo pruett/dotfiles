@@ -41,7 +41,7 @@ HQ_SPACE = "cos-hq"  # herdr.space label for the CoS's space
 PRIORITIES = ("p0", "p1", "p2", "p3")
 KINDS = ("decision", "review", "approval", "fyi", "idea")
 VERDICTS = ("approve", "changes", "feedback", "choose", "reject")
-NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,24}$")
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,26}$")  # lead-<name> must fit hc's 32-character names
 
 CEO_SEED = """# CEO brain
 
@@ -224,8 +224,8 @@ def cmd_up(a):
     if live(COS):
         log("CoS is already running as `cos`.")
     else:
-        task = ("Start your shift. Read ceo.md, then `cos status`, then report to me in five lines or fewer: "
-                "what each lead is doing, what is stuck, and what is waiting in the queue.")
+        task = ("Start your shift. Read ceo.md, then `cos status`, then report in your own pane (the CEO reads it in HQ; "
+                "don't hc send it back) in five lines or fewer: what each lead is doing, what is stuck, and what is waiting in the queue.")
         launch("chief-of-staff", COS, HOME, HQ_SPACE, task, labels=["cos.role=cos"], parent=False)
         log("Started the CoS as `cos`.")
     if not find_space(HQ_SPACE):
@@ -244,7 +244,7 @@ def cmd_up(a):
 def cmd_project_add(a):
     ensure_home()
     if not NAME_RE.match(a.name):
-        raise Fail("project names are 1-25 of a-z 0-9 -, starting with a letter or digit", 2)
+        raise Fail("project names are 1-27 of a-z 0-9 -, starting with a letter or digit", 2)
     repo = Path(a.repo).expanduser().resolve()
     if not repo.is_dir():
         raise Fail(f"{repo} is not a folder", 2)
