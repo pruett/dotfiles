@@ -1,0 +1,497 @@
+#!/usr/bin/env python3
+"""cos: the Chief of Staff org's shared state and launcher on Herdr.
+
+You talk only to the Chief of Staff (CoS). The CoS runs one lead per project; each
+lead runs short-lived workers. Anything that needs your judgment is a queue item,
+answered in the cos-queue panel beside the CoS. This CLI is the one way agents and
+the panel touch that shared state, so its file layout stays consistent:
+
+  $COS_HOME (default ~/.local/state/cos)
+    ceo.md                       your preferences and judgment, distilled by the CoS
+    projects/<p>/project.json    name, repo, lead terminal name, space label
+    projects/<p>/plan.md         goal, current plan, what is stuck
+    projects/<p>/decisions.md    dated decisions, newest last
+    queue/<id>.json              one item waiting for (or answered by) you
+    queue/<id>/                  its attachments: screenshots, videos, notes
+
+Terminals (hc names): the CoS is `cos`; a project's lead is `lead-<p>`.
+Messages between them are plain `hc send`. Answers you give in the panel go to the
+CoS only (`cos answer`), which passes them on.
+
+stdout carries data (ids, paths, JSON with --json); progress goes to stderr.
+Exit 0 ok, 1 a step failed, 2 bad usage or a missing precondition.
+"""
+import argparse
+import datetime as dt
+import json
+import os
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path(os.environ.get("COS_HOME", Path.home() / ".local/state/cos"))
+COS = "cos"  # the CoS terminal's hc name
+HQ_SPACE = "cos-hq"  # herdr.space label for the CoS's space
+PRIORITIES = ("p0", "p1", "p2", "p3")
+KINDS = ("decision", "review", "approval", "fyi", "idea")
+VERDICTS = ("approve", "changes", "feedback", "choose", "reject")
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,24}$")
+
+CEO_SEED = """# CEO brain
+
+What the CoS has learned about how you decide. The CoS reads this before every
+escalation and settles anything it already answers. It adds a line whenever an
+answer of yours shows a preference that will recur. One line per rule; newest last.
+
+## Always ask me
+- Merging to a main branch, deploying, deleting anything remote, spending money.
+- Anything a lead would do differently in each of two credible ways and that
+  changes what a user sees.
+
+## Preferences
+"""
+
+
+class Fail(Exception):
+    def __init__(self, msg, code=1):
+        super().__init__(msg)
+        self.code = code
+
+
+def log(msg):
+    print(msg, file=sys.stderr)
+
+
+def now():
+    return dt.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def read_json(path):
+    return json.loads(Path(path).read_text())
+
+
+def write_json(path, data):
+    path = Path(path)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    tmp.replace(path)  # atomic, so the panel never reads half a file
+
+
+def hc(*args, check=True):
+    r = subprocess.run(["hc", *args], capture_output=True, text=True)
+    if check and r.returncode != 0:
+        raise Fail(f"hc {' '.join(args[:2])} failed: {(r.stderr or r.stdout).strip()}")
+    return r
+
+
+def hc_json(*args):
+    r = hc(*args, "--json", check=False)
+    if r.returncode != 0:
+        return None
+    try:
+        return json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def app(*args, check=True):
+    r = subprocess.run(["herdr-app", *args], capture_output=True, text=True)
+    if check and r.returncode != 0:
+        raise Fail(f"herdr-app {' '.join(args[:2])} failed: {(r.stderr or r.stdout).strip()}")
+    return r
+
+
+def word(t):
+    """A terminal's status as one word: `hc get` gives {app, state}, `hc ls` a plain word."""
+    if not t:
+        return "stopped"
+    st = t.get("status")
+    if isinstance(st, dict):
+        st = st.get("state")
+    return st or "live"
+
+
+def live(name):
+    """The terminal record for a live terminal with this hc name, else None."""
+    t = hc_json("get", name)
+    return t if t and t.get("state") == "live" else None
+
+
+def ensure_home():
+    for sub in ("projects", "queue"):
+        (HOME / sub).mkdir(parents=True, exist_ok=True)
+    ceo = HOME / "ceo.md"
+    if not ceo.exists():
+        ceo.write_text(CEO_SEED)
+
+
+def project_dir(name):
+    d = HOME / "projects" / name
+    if not (d / "project.json").exists():
+        raise Fail(f"no project {name!r}; add it with: cos project add {name} --repo <path>", 2)
+    return d
+
+
+def projects():
+    out = []
+    for f in sorted((HOME / "projects").glob("*/project.json")):
+        out.append(read_json(f))
+    return out
+
+
+def items(include_closed=False):
+    out = []
+    for f in (HOME / "queue").glob("*.json"):
+        try:
+            it = read_json(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if include_closed or it.get("status") != "closed":
+            out.append(it)
+    # Open first, then priority, then oldest first.
+    order = {"open": 0, "answered": 1, "closed": 2}
+    out.sort(key=lambda i: (order.get(i.get("status"), 3), i.get("priority", "p2"), i.get("created", "")))
+    return out
+
+
+def item_path(item_id):
+    p = HOME / "queue" / f"{item_id}.json"
+    if not p.exists():
+        raise Fail(f"no queue item {item_id!r}", 2)
+    return p
+
+
+def find_space(label):
+    """The Herdr space id a terminal labelled herdr.space=<label> landed in, if Herdr kept the label as its id."""
+    r = app("ls", check=False)
+    if r.returncode != 0:
+        return None
+    try:
+        data = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return None
+    for s in data.get("spaces", []):
+        if s.get("id") == label:
+            return s
+    return None
+
+
+def launch(template, name, cwd, space, task, labels=(), parent=True):
+    """Start an agent from a template in a Herdr space, check its first message landed."""
+    args = ["run", "--bg", "--keep", "--json", "--name", name, "--cwd", str(cwd),
+            "--label", f"herdr.space={space}"]
+    for lab in labels:
+        args += ["--label", lab]
+    args += ["--outlive-parent"] if parent else ["--no-parent"]
+    args += [template, task]
+    r = hc(*args)
+    try:
+        res = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        res = {}
+    if (res.get("first_message") or {}).get("sent") is not False:
+        return res
+    # Claude asks before working in a folder it has not seen; "No, exit" is preselected.
+    screen = hc("read", name, "--lines", "0", check=False).stdout
+    if "trust this folder" in screen:
+        log(f"{name}: accepting Claude's trust prompt for {cwd}.")
+        hc("keys", name, "down", "enter")
+        hc("wait", name, "--timeout", "60", check=False)
+        if hc("send", name, task, check=False).returncode == 0:
+            return res
+    reason = (res.get("first_message") or {}).get("reason")
+    log(f"{name}: started, but its first message was not sent ({reason}).")
+    log(f"  Look with `hc read {name}`, resolve what it shows, then send the task with `hc send {name} ...`.")
+    return res
+
+
+# ---- commands ---------------------------------------------------------------
+
+def cmd_init(a):
+    ensure_home()
+    print(HOME)
+
+
+def cmd_up(a):
+    """Open HQ: start the CoS in its own space with the queue panel beside it. Safe to rerun."""
+    ensure_home()
+    if live(COS):
+        log("CoS is already running as `cos`.")
+    else:
+        task = ("Start your shift. Read ceo.md, then `cos status`, then report to me in five lines or fewer: "
+                "what each lead is doing, what is stuck, and what is waiting in the queue.")
+        launch("chief-of-staff", COS, HOME, HQ_SPACE, task, labels=["cos.role=cos"], parent=False)
+        log("Started the CoS as `cos`.")
+    space = find_space(HQ_SPACE)
+    if not space:
+        log("The Herdr window is not open, so HQ is not shown; the CoS runs anyway. Rerun `cos up` with Herdr open.")
+        print(COS)
+        return
+    if space.get("name") != "HQ":
+        app("do", "space.rename", "--id", HQ_SPACE, "--name", "HQ", check=False)
+    # `herdr-app ls` lists terminals, not mod panes, so the panel proves it is
+    # showing by touching a heartbeat file every 30 s.
+    if not panel_alive():
+        cos_pane = next((x.get("pane") for t in space.get("tabs", []) for x in t.get("terminals", [])
+                         if x.get("name") == COS and x.get("pane")), None)
+        if cos_pane:
+            app("do", "pane.split", json.dumps({"direction": "right", "pane": cos_pane, "mod": "cos-queue"}), check=False)
+    app("do", "space.select", "--id", HQ_SPACE, check=False)
+    print(COS)
+
+
+def panel_alive():
+    beat = Path.home() / ".config/herdr-app/data/cos-queue/alive"
+    try:
+        return dt.datetime.now().timestamp() - beat.stat().st_mtime < 75
+    except OSError:
+        return False
+
+
+def cmd_project_add(a):
+    ensure_home()
+    if not NAME_RE.match(a.name):
+        raise Fail("project names are 1-25 of a-z 0-9 -, starting with a letter or digit", 2)
+    repo = Path(a.repo).expanduser().resolve()
+    if not repo.is_dir():
+        raise Fail(f"{repo} is not a folder", 2)
+    d = HOME / "projects" / a.name
+    d.mkdir(parents=True, exist_ok=True)
+    meta = {"name": a.name, "repo": str(repo), "lead": f"lead-{a.name}", "space": f"cos-{a.name}",
+            "created": now()}
+    pj = d / "project.json"
+    if pj.exists():
+        meta = {**meta, **read_json(pj), "repo": str(repo)}
+    write_json(pj, meta)
+    plan = d / "plan.md"
+    if not plan.exists():
+        plan.write_text(f"# {a.name}\n\n## Goal\n{a.goal or '(not set yet)'}\n\n## Plan\n\n## Stuck\n\n## Done\n")
+    dec = d / "decisions.md"
+    if not dec.exists():
+        dec.write_text(f"# {a.name} decisions\n\nOne line each: date, decision, who decided, why.\n\n")
+    print(d)
+
+
+def cmd_project_ls(a):
+    ps = projects()
+    for p in ps:
+        t = live(p["lead"])
+        p["lead_status"] = word(t)
+        p["lead_address"] = (t or {}).get("address")
+    if a.json:
+        print(json.dumps(ps, indent=2))
+        return
+    for p in ps:
+        print(f"{p['name']:<16} {p['lead_status']:<8} {p['repo']}")
+
+
+def cmd_lead_start(a):
+    d = project_dir(a.name)
+    p = read_json(d / "project.json")
+    if live(p["lead"]):
+        log(f"{p['lead']} is already running.")
+        print(p["lead"])
+        return
+    task = (f"You lead project `{p['name']}`. Repo: {p['repo']}. Your notes: {d}/plan.md and {d}/decisions.md. "
+            f"Report to the Chief of Staff with `hc send {COS} \"...\"`. "
+            + (f"First goal from the CoS: {a.goal}" if a.goal else "Read your notes, then report to the CoS that you are up and what you will do first."))
+    launch("lead", p["lead"], p["repo"], p["space"], task,
+           labels=[f"cos.project={p['name']}", "cos.role=lead"], parent=True)
+    app("do", "space.rename", "--id", p["space"], "--name", p["name"], check=False)
+    log(f"Started {p['lead']} in space {p['name']}.")
+    print(p["lead"])
+
+
+def cmd_lead_stop(a):
+    p = read_json(project_dir(a.name) / "project.json")
+    if not live(p["lead"]):
+        log(f"{p['lead']} is not running.")
+        return
+    hc("kill", p["lead"])
+    hc("rm", p["lead"], check=False)
+    log(f"Stopped {p['lead']} and its workers.")
+
+
+def cmd_ask(a):
+    ensure_home()
+    if a.project != "hq":
+        project_dir(a.project)
+    item_id = dt.datetime.now().strftime("%m%d-%H%M") + "-" + secrets.token_hex(2)
+    att_dir = HOME / "queue" / item_id
+    atts = []
+    for src in a.attach or []:
+        if re.match(r"^https?://", src):
+            atts.append({"kind": "link", "url": src})
+            continue
+        s = Path(src).expanduser()
+        if not s.is_file():
+            raise Fail(f"attachment {src} is not a file", 2)
+        att_dir.mkdir(parents=True, exist_ok=True)
+        dest = att_dir / s.name
+        shutil.copy2(s, dest)
+        kind = "image" if s.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp") else \
+               "video" if s.suffix.lower() in (".mp4", ".mov", ".webm") else "file"
+        atts.append({"kind": kind, "path": str(dest)})
+    item = {
+        "id": item_id, "project": a.project, "from": a.sender or os.environ.get("HC_TERMINAL_ID") or "cos",
+        "kind": a.kind, "priority": a.priority, "title": a.title, "body": a.body or "",
+        "recommendation": a.recommend or "", "options": a.option or [], "attachments": atts,
+        "status": "open", "answer": None, "history": [], "created": now(), "updated": now(),
+    }
+    write_json(HOME / "queue" / f"{item_id}.json", item)
+    print(item_id)
+
+
+def cmd_queue(a):
+    its = items(include_closed=a.all)
+    if a.project:
+        its = [i for i in its if i["project"] == a.project]
+    if a.json:
+        print(json.dumps(its, indent=2))
+        return
+    for i in its:
+        print(f"{i['id']}  {i['status']:<8} {i['priority']} {i['kind']:<8} {i['project']:<12} {i['title']}")
+
+
+def cmd_show(a):
+    print(item_path(a.id).read_text(), end="")
+
+
+def cmd_answer(a):
+    """You answered an item in the panel. Record it and hand it to the CoS (only the CoS)."""
+    p = item_path(a.id)
+    it = read_json(p)
+    answer = {"verdict": a.verdict, "text": a.text or "", "choice": a.choice, "at": now()}
+    if it.get("answer"):
+        it.setdefault("history", []).append(it["answer"])
+    it.update(answer=answer, status="answered", updated=now())
+    write_json(p, it)
+    msg = (f"[queue answer] {it['id']} ({it['project']}, {it['kind']}): \"{it['title']}\" -> {a.verdict}"
+           + (f" [{a.choice}]" if a.choice else "") + (f": {a.text}" if a.text else "")
+           + f". Asked by {it['from']}. Pass it on, record any lasting preference in ceo.md, "
+             f"and `cos close {it['id']}` once it is addressed.")
+    if a.no_send:
+        print(it["id"])
+        return
+    if not live(COS):
+        log("The CoS is not running; the answer is saved and it will see it in `cos queue` on its next shift.")
+        print(it["id"])
+        return
+    r = hc("send", COS, msg, check=False)
+    if r.returncode != 0:
+        log(f"Saved, but could not send it to the CoS: {(r.stderr or r.stdout).strip()}")
+        raise Fail("send failed")
+    print(it["id"])
+
+
+def cmd_close(a):
+    p = item_path(a.id)
+    it = read_json(p)
+    it.update(status="closed", closed_note=a.note or "", updated=now())
+    write_json(p, it)
+    print(it["id"])
+
+
+def cmd_reopen(a):
+    p = item_path(a.id)
+    it = read_json(p)
+    it.update(status="open", updated=now())
+    if a.note:
+        it["body"] = (it.get("body", "") + f"\n\nUpdate {now()}: {a.note}").strip()
+    write_json(p, it)
+    print(it["id"])
+
+
+def cmd_status(a):
+    ensure_home()
+    ps = projects()
+    rows = []
+    for p in ps:
+        t = live(p["lead"])
+        workers = []
+        if t:
+            all_t = (hc_json("ls") or {}).get("terminals", [])
+            workers = [x for x in all_t if x.get("parent") == t.get("address") and x.get("state") == "live"]
+        open_n = sum(1 for i in items() if i["project"] == p["name"] and i["status"] == "open")
+        rows.append({"project": p["name"], "lead": p["lead"], "lead_status": word(t),
+                     "workers": [{"name": w.get("name") or w.get("address"), "status": word(w)} for w in workers],
+                     "open_items": open_n, "repo": p["repo"]})
+    cos = live(COS)
+    out = {"cos": word(cos), "home": str(HOME), "projects": rows,
+           "queue": {s: sum(1 for i in items(True) if i["status"] == s) for s in ("open", "answered")}}
+    if a.json:
+        print(json.dumps(out, indent=2))
+        return
+    print(f"CoS: {out['cos']}   queue: {out['queue']['open']} open, {out['queue']['answered']} answered   state: {HOME}")
+    for r in rows:
+        ws = ", ".join(f"{w['name']} {w['status']}" for w in r["workers"]) or "no workers"
+        print(f"  {r['project']:<14} lead {r['lead_status']:<8} {r['open_items']} open  [{ws}]")
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="cos", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("init", help="create the state folder; prints its path").set_defaults(fn=cmd_init)
+    sub.add_parser("up", help="open HQ: start the CoS and the queue panel (safe to rerun)").set_defaults(fn=cmd_up)
+
+    s = sub.add_parser("status", help="CoS, leads, their workers and queue counts")
+    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_status)
+
+    pr = sub.add_parser("project", help="add or list projects").add_subparsers(dest="pcmd", required=True)
+    s = pr.add_parser("add", help="add a project (or change its repo)")
+    s.add_argument("name"); s.add_argument("--repo", required=True); s.add_argument("--goal")
+    s.set_defaults(fn=cmd_project_add)
+    s = pr.add_parser("ls", help="list projects with their lead's status")
+    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_project_ls)
+
+    ld = sub.add_parser("lead", help="start or stop a project's lead").add_subparsers(dest="lcmd", required=True)
+    s = ld.add_parser("start", help="start lead-<project> in its own space")
+    s.add_argument("name"); s.add_argument("--goal", help="the first goal to hand it")
+    s.set_defaults(fn=cmd_lead_start)
+    s = ld.add_parser("stop", help="kill lead-<project> and its workers")
+    s.add_argument("name"); s.set_defaults(fn=cmd_lead_stop)
+
+    s = sub.add_parser("ask", help="put an item in the CEO's queue; prints its id")
+    s.add_argument("--project", required=True, help="project name, or hq for org-wide items")
+    s.add_argument("--title", required=True, help="one line the CEO can decide from")
+    s.add_argument("--kind", choices=KINDS, default="decision")
+    s.add_argument("--priority", choices=PRIORITIES, default="p2", help="p0 blocks work now ... p3 whenever")
+    s.add_argument("--body", help="context: what, why now, what happens on each answer (markdown)")
+    s.add_argument("--recommend", help="the answer you recommend and why, in one or two lines")
+    s.add_argument("--option", action="append", help="a choice the CEO can pick (repeatable)")
+    s.add_argument("--attach", action="append", help="screenshot/video/file path or URL (repeatable)")
+    s.add_argument("--from", dest="sender", help="who raised it (default: $HC_TERMINAL_ID)")
+    s.set_defaults(fn=cmd_ask)
+
+    s = sub.add_parser("queue", help="list queue items, open first by priority")
+    s.add_argument("--all", action="store_true", help="include closed items")
+    s.add_argument("--project"); s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_queue)
+
+    s = sub.add_parser("show", help="print one item's JSON"); s.add_argument("id"); s.set_defaults(fn=cmd_show)
+
+    s = sub.add_parser("answer", help="record the CEO's answer and send it to the CoS (the panel runs this)")
+    s.add_argument("id"); s.add_argument("--verdict", choices=VERDICTS, required=True)
+    s.add_argument("--text"); s.add_argument("--choice")
+    s.add_argument("--no-send", action="store_true", help="record only")
+    s.set_defaults(fn=cmd_answer)
+
+    s = sub.add_parser("close", help="close an item once its answer is acted on")
+    s.add_argument("id"); s.add_argument("--note"); s.set_defaults(fn=cmd_close)
+    s = sub.add_parser("reopen", help="put an answered or closed item back in front of the CEO")
+    s.add_argument("id"); s.add_argument("--note"); s.set_defaults(fn=cmd_reopen)
+
+    a = ap.parse_args()
+    try:
+        a.fn(a)
+    except Fail as e:
+        log(f"cos: {e}")
+        sys.exit(e.code)
+
+
+if __name__ == "__main__":
+    main()

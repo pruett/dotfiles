@@ -12,6 +12,7 @@ target="$HOME"
 # in the repo.
 folded_dirs=(
   .agents/skills
+  .config/herdr-core/templates
   .config/zsh
 )
 
