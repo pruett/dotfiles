@@ -34,7 +34,7 @@ const rowHeight = ({ tree }) => (tree ? 28 : 30);
 const NEST = 16; // px of indent per Chief of Staff level
 
 // Each Chief of Staff space's parent space id: HQ for a lead's space, the lead's space
-// for a project's workers. A space is placed by its most senior terminal.
+// for a project's workers. A space is placed by its most senior terminal. `hq`: the CoS's space.
 function cosParents(sp) {
   const ids = new Set(sp.map((w) => w.id));
   const rank = { cos: 0, lead: 1, worker: 2 };
@@ -52,7 +52,7 @@ function cosParents(sp) {
     if (b.role === "lead" && hq) parent[id] = hq;
     if (b.role === "worker" && leadOf[b.project]) parent[id] = leadOf[b.project];
   }
-  return parent;
+  return { parent, hq };
 }
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
@@ -327,10 +327,11 @@ export default class Spaces extends View {
   }
 
   // Reorders `out` in place so each Chief of Staff space follows its parent, deeper by
-  // one level. A space moves with its worktree rows (the tree rows right after it).
+  // one level, with HQ's tree first and its rows marked `org` (a line follows them).
+  // A space moves with its worktree rows (the tree rows right after it).
   nestCos(out, sp) {
-    const parent = cosParents(sp);
-    if (!Object.keys(parent).length) return;
+    const { parent, hq } = cosParents(sp);
+    if (!hq && !Object.keys(parent).length) return;
     const blocks = [];
     for (const r of out) {
       if (r.tree && blocks.length) blocks[blocks.length - 1].push(r);
@@ -340,20 +341,25 @@ export default class Spaces extends View {
     const kids = (id) => blocks.filter((b) => parent[b[0].w.id] === id);
     const placed = new Set();
     const result = [];
-    const emit = (b, depth) => {
+    const emit = (b, depth, org) => {
       if (placed.has(b[0].w.id)) return;
       placed.add(b[0].w.id);
-      for (const r of b) result.push({ ...r, depth });
-      for (const k of kids(b[0].w.id)) emit(k, depth + 1);
+      for (const r of b) result.push({ ...r, depth, org });
+      for (const k of kids(b[0].w.id)) emit(k, depth + 1, org);
     };
-    for (const b of blocks) if (!listed.has(parent[b[0].w.id])) emit(b, 0);
+    const root = blocks.find((b) => b[0].w.id === hq);
+    if (root) emit(root, 0, true);
+    for (const b of blocks) if (!listed.has(parent[b[0].w.id])) emit(b, 0, false);
     out.splice(0, out.length, ...result);
   }
 
   // The rows, under a header per machine once one isn't this computer.
   grouped(t, collapsed) {
     const rows = this.ordered();
-    const draw = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
+    const one = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
+    // A line between the Chief of Staff org and the other spaces.
+    const line = (id) => div().id(`org-line-${id}`).flex_none().h(1).my(5).mx(collapsed ? 6 : 8).bg(t.border);
+    const draw = (r, i, list) => [one(r), ...(r.org && list[i + 1] && !list[i + 1].org ? [line(r.w.id)] : [])];
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
       const layout = machines().find(k => k.name === m)?.layout;
@@ -361,7 +367,7 @@ export default class Spaces extends View {
         || spaces().some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
     const loadingRow = m => h_flex().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).items_center().when(collapsed, el => el.justify_center()).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
-    if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.map(draw);
+    if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.flatMap(draw);
     const machineNames = [null, ...remote];
     return machineNames.flatMap((m) => {
       const mine = rows.filter((r) => (r.w.machine ?? null) === m);
@@ -404,7 +410,7 @@ export default class Spaces extends View {
         .when(!collapsed, el => el.child(svg("mods/workspace-chrome/plus.svg").size(12)).child("New space there"));
       if (!collapsed && rebuilt) return [head];
       const cell = collapsed ? railCell : (el) => el;
-      return [cell(head), ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : cell(empty)])];
+      return [cell(head), ...(folded ? [] : mine.length ? mine.flatMap(draw) : [loading(m) ? loadingRow(m) : cell(empty)])];
     });
   }
 
