@@ -7,6 +7,7 @@ answered in the Chief of Staff panel (Queue tab) beside the CoS. This CLI is the
 the panel touch that shared state, so its file layout stays consistent:
 
   $COS_HOME (default ~/.local/state/cos)
+    config.env                   this machine's settings (`cos init` asks for them)
     ceo.md                       your preferences and judgment, distilled by the CoS
     projects/<p>/project.json    name, repo, lead terminal name, space label
     projects/<p>/plan.md         goal, current plan, what is stuck
@@ -20,6 +21,10 @@ The default $COS_HOME links into the dotfiles repo (home/.local/state/cos), whos
 Terminals (hc names): the CoS is `cos`; a project's lead is `lead-<p>`.
 Messages between them are plain `hc send`. Answers you give in the panel go to the
 CoS only (`cos answer`), which passes them on.
+
+Agents start through `cos exec <role>` (every Herdr template's command): the program
+and model come from the skill's models.json, and this machine's settings go in their
+environment: $COS_WORK_ROOT, and CLAUDE_CONFIG_DIR from COS_CLAUDE_CONFIG_DIR.
 
 stdout carries data (ids, paths, JSON with --json); progress goes to stderr.
 Exit 0 ok, 1 a step failed, 2 bad usage or a missing precondition.
@@ -42,6 +47,12 @@ PRIORITIES = ("p0", "p1", "p2", "p3")
 KINDS = ("decision", "review", "approval", "fyi", "idea")
 VERDICTS = ("approve", "changes", "feedback", "choose", "reject")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,26}$")  # lead-<name> must fit hc's 32-character names
+
+# This machine's settings, kept in $COS_HOME/config.env: name -> (what it is, suggested value).
+SETTINGS = {
+    "COS_WORK_ROOT": ("the folder your repos live under (one folder per company or group)", "~/work"),
+    "COS_CLAUDE_CONFIG_DIR": ("the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR)", "~/.claude"),
+}
 
 CEO_SEED = """# CEO brain
 
@@ -131,6 +142,44 @@ def ensure_home():
         ceo.write_text(CEO_SEED)
 
 
+def config():
+    """This machine's settings from config.env, values with ~ expanded."""
+    out = {}
+    f = HOME / "config.env"
+    for line in (f.read_text().splitlines() if f.exists() else []):
+        k, sep, v = line.partition("=")
+        if sep and k.strip() in SETTINGS:
+            out[k.strip()] = str(Path(v.strip()).expanduser())
+    return out
+
+
+def save_config(cfg):
+    lines = [f"# {desc}\n{k}={cfg[k]}" for k, (desc, _) in SETTINGS.items() if k in cfg]
+    (HOME / "config.env").write_text("\n".join(lines) + "\n")
+
+
+def require_config(ask_all=False):
+    """Every setting, asking in a terminal for the missing ones (all of them with ask_all)."""
+    ensure_home()
+    cfg = config()
+    todo = [k for k in SETTINGS if ask_all or k not in cfg]
+    if not todo:
+        return cfg
+    if not sys.stdin.isatty():
+        raise Fail("this machine is not set up: " + ", ".join(todo) + " missing. "
+                   "Run `cos init` in a terminal, or `cos config <NAME> <value>` for each.", 2)
+    log(f"Setting up the Chief of Staff on this machine ({HOME / 'config.env'}). Press enter to keep the suggestion.")
+    for k in todo:
+        desc, default = SETTINGS[k]
+        current = cfg.get(k, default)
+        answer = input(f"{k}: {desc} [{current}]: ").strip()
+        cfg[k] = str(Path(answer or current).expanduser())
+        if not Path(cfg[k]).is_dir():
+            log(f"  note: {cfg[k]} is not a folder yet.")
+    save_config(cfg)
+    return cfg
+
+
 def project_dir(name):
     d = HOME / "projects" / name
     if not (d / "project.json").exists():
@@ -214,13 +263,57 @@ def launch(template, name, cwd, space, task, labels=(), parent=True):
 # ---- commands ---------------------------------------------------------------
 
 def cmd_init(a):
-    ensure_home()
+    require_config(ask_all=a.reset)
     print(HOME)
+
+
+def cmd_config(a):
+    cfg = config()
+    if a.name and a.name not in SETTINGS:
+        raise Fail(f"unknown setting {a.name}; settings: {', '.join(SETTINGS)}", 2)
+    if a.value is not None:
+        ensure_home()
+        cfg[a.name] = str(Path(a.value).expanduser())
+        save_config(cfg)
+    for k in [a.name] if a.name else SETTINGS:
+        print(f"{k}={cfg.get(k, '')}")
+
+
+# Each role's program and model, kept in the skill's models.json (one place to change them).
+MODELS_FILE = Path(__file__).resolve().parent.parent / "models.json"
+
+
+def roles():
+    try:
+        return read_json(MODELS_FILE)["roles"]
+    except (OSError, KeyError, json.JSONDecodeError) as e:
+        raise Fail(f"cannot read roles from {MODELS_FILE}: {e}")
+
+
+def cmd_exec(a):
+    """Start a role's program and model with this machine's settings in its environment."""
+    rs = roles()
+    if a.role not in rs:
+        raise Fail(f"unknown role {a.role}; roles: {', '.join(rs)} ({MODELS_FILE})", 2)
+    cfg = require_config()
+    os.environ["COS_WORK_ROOT"] = cfg["COS_WORK_ROOT"]
+    os.environ["CLAUDE_CONFIG_DIR"] = cfg["COS_CLAUDE_CONFIG_DIR"]
+    argv = [rs[a.role]["run"], *rs[a.role].get("args", []), *a.extra]
+    os.execvp(argv[0], argv)
+
+
+def cmd_models(a):
+    rs = roles()
+    if a.json:
+        print(json.dumps(rs, indent=2))
+        return
+    for name, r in rs.items():
+        print(f"{name:<15} {r['run']} {' '.join(r.get('args', []))}")
 
 
 def cmd_up(a):
     """Open HQ: start the CoS in its own space with the Chief of Staff panel beside it. Safe to rerun."""
-    ensure_home()
+    require_config()
     if live(COS):
         log("CoS is already running as `cos`.")
     else:
@@ -528,7 +621,15 @@ def main():
     ap = argparse.ArgumentParser(prog="cos", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("init", help="create the state folder; prints its path").set_defaults(fn=cmd_init)
+    s = sub.add_parser("init", help="set up this machine: the state folder and settings (asks for missing ones); prints its path")
+    s.add_argument("--reset", action="store_true", help="ask for every setting again"); s.set_defaults(fn=cmd_init)
+    s = sub.add_parser("config", help="print this machine's settings, or set one: cos config COS_WORK_ROOT ~/work")
+    s.add_argument("name", nargs="?"); s.add_argument("value", nargs="?"); s.set_defaults(fn=cmd_config)
+    s = sub.add_parser("exec", help="start a role (chief-of-staff, lead, implementer, ...: the template names) with its model from models.json and this machine's settings (the templates use this)")
+    s.add_argument("role"); s.add_argument("extra", nargs=argparse.REMAINDER, help="more arguments for the program")
+    s.set_defaults(fn=cmd_exec)
+    s = sub.add_parser("models", help="each role's program and model (models.json)")
+    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_models)
     sub.add_parser("up", help="open HQ: start the CoS and the Chief of Staff panel (safe to rerun)").set_defaults(fn=cmd_up)
 
     s = sub.add_parser("status", help="CoS, leads, their workers and queue counts")
