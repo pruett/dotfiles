@@ -1,6 +1,7 @@
-// brass: the CEO's panel in the Chief of Staff org, shown only in HQ. Two tabs:
-// Queue (decisions waiting on the CEO) and Org (each project's lead and workers, with
-// status, context in use and an API-rate cost estimate, from `cos stats`).
+// chief-of-staff: the CEO's panel in the Chief of Staff org, shown only in HQ. Two tabs:
+// Queue (decisions waiting on the CEO) and Fleet (each project's lead and workers, with
+// status, context in use and an API-rate cost estimate from `cos stats` and the
+// skill's prices.json).
 //
 // The Queue tab is the CEO's one queue.
 //
@@ -12,14 +13,14 @@
 // lead reports it addressed.
 //
 // Two roles (layouts/cos.json):
-// - panel (no props): Brass itself, a child of the side panel's stack next to
+// - panel (no props): the panel itself, a child of the side panel's stack next to
 //   Files and Changes.
 // - tabs (props.role "tabs"): Herdr's `tabs` bar, copied from mods/tabs/main.js
-//   (mods can't import each other), with a Brass button (in HQ only) right of Files and
+//   (mods can't import each other), with a Chief of Staff button (in HQ only) right of Files and
 //   Changes showing the open and answered queue counts. It is always on screen, so it also raises
 //   the toast for new p0/p1 items.
 //
-// t switches Queue / Org. In Queue, the list fills the panel; Enter or a click opens an item full height, Esc goes back.
+// t switches Queue / Fleet. In Queue, the list fills the panel; Enter or a click opens an item full height, Esc goes back.
 //
 // Keys (panel focused): j/k or arrows move · Enter open · Esc back · a approve · c request changes ·
 // f feedback · x reject · 1-9 pick an option · o open the first attachment ·
@@ -31,8 +32,8 @@ import { exec, home, appHome, theme, nextCommand, watchFolder, notify, props, sp
 
 const STATE = () => `${home()}/.local/state/cos`;
 const COS = () => `${home()}/.local/bin/cos`;
-const IMG_DIR = "mods/brass/.shots"; // image() reads from the app folder, so screenshots are copied here
-const PANEL = "panel", STACK = "panel-body", CHILD = "brass"; // layout node ids
+const IMG_DIR = "mods/chief-of-staff/.shots"; // image() reads from the app folder, so screenshots are copied here
+const PANEL = "panel", STACK = "panel-body", CHILD = "cos"; // layout node ids
 const HQ = "cos-hq"; // the CoS's space id (`cos up`); the queue shows only there
 const inHQ = () => spaces().find((p) => p.active)?.id === HQ;
 const KIND_LABEL = { decision: "Decision", review: "Review", approval: "Approval", idea: "Idea", fyi: "FYI" };
@@ -103,9 +104,9 @@ export default class Queue extends View {
     this.input.on("submit", (_e, cx) => this.submitNote(cx));
 
     watchQueue(cx, (cx) => this.reload(cx));
-    this.page = "queue"; // or "org"
-    this.org = null; // `cos stats`, loaded while the Org tab shows
-    cx.timer.every(10000, (cx) => { if (this.page === "org") this.loadOrg(cx); });
+    this.page = "queue"; // or "fleet"
+    this.fleet = null; // `cos stats`, loaded while the Fleet tab shows
+    cx.timer.every(10000, (cx) => { if (this.page === "fleet") this.loadFleet(cx); });
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
@@ -144,7 +145,7 @@ export default class Queue extends View {
     const actions = {
       "panel-files": () => togglePanelChild("files"),
       "panel-changes": () => togglePanelChild("changes"),
-      "panel-brass": () => { if (inHQ()) togglePanelChild(CHILD); },
+      "panel-cos": () => { if (inHQ()) togglePanelChild(CHILD); },
     };
     cx.spawn(async (cx) => {
       for (;;) { const a = actions[await nextCommand()]; if (a) { a(); cx.notify(); } }
@@ -243,24 +244,24 @@ export default class Queue extends View {
       .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
-      .when(hq, el => el.child(panelButton(CHILD, "Brass", "mods/workspace-chrome/circle-check.svg", counts)))
+      .when(hq, el => el.child(panelButton(CHILD, "Chief of Staff", "mods/workspace-chrome/circle-check.svg", counts)))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(button("close-window", w.platform === "windows" ? svg("mods/tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
   }
 
-  loadOrg(cx) {
+  loadFleet(cx) {
     cx.spawn(async (cx) => {
       const r = await exec(COS(), ["stats"]).catch((e) => ({ code: 1, stderr: String(e) }));
-      if (r.code !== 0) { this.orgError = r.stderr.trim() || "cos stats failed"; cx.notify(); return; }
-      try { this.org = JSON.parse(r.stdout); this.orgError = null; } catch { this.orgError = "cos stats printed something unexpected"; }
+      if (r.code !== 0) { this.fleetError = r.stderr.trim() || "cos stats failed"; cx.notify(); return; }
+      try { this.fleet = JSON.parse(r.stdout); this.fleetError = null; } catch { this.fleetError = "cos stats printed something unexpected"; }
       cx.notify();
     });
   }
 
   setPage(page, cx) {
     this.page = page;
-    if (page === "org") this.loadOrg(cx);
+    if (page === "fleet") this.loadFleet(cx);
     this.handle.focus();
     cx.notify();
   }
@@ -348,8 +349,8 @@ export default class Queue extends View {
       return;
     }
     const handled = () => { cx.stop_propagation(); cx.notify(); };
-    if (k === "t") { this.setPage(this.page === "queue" ? "org" : "queue", cx); return handled(); }
-    if (this.page === "org") return;
+    if (k === "t") { this.setPage(this.page === "queue" ? "fleet" : "queue", cx); return handled(); }
+    if (this.page === "fleet") return;
     const it = this.current();
     const n = this.shown().length;
     if (k === "j" || k === "down") { this.sel = Math.min(n - 1, this.sel + 1); return handled(); }
@@ -389,9 +390,9 @@ export default class Queue extends View {
       .child(div().text_size(12).font_medium().child(label))
       .when(count != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(count))));
     const top = h_flex().px(12).pt(10).pb(8).gap(6).items_center().border_b_1().border_color(t.border)
-      .child(div().text_size(13).font_semibold().pr(6).child("Brass"))
+      .child(div().text_size(13).font_semibold().pr(6).child("Chief of Staff"))
       .child(pageTab("queue", "Queue", openN))
-      .child(pageTab("org", "Org", null))
+      .child(pageTab("fleet", "Fleet", null))
       .child(div().flex_1())
       .when(this.busy, (el) => el.child(div().text_size(11).text_color(t.dim).frames(["sending ·", "sending ··", "sending ···"], 300)));
     const header = h_flex().px(12).py(6).gap(6).items_center().border_b_1().border_color(t.border)
@@ -425,18 +426,18 @@ export default class Queue extends View {
     const root = v_flex().id("root").size_full().on_size_change((size, cx) => { this.width = size.width; cx.notify(); }).bg(t.surface).text_color(t.foreground)
       .track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       .child(top);
-    if (this.page === "org") return root.child(this.renderOrg(t)).child(this.footer(null, t));
+    if (this.page === "fleet") return root.child(this.renderFleet(t)).child(this.footer(null, t));
     return root.child(header)
       .when(Boolean(this.error), (el) => el.child(div().px(12).py(6).bg(t.raised).text_size(11.5).text_color(t.blocked).child(this.error)))
       .child(body)
       .child(this.footer(it, t));
   }
 
-  // The Org tab, sized for the side panel: tiles in two rows, then one card per
+  // The Fleet tab, sized for the side panel: tiles in two rows, then one card per
   // project with two lines per agent (status and name, then model, context and cost).
-  renderOrg(t) {
-    const d = this.org;
-    if (!d) return v_flex().flex_1().p(16).child(div().text_size(12.5).text_color(this.orgError ? t.blocked : t.muted).child(this.orgError ?? "Loading…"));
+  renderFleet(t) {
+    const d = this.fleet;
+    if (!d) return v_flex().flex_1().p(16).child(div().text_size(12.5).text_color(this.fleetError ? t.blocked : t.muted).child(this.fleetError ?? "Loading…"));
     const statusColor = { working: t.working, blocked: t.blocked, done: t.done };
     const dot = (s) => div().size(7).flex_none().rounded(4).bg(statusColor[s] ?? t.dim);
     const word = (s) => div().text_size(11).text_color(s === "working" || s === "blocked" ? t.foreground : t.muted).child(s);
@@ -472,7 +473,7 @@ export default class Queue extends View {
       .when(Boolean(note), (el) => el.child(div().px(8).pb(4).text_size(11).text_color(t.dim).truncate().child(note)))
       .children(rows.length ? rows.map(row) : [div().px(8).py(4).text_size(11.5).text_color(t.dim).child("Lead stopped; the CoS starts it on its next shift.")]);
     const live = [d.cos, ...d.projects.flatMap((p) => p.agents)].filter((r) => r.status !== "stopped");
-    return v_flex().id("org").flex_1().min_h(0).overflow_y_scrollbar().p(12).gap(10)
+    return v_flex().id("fleet").flex_1().min_h(0).overflow_y_scrollbar().p(12).gap(10)
       .child(h_flex().gap(8)
         .child(tile("Projects", String(d.projects.length), `${d.projects.filter((p) => p.lead_status !== "stopped").length} running`))
         .child(tile("Agents", String(live.length), `${live.filter((r) => r.status === "working").length} working`)))
@@ -527,8 +528,8 @@ export default class Queue extends View {
       .child(div().px(5).rounded(4).bg(t.raised).border_1().border_color(t.border).text_size(10.5).font_medium().child(k))
       .child(div().text_size(11).text_color(t.muted).child(label));
     const modeLabel = { changes: "What should change?", feedback: "Your feedback", reject: "Why not?" }[this.mode];
-    if (this.page === "org") return h_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(10)
-      .child(key("t", "queue")).child(div().text_size(11).text_color(t.dim).child("Click an agent to show it · cost is at Claude API rates"));
+    if (this.page === "fleet") return h_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(10)
+      .child(key("t", "queue")).child(div().text_size(11).text_color(t.dim).child("Click an agent to show it · cost at API list prices (prices.json)"));
     const open = this.view === "open" && it;
     const nav = this.opened ? key("esc", "back") : key("enter", "open");
     return v_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(6)
@@ -543,6 +544,6 @@ export default class Queue extends View {
           .when((it?.attachments || []).length > 0, (el) => el.child(key("o", "open"))))
         .when(this.view === "answered" && Boolean(it), (el) => el.child(key("u", "reopen")))
         .child(key("v", this.view === "open" ? "answered" : "open"))
-        .child(key("t", "org")));
+        .child(key("t", "fleet")));
   }
 }

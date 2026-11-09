@@ -124,9 +124,9 @@
     "ctrl-[": "send:\u001b"
   },
   "layout:cos": {
-    "cmd-shift-e": "brass.panel-files",
-    "cmd-shift-g": "brass.panel-changes",
-    "cmd-shift-i": "brass.panel-brass",
+    "cmd-shift-e": "chief-of-staff.panel-files",
+    "cmd-shift-g": "chief-of-staff.panel-changes",
+    "cmd-shift-i": "chief-of-staff.panel-cos",
     "cmd-alt-b": "layout.toggle:panel"
   }
 }
