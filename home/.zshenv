@@ -17,5 +17,10 @@ export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_STATE_HOME="$HOME/.local/state"
 
 # Editor
-export EDITOR="zed"
+# zed on the Mac; nvim on Linux boxes (exe.dev VMs), where zed isn't installed.
+if [[ $OSTYPE == darwin* ]]; then
+  export EDITOR="zed"
+else
+  export EDITOR="nvim"
+fi
 export VISUAL="$EDITOR"

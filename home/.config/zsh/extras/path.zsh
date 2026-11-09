@@ -18,6 +18,10 @@ for brew_bin in /opt/homebrew/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
 done
 unset brew_bin
 
+# exe.dev VMs: their shared env (DEVBOX_WORKSPACE, user bin dirs), which their
+# bash setup sources. POSIX sh, safe to source here.
+[[ -f $HOME/.config/devbox/env.sh ]] && source "$HOME/.config/devbox/env.sh"
+
 # Unique entries; first occurrence wins.
 typeset -U path
 

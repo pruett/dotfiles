@@ -44,8 +44,9 @@ set_stow_args() {
   fi
 }
 
-# Move aside real files that would block stow (e.g. a default ~/.zshrc). The two
-# sed patterns cover the conflict messages of stow >= 2.4 and older releases.
+# Move aside real files that would block stow (e.g. a default ~/.zshrc). The first
+# two sed patterns cover the conflict messages of stow >= 2.4 and older releases;
+# the third covers a symlink stow didn't make (exe.dev's ~/.claude/CLAUDE.md).
 backup_conflicts() {
   local package="$1" conflict path
   set_stow_args "$package"
@@ -60,6 +61,7 @@ backup_conflicts() {
              | sed -n \
                  -e 's/.*over existing target \(.*\) since neither a link nor a directory.*/\1/p' \
                  -e 's/.*existing target is neither a directory nor owned by stow: //p' \
+                 -e 's/.*existing target is not owned by stow: //p' \
              || true)
 }
 
