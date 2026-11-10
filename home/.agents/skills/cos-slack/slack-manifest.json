@@ -1,22 +1,49 @@
 {
-  "_metadata": { "major_version": 1, "minor_version": 1 },
+  "_metadata": {
+    "major_version": 1,
+    "minor_version": 1
+  },
   "display_information": {
     "name": "k2",
     "description": "A private line to my local Chief of Staff agent. Socket Mode: no public URL.",
-    "background_color": "#1f2933"
+    "background_color": "#1f2933",
+    "long_description": "k2 is a private line between Kevin and the AI chief-of-staff agent that runs on his laptop. DM k2, or @-mention it in a thread it has been invited to, and the message goes to that agent; its answer comes back in the same DM or thread.\n\nk2 also posts the decisions the agent needs from Kevin, with buttons to answer them, so work keeps moving while he is away from his desk.\n\nHow it runs: k2 uses Socket Mode, so it has no public URL and nothing is hosted outside Slack; the connection goes out from Kevin's laptop. It reads only DMs sent to it and channels it is explicitly invited to, and it acts only on messages from Kevin; messages from anyone else are ignored."
   },
   "features": {
-    "app_home": { "home_tab_enabled": false, "messages_tab_enabled": true, "messages_tab_read_only_enabled": false },
-    "bot_user": { "display_name": "k2", "always_online": true }
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "k2",
+      "always_online": true
+    }
   },
   "oauth_config": {
     "scopes": {
-      "bot": ["app_mentions:read", "channels:history", "groups:history", "im:history", "im:write", "chat:write", "reactions:write", "users:read"]
+      "bot": [
+        "app_mentions:read",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "im:write",
+        "chat:write",
+        "reactions:write",
+        "users:read"
+      ]
     }
   },
   "settings": {
-    "event_subscriptions": { "bot_events": ["app_mention", "message.im"] },
-    "interactivity": { "is_enabled": true },
+    "event_subscriptions": {
+      "bot_events": [
+        "app_mention",
+        "message.im"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
     "org_deploy_enabled": false,
     "socket_mode_enabled": true,
     "token_rotation_enabled": false
