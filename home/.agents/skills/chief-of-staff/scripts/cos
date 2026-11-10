@@ -12,6 +12,8 @@ the panel touch that shared state, so its file layout stays consistent:
     projects/<p>/project.json    name, repo, lead terminal name, space label
     projects/<p>/plan.md         goal, current plan, what is stuck
     projects/<p>/decisions.md    dated decisions, newest last
+    inbox/<id>.json              a message for the CoS: a lead's report, your panel answer,
+                                 a lead that stopped; inbox/done/ once the CoS handled it
     queue/<id>.json              one item waiting for (or answered by) you
     queue/<id>/                  its attachments: screenshots, videos, notes
 
@@ -19,12 +21,16 @@ The default $COS_HOME links into the dotfiles repo (home/.local/state/cos), whos
 .gitignore tracks ceo.md only; the queue and project notes stay local.
 
 Terminals (hc names): the CoS is `cos`; a project's lead is `lead-<p>`.
-Messages between them are plain `hc send`. Answers you give in the panel go to the
-CoS only (`cos answer`), which passes them on.
+Nothing types into the CoS's pane, which is yours: leads report with `cos report`,
+your panel answers go through `cos answer`, and both land in the inbox. The CoS keeps
+`cos inbox --wait` running in the background, which also notices a lead that is
+blocked or has stopped. The CoS talks to leads with plain `hc send`.
 
 Agents start through `cos exec <role>` (every Herdr template's command): the program
 and model come from the skill's models.json, and this machine's settings go in their
-environment: $COS_WORK_ROOT, and CLAUDE_CONFIG_DIR from COS_CLAUDE_CONFIG_DIR.
+environment: $COS_WORK_ROOT, and CLAUDE_CONFIG_DIR from COS_CLAUDE_CONFIG_DIR. The CoS
+and leads also get their skill's SKILL.local.md (gitignored; this machine's accounts,
+repos, tools and habits) appended to their system prompt when it exists.
 
 stdout carries data (ids, paths, JSON with --json); progress goes to stderr.
 Exit 0 ok, 1 a step failed, 2 bad usage or a missing precondition.
@@ -38,6 +44,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HOME = Path(os.environ.get("COS_HOME", Path.home() / ".local/state/cos"))
@@ -45,6 +52,7 @@ COS = "cos"  # the CoS terminal's hc name
 HQ_SPACE = "cos-hq"  # herdr.space label for the CoS's space
 PRIORITIES = ("p0", "p1", "p2", "p3")
 KINDS = ("decision", "review", "approval", "fyi", "idea")
+REPORT_KINDS = ("done", "stuck", "decision", "fyi")  # what a lead's `cos report` says
 VERDICTS = ("approve", "changes", "feedback", "choose", "reject")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,26}$")  # lead-<name> must fit hc's 32-character names
 
@@ -232,8 +240,9 @@ def find_space(label):
 
 
 def launch(template, name, cwd, space, task, labels=(), parent=True):
-    """Start an agent from a template in a Herdr space, check its first message landed."""
-    args = ["run", "--bg", "--keep", "--json", "--name", name, "--cwd", str(cwd),
+    """Start an agent from a template in a Herdr space, check its first message landed.
+    hc types no notes about it into its parent: `cos inbox --wait` watches leads instead."""
+    args = ["run", "--bg", "--keep", "--json", "--no-notify", "--name", name, "--cwd", str(cwd),
             "--label", f"herdr.space={space}"]
     for lab in labels:
         args += ["--label", lab]
@@ -264,6 +273,10 @@ def launch(template, name, cwd, space, task, labels=(), parent=True):
 
 def cmd_init(a):
     require_config(ask_all=a.reset)
+    for role, f in LOCAL_NOTES.items():
+        if not f.exists():
+            f.write_text(LOCAL_SEED.format(role=role))
+            log(f"Wrote {f}: fill in this machine's notes (or ask the CoS to).")
     print(HOME)
 
 
@@ -282,6 +295,34 @@ def cmd_config(a):
 # Each role's program and model, kept in the skill's models.json (one place to change them).
 MODELS_FILE = Path(__file__).resolve().parent.parent / "models.json"
 
+# This machine's notes for a role, beside its skill and gitignored: role -> file.
+SKILLS_DIR = Path(__file__).resolve().parent.parent.parent
+LOCAL_NOTES = {"chief-of-staff": SKILLS_DIR / "chief-of-staff/SKILL.local.md",
+               "lead": SKILLS_DIR / "project-lead/SKILL.local.md"}
+LOCAL_SEED = """# This machine (SKILL.local.md)
+
+Notes for this computer only, appended to the {role}'s system prompt by `cos exec`.
+Not committed. Replace each "(not set)" with the answer, or "none".
+
+## Accounts per company
+(not set) Which Claude, Devin (`devin-as <account>`) and Codex login each company's work uses.
+
+## Companies and repos
+(not set) Which companies' repos are cloned here, beyond what $COS_WORK_ROOT/AGENTS.md says.
+
+## Where ceo.md is tracked
+(not set) The repo that tracks $COS_HOME/ceo.md, or "untracked".
+
+## Other machines
+(not set) Machines leads may run on (`hc run --on <machine>`), and what each is for.
+
+## Tools
+(not set) Which of wt, gh (logged in), herdr-app and devin are installed, and gaps to work around.
+
+## Reaching the CEO
+(not set) Working hours, and what may wait until then.
+"""
+
 
 def roles():
     try:
@@ -298,7 +339,11 @@ def cmd_exec(a):
     cfg = require_config()
     os.environ["COS_WORK_ROOT"] = cfg["COS_WORK_ROOT"]
     os.environ["CLAUDE_CONFIG_DIR"] = cfg["COS_CLAUDE_CONFIG_DIR"]
-    argv = [rs[a.role]["run"], *rs[a.role].get("args", []), *a.extra]
+    argv = [rs[a.role]["run"], *rs[a.role].get("args", [])]
+    local = LOCAL_NOTES.get(a.role)
+    if local and local.exists() and argv[0] == "claude":
+        argv += ["--append-system-prompt-file", str(local)]
+    argv += a.extra
     os.execvp(argv[0], argv)
 
 
@@ -379,7 +424,7 @@ def cmd_lead_start(a):
         print(p["lead"])
         return
     task = (f"You lead project `{p['name']}`. Repo: {p['repo']}. Your notes: {d}/plan.md and {d}/decisions.md. "
-            f"Report to the Chief of Staff with `hc send {COS} \"...\"`. "
+            f"Report to the Chief of Staff with `cos report --kind <done|stuck|decision|fyi> \"...\"`, never `hc send {COS}`. "
             + (f"First goal from the CoS: {a.goal}" if a.goal else "Read your notes, then report to the CoS that you are up and what you will do first."))
     launch("lead", p["lead"], p["repo"], p["space"], task,
            labels=[f"cos.project={p['name']}", "cos.role=lead"], parent=True)
@@ -393,6 +438,7 @@ def cmd_lead_stop(a):
     if not live(p["lead"]):
         log(f"{p['lead']} is not running.")
         return
+    forget_lead(p["lead"])
     hc("kill", p["lead"])
     hc("rm", p["lead"], check=False)
     log(f"Stopped {p['lead']} and its workers.")
@@ -456,18 +502,105 @@ def cmd_answer(a):
            + (f" [{a.choice}]" if a.choice else "") + (f": {a.text}" if a.text else "")
            + f". Asked by {it['from']}. Pass it on, record any lasting preference in ceo.md, "
              f"and `cos close {it['id']}` once it is addressed.")
-    if a.no_send:
-        print(it["id"])
-        return
-    if not live(COS):
-        log("The CoS is not running; the answer is saved and it will see it in `cos queue` on its next shift.")
-        print(it["id"])
-        return
-    r = hc("send", COS, msg, check=False)
-    if r.returncode != 0:
-        log(f"Saved, but could not send it to the CoS: {(r.stderr or r.stdout).strip()}")
-        raise Fail("send failed")
+    if not a.no_send:
+        deliver("answer", "ceo", it["project"], msg, item=it["id"])
+        if not live(COS):
+            log("The CoS is not running; the answer is in its inbox for its next shift.")
     print(it["id"])
+
+
+# ---- inbox: messages for the CoS that never type into its pane ---------------
+
+def deliver(kind, sender, project, text, **extra):
+    """Put one message in the CoS's inbox; returns its id."""
+    d = HOME / "inbox"
+    d.mkdir(parents=True, exist_ok=True)
+    msg_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(2)
+    write_json(d / f"{msg_id}.json", {"id": msg_id, "kind": kind, "from": sender, "project": project,
+                                      "text": text, "at": now(), **extra})
+    return msg_id
+
+
+def unread():
+    d = HOME / "inbox"
+    return [read_json(f) for f in sorted(d.glob("*.json"))] if d.is_dir() else []
+
+
+def watch_leads():
+    """Inbox messages for leads that turned blocked or stopped since the last look."""
+    seen_file = HOME / "inbox" / "leads.state"
+    seen = read_json(seen_file) if seen_file.exists() else {}
+    now_seen = {}
+    for p in projects():
+        st = word(live(p["lead"]))
+        now_seen[p["lead"]] = st
+        before = seen.get(p["lead"])  # None on the first look: nothing to compare with
+        if before is None or before == st:
+            continue
+        if st == "blocked":
+            deliver("blocked", p["lead"], p["name"], f"{p['lead']} is blocked: it needs a person. Read it with `hc read {p['lead']} --lines 60`.")
+        elif st == "stopped":
+            deliver("stopped", p["lead"], p["name"], f"{p['lead']} has stopped. Restart it with `cos lead start {p['name']}` if its plan has open work.")
+    (HOME / "inbox").mkdir(parents=True, exist_ok=True)
+    seen_file.write_text(json.dumps({**seen, **now_seen}))
+
+
+def forget_lead(lead):
+    """A lead the CoS stopped on purpose: no `stopped` message for it."""
+    seen_file = HOME / "inbox" / "leads.state"
+    seen = read_json(seen_file) if seen_file.exists() else {}
+    if lead in seen:
+        seen[lead] = "stopped"
+        seen_file.write_text(json.dumps(seen))
+
+
+def cmd_report(a):
+    """A lead (or anyone) reports to the CoS without typing into its pane."""
+    me = os.environ.get("HC_TERMINAL_ID")
+    t = hc_json("get", me) if me else None
+    labels = (t or {}).get("labels") or {}
+    sender = a.sender or (t or {}).get("name") or me or "unknown"
+    project = a.project or labels.get("cos.project") or "hq"
+    text = Path(a.file).read_text() if a.file else a.text
+    if not text:
+        raise Fail("give the report as text or with --file", 2)
+    msg_id = deliver(a.kind, sender, project, text, **({"file": str(Path(a.file).resolve())} if a.file else {}))
+    if not live(COS):
+        log("The CoS is not running; your report waits in its inbox for its next shift.")
+    print(msg_id)
+
+
+def show_messages(msgs, as_json):
+    if as_json:
+        print(json.dumps(msgs, indent=2))
+        return
+    for m in msgs:
+        print(f"--- {m['id']}  {m['kind']}  from {m['from']}  ({m['project']}, {m['at']})")
+        print(m["text"].rstrip())
+
+
+def cmd_inbox(a):
+    if a.done:
+        dest = HOME / "inbox" / "done"
+        dest.mkdir(parents=True, exist_ok=True)
+        for msg_id in a.done:
+            f = HOME / "inbox" / f"{msg_id}.json"
+            if not f.exists():
+                raise Fail(f"no unread message {msg_id}", 2)
+            f.rename(dest / f.name)
+        return
+    if a.wait:
+        while True:
+            watch_leads()
+            msgs = unread()
+            if msgs:
+                break
+            time.sleep(3)
+    else:
+        msgs = unread()
+        if not msgs and not a.json:
+            log("Inbox is empty.")
+    show_messages(msgs, a.json)
 
 
 def cmd_close(a):
@@ -661,6 +794,19 @@ def main():
     s.add_argument("--from", dest="sender", help="who raised it (default: $HC_TERMINAL_ID)")
     s.set_defaults(fn=cmd_ask)
 
+    s = sub.add_parser("report", help="a lead's report to the CoS, into its inbox (never `hc send cos`); prints its id")
+    s.add_argument("text", nargs="?", help="the report (or --file)")
+    s.add_argument("--kind", choices=REPORT_KINDS, default="fyi")
+    s.add_argument("--file", help="a file holding the report (for anything longer than ten lines)")
+    s.add_argument("--project", help="default: your terminal's cos.project label")
+    s.add_argument("--from", dest="sender", help="default: your hc name")
+    s.set_defaults(fn=cmd_report)
+
+    s = sub.add_parser("inbox", help="the CoS's unread messages: leads' reports, panel answers, stopped leads")
+    s.add_argument("--wait", action="store_true", help="block until there is one (run it in the background), then print them")
+    s.add_argument("--done", nargs="+", metavar="ID", help="mark messages handled")
+    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_inbox)
+
     s = sub.add_parser("queue", help="list queue items, open first by priority")
     s.add_argument("--all", action="store_true", help="include closed items")
     s.add_argument("--project"); s.add_argument("--json", action="store_true")
@@ -668,10 +814,10 @@ def main():
 
     s = sub.add_parser("show", help="print one item's JSON"); s.add_argument("id"); s.set_defaults(fn=cmd_show)
 
-    s = sub.add_parser("answer", help="record the CEO's answer and send it to the CoS (the panel runs this)")
+    s = sub.add_parser("answer", help="record the CEO's answer and put it in the CoS's inbox (the panel runs this)")
     s.add_argument("id"); s.add_argument("--verdict", choices=VERDICTS, required=True)
     s.add_argument("--text"); s.add_argument("--choice")
-    s.add_argument("--no-send", action="store_true", help="record only")
+    s.add_argument("--no-send", action="store_true", help="record only, no inbox message")
     s.set_defaults(fn=cmd_answer)
 
     sub.add_parser("stats", help="JSON for the Fleet tab: agents' status, context and API-rate cost (prices.json)").set_defaults(fn=cmd_stats)

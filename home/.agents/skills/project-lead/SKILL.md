@@ -26,7 +26,7 @@ Requires Herdr: read `hc --skill` once per session before your first `hc` comman
 
 ## Reporting to the CoS
 
-Send one report per piece of work, when it is done or stuck, with `hc send cos "..."`. Write anything longer than ten lines to a file under your project folder and send its path. A report has:
+Send one report per piece of work, when it is done or stuck, with `cos report --kind <done|stuck|decision|fyi> "..."`; it goes to the CoS's inbox. Never `hc send cos`: that types into the CEO's pane. For anything longer than ten lines, write a file under your project folder and use `cos report --kind <kind> --file <path>`. A report has:
 
 ```
 <project>: <done | stuck | needs decision> — <one line>
