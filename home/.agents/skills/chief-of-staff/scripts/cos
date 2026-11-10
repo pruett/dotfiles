@@ -1,5 +1,14 @@
-#!/usr/bin/env python3
-"""cos: the Chief of Staff org's shared state and launcher on Herdr.
+#!/usr/bin/env node
+// cos: the Chief of Staff org's shared state and launcher on Herdr. `cos --help` prints DOC.
+"use strict";
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const crypto = require("node:crypto");
+const readline = require("node:readline/promises");
+const { spawnSync } = require("node:child_process");
+
+const DOC = `cos: the Chief of Staff org's shared state and launcher on Herdr.
 
 You talk only to the Chief of Staff (CoS). The CoS runs one lead per project; each
 lead runs short-lived workers. Anything that needs your judgment is a queue item,
@@ -7,7 +16,7 @@ answered in the Chief of Staff panel (Queue tab) beside the CoS. This CLI is the
 the panel touch that shared state, so its file layout stays consistent:
 
   $COS_HOME (default ~/.local/state/cos)
-    config.env                   this machine's settings (`cos init` asks for them)
+    config.env                   this machine's settings (\`cos init\` asks for them)
     ceo.md                       your preferences and judgment, distilled by the CoS
     projects/<p>/project.json    name, repo, lead terminal name, space label
     projects/<p>/plan.md         goal, current plan, what is stuck
@@ -20,49 +29,42 @@ the panel touch that shared state, so its file layout stays consistent:
 The default $COS_HOME links into the dotfiles repo (home/.local/state/cos), whose
 .gitignore tracks ceo.md only; the queue and project notes stay local.
 
-Terminals (hc names): the CoS is `cos`; a project's lead is `lead-<p>`.
-Nothing types into the CoS's pane, which is yours: leads report with `cos report`,
-your panel answers go through `cos answer`, and both land in the inbox. The CoS keeps
-`cos inbox --wait` running in the background, which also notices a lead that is
-blocked or has stopped. The CoS talks to leads with plain `hc send`.
+Terminals (hc names): the CoS is \`cos\`; a project's lead is \`lead-<p>\`.
+Nothing types into the CoS's pane, which is yours: leads report with \`cos report\`,
+your panel answers go through \`cos answer\`, and both land in the inbox. The CoS keeps
+\`cos inbox --wait\` running in the background, which also notices a lead that is
+blocked or has stopped. The CoS talks to leads with plain \`hc send\`.
 
-Agents start through `cos exec <role>` (every Herdr template's command): the program
+Agents start through \`cos exec <role>\` (every Herdr template's command): the program
 and model come from the skill's models.json, and this machine's settings go in their
 environment: $COS_WORK_ROOT, and CLAUDE_CONFIG_DIR from COS_CLAUDE_CONFIG_DIR. The CoS
 and leads also get their skill's SKILL.local.md (gitignored; this machine's accounts,
 repos, tools and habits) appended to their system prompt when it exists.
 
 stdout carries data (ids, paths, JSON with --json); progress goes to stderr.
-Exit 0 ok, 1 a step failed, 2 bad usage or a missing precondition.
-"""
-import argparse
-import datetime as dt
-import json
-import os
-import re
-import secrets
-import shutil
-import subprocess
-import sys
-import time
-from pathlib import Path
+Exit 0 ok, 1 a step failed, 2 bad usage or a missing precondition.`;
 
-HOME = Path(os.environ.get("COS_HOME", Path.home() / ".local/state/cos"))
-COS = "cos"  # the CoS terminal's hc name
-HQ_SPACE = "cos-hq"  # herdr.space label for the CoS's space
-PRIORITIES = ("p0", "p1", "p2", "p3")
-KINDS = ("decision", "review", "approval", "fyi", "idea")
-REPORT_KINDS = ("done", "stuck", "decision", "fyi")  # what a lead's `cos report` says
-VERDICTS = ("approve", "changes", "feedback", "choose", "reject")
-NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,26}$")  # lead-<name> must fit hc's 32-character names
+const expand = (p) => {
+  const s = p.replace(/^~(?=$|\/)/, os.homedir());
+  return s.length > 1 ? path.normalize(s).replace(/\/+$/, "") : s;
+};
 
-# This machine's settings, kept in $COS_HOME/config.env: name -> (what it is, suggested value).
-SETTINGS = {
-    "COS_WORK_ROOT": ("the folder your repos live under (one folder per company or group)", "~/work"),
-    "COS_CLAUDE_CONFIG_DIR": ("the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR)", "~/.claude"),
-}
+const HOME = process.env.COS_HOME ? expand(process.env.COS_HOME) : path.join(os.homedir(), ".local/state/cos");
+const COS = "cos"; // the CoS terminal's hc name
+const HQ_SPACE = "cos-hq"; // herdr.space label for the CoS's space
+const PRIORITIES = ["p0", "p1", "p2", "p3"];
+const KINDS = ["decision", "review", "approval", "fyi", "idea"];
+const REPORT_KINDS = ["done", "stuck", "decision", "fyi"]; // what a lead's `cos report` says
+const VERDICTS = ["approve", "changes", "feedback", "choose", "reject"];
+const NAME_RE = /^[a-z0-9][a-z0-9-]{0,26}$/; // lead-<name> must fit hc's 32-character names
 
-CEO_SEED = """# CEO brain
+// This machine's settings, kept in $COS_HOME/config.env: name -> [what it is, suggested value].
+const SETTINGS = {
+  COS_WORK_ROOT: ["the folder your repos live under (one folder per company or group)", "~/work"],
+  COS_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR)", "~/.claude"],
+};
+
+const CEO_SEED = `# CEO brain
 
 What the CoS has learned about how you decide. The CoS reads this before every
 escalation and settles anything it already answers. It adds a line whenever an
@@ -74,238 +76,235 @@ answer of yours shows a preference that will recur. One line per rule; newest la
   changes what a user sees.
 
 ## Preferences
-"""
+`;
 
+class Fail extends Error {
+  constructor(msg, code = 1) {
+    super(msg);
+    this.code = code;
+  }
+}
 
-class Fail(Exception):
-    def __init__(self, msg, code=1):
-        super().__init__(msg)
-        self.code = code
+const log = (msg) => process.stderr.write(msg + "\n");
+const out = (msg) => process.stdout.write(msg + "\n");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const exists = (p) => fs.existsSync(p);
+const pad = (s, n) => String(s ?? "").padEnd(n);
+const round4 = (x) => Math.round(x * 1e4) / 1e4;
+const hex2 = () => crypto.randomBytes(2).toString("hex");
 
+function stamp(fmt) {
+  const d = new Date(), z = (n) => String(n).padStart(2, "0");
+  return fmt.replace(/%([YmdHMS])/g, (_, c) =>
+    ({ Y: d.getFullYear(), m: z(d.getMonth() + 1), d: z(d.getDate()), H: z(d.getHours()), M: z(d.getMinutes()), S: z(d.getSeconds()) })[c]);
+}
 
-def log(msg):
-    print(msg, file=sys.stderr)
+function now() {
+  const off = -new Date().getTimezoneOffset(), z = (n) => String(n).padStart(2, "0");
+  return stamp("%Y-%m-%dT%H:%M:%S") + (off >= 0 ? "+" : "-") + z(Math.floor(Math.abs(off) / 60)) + ":" + z(Math.abs(off) % 60);
+}
 
+const readJson = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
 
-def now():
-    return dt.datetime.now().astimezone().isoformat(timespec="seconds")
+function writeJson(p, data) {
+  const tmp = p + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
+  fs.renameSync(tmp, p); // atomic, so the panel never reads half a file
+}
 
+function run(prog, args, check) {
+  const r = spawnSync(prog, args, { encoding: "utf8" });
+  if (r.error) r.status = 127, r.stderr = String(r.error.message);
+  r.stdout ??= "", r.stderr ??= "";
+  if (check && r.status !== 0)
+    throw new Fail(`${prog} ${args.slice(0, 2).join(" ")} failed: ${(r.stderr || r.stdout).trim()}`);
+  return r;
+}
+const hc = (args, check = true) => run("hc", args, check);
+const app = (args, check = true) => run("herdr-app", args, check);
 
-def read_json(path):
-    return json.loads(Path(path).read_text())
+function hcJson(...args) {
+  const r = hc([...args, "--json"], false);
+  if (r.status !== 0) return null;
+  try { return JSON.parse(r.stdout); } catch { return null; }
+}
 
+// A terminal's status as one word: `hc get` gives {app, state}, `hc ls` a plain word.
+function word(t) {
+  if (!t) return "stopped";
+  let st = t.status;
+  if (st && typeof st === "object") st = st.state;
+  return st || "live";
+}
 
-def write_json(path, data):
-    path = Path(path)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2) + "\n")
-    tmp.replace(path)  # atomic, so the panel never reads half a file
+// The terminal record for a live terminal with this hc name, else null.
+function live(name) {
+  const t = hcJson("get", name);
+  return t && t.state === "live" ? t : null;
+}
 
+function ensureHome() {
+  for (const sub of ["projects", "queue"]) fs.mkdirSync(path.join(HOME, sub), { recursive: true });
+  const ceo = path.join(HOME, "ceo.md");
+  if (!exists(ceo)) fs.writeFileSync(ceo, CEO_SEED);
+}
 
-def hc(*args, check=True):
-    r = subprocess.run(["hc", *args], capture_output=True, text=True)
-    if check and r.returncode != 0:
-        raise Fail(f"hc {' '.join(args[:2])} failed: {(r.stderr or r.stdout).strip()}")
-    return r
+// This machine's settings from config.env, values with ~ expanded.
+function config() {
+  const cfg = {}, f = path.join(HOME, "config.env");
+  for (const line of exists(f) ? fs.readFileSync(f, "utf8").split("\n") : []) {
+    const i = line.indexOf("=");
+    if (i >= 0 && line.slice(0, i).trim() in SETTINGS) cfg[line.slice(0, i).trim()] = expand(line.slice(i + 1).trim());
+  }
+  return cfg;
+}
 
+function saveConfig(cfg) {
+  const lines = Object.entries(SETTINGS).filter(([k]) => k in cfg).map(([k, [desc]]) => `# ${desc}\n${k}=${cfg[k]}`);
+  fs.writeFileSync(path.join(HOME, "config.env"), lines.join("\n") + "\n");
+}
 
-def hc_json(*args):
-    r = hc(*args, "--json", check=False)
-    if r.returncode != 0:
-        return None
-    try:
-        return json.loads(r.stdout)
-    except json.JSONDecodeError:
-        return None
+// Every setting, asking in a terminal for the missing ones (all of them with askAll).
+async function requireConfig(askAll = false) {
+  ensureHome();
+  const cfg = config();
+  const todo = Object.keys(SETTINGS).filter((k) => askAll || !(k in cfg));
+  if (!todo.length) return cfg;
+  if (!process.stdin.isTTY)
+    throw new Fail(`this machine is not set up: ${todo.join(", ")} missing. ` +
+      "Run `cos init` in a terminal, or `cos config <NAME> <value>` for each.", 2);
+  log(`Setting up the Chief of Staff on this machine (${path.join(HOME, "config.env")}). Press enter to keep the suggestion.`);
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    for (const k of todo) {
+      const [desc, def] = SETTINGS[k], current = cfg[k] ?? def;
+      const answer = (await rl.question(`${k}: ${desc} [${current}]: `)).trim();
+      cfg[k] = expand(answer || current);
+      if (!isDir(cfg[k])) log(`  note: ${cfg[k]} is not a folder yet.`);
+    }
+  } finally {
+    rl.close();
+  }
+  saveConfig(cfg);
+  return cfg;
+}
 
+function isDir(p) {
+  try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
 
-def app(*args, check=True):
-    r = subprocess.run(["herdr-app", *args], capture_output=True, text=True)
-    if check and r.returncode != 0:
-        raise Fail(f"herdr-app {' '.join(args[:2])} failed: {(r.stderr or r.stdout).strip()}")
-    return r
+function projectDir(name) {
+  const d = path.join(HOME, "projects", name);
+  if (!exists(path.join(d, "project.json")))
+    throw new Fail(`no project '${name}'; add it with: cos project add ${name} --repo <path>`, 2);
+  return d;
+}
 
+function projects() {
+  const dir = path.join(HOME, "projects");
+  if (!isDir(dir)) return [];
+  return fs.readdirSync(dir).sort()
+    .map((n) => path.join(dir, n, "project.json")).filter(exists).map(readJson);
+}
 
-def word(t):
-    """A terminal's status as one word: `hc get` gives {app, state}, `hc ls` a plain word."""
-    if not t:
-        return "stopped"
-    st = t.get("status")
-    if isinstance(st, dict):
-        st = st.get("state")
-    return st or "live"
+function items(includeClosed = false) {
+  const dir = path.join(HOME, "queue"), list = [];
+  for (const f of isDir(dir) ? fs.readdirSync(dir) : []) {
+    if (!f.endsWith(".json")) continue;
+    let it;
+    try { it = readJson(path.join(dir, f)); } catch { continue; }
+    if (includeClosed || it.status !== "closed") list.push(it);
+  }
+  // Open first, then priority, then oldest first.
+  const order = { open: 0, answered: 1, closed: 2 };
+  const key = (i) => [order[i.status] ?? 3, i.priority ?? "p2", i.created ?? ""];
+  return list.sort((a, b) => {
+    const [x, y] = [key(a), key(b)];
+    for (let n = 0; n < 3; n++) if (x[n] !== y[n]) return x[n] < y[n] ? -1 : 1;
+    return 0;
+  });
+}
 
+function itemPath(id) {
+  const p = path.join(HOME, "queue", `${id}.json`);
+  if (!exists(p)) throw new Fail(`no queue item '${id}'`, 2);
+  return p;
+}
 
-def live(name):
-    """The terminal record for a live terminal with this hc name, else None."""
-    t = hc_json("get", name)
-    return t if t and t.get("state") == "live" else None
+// The Herdr space id a terminal labelled herdr.space=<label> landed in, if Herdr kept the label as its id.
+function findSpace(label) {
+  const r = app(["ls"], false);
+  if (r.status !== 0) return null;
+  try { return (JSON.parse(r.stdout).spaces || []).find((s) => s.id === label) || null; } catch { return null; }
+}
 
+// Start an agent from a template in a Herdr space, check its first message landed.
+// hc types no notes about it into its parent: `cos inbox --wait` watches leads instead.
+function launch(template, name, cwd, space, task, labels = [], parent = true) {
+  const args = ["run", "--bg", "--keep", "--json", "--no-notify", "--name", name, "--cwd", cwd,
+    "--label", `herdr.space=${space}`];
+  for (const lab of labels) args.push("--label", lab);
+  args.push(parent ? "--outlive-parent" : "--no-parent", template, task);
+  const r = hc(args);
+  let res;
+  try { res = JSON.parse(r.stdout); } catch { res = {}; }
+  if ((res.first_message || {}).sent !== false) return res;
+  // Claude asks before working in a folder it has not seen; "No, exit" is preselected.
+  const screen = hc(["read", name, "--lines", "0"], false).stdout;
+  if (screen.includes("trust this folder")) {
+    log(`${name}: accepting Claude's trust prompt for ${cwd}.`);
+    hc(["keys", name, "down", "enter"]);
+    hc(["wait", name, "--timeout", "60"], false);
+    if (hc(["send", name, task], false).status === 0) return res;
+  }
+  log(`${name}: started, but its first message was not sent (${(res.first_message || {}).reason}).`);
+  log(`  Look with \`hc read ${name}\`, resolve what it shows, then send the task with \`hc send ${name} ...\`.`);
+  return res;
+}
 
-def ensure_home():
-    for sub in ("projects", "queue"):
-        (HOME / sub).mkdir(parents=True, exist_ok=True)
-    ceo = HOME / "ceo.md"
-    if not ceo.exists():
-        ceo.write_text(CEO_SEED)
+// ---- commands ---------------------------------------------------------------
 
+async function cmdInit(a) {
+  await requireConfig(a.reset);
+  for (const [role, f] of Object.entries(LOCAL_NOTES)) {
+    if (!exists(f)) {
+      fs.writeFileSync(f, LOCAL_SEED.replace("{role}", role));
+      log(`Wrote ${f}: fill in this machine's notes (or ask the CoS to).`);
+    }
+  }
+  out(HOME);
+}
 
-def config():
-    """This machine's settings from config.env, values with ~ expanded."""
-    out = {}
-    f = HOME / "config.env"
-    for line in (f.read_text().splitlines() if f.exists() else []):
-        k, sep, v = line.partition("=")
-        if sep and k.strip() in SETTINGS:
-            out[k.strip()] = str(Path(v.strip()).expanduser())
-    return out
+function cmdConfig(a) {
+  const cfg = config();
+  if (a.name && !(a.name in SETTINGS))
+    throw new Fail(`unknown setting ${a.name}; settings: ${Object.keys(SETTINGS).join(", ")}`, 2);
+  if (a.value != null) {
+    ensureHome();
+    cfg[a.name] = expand(a.value);
+    saveConfig(cfg);
+  }
+  for (const k of a.name ? [a.name] : Object.keys(SETTINGS)) out(`${k}=${cfg[k] ?? ""}`);
+}
 
+// Where this script really lives (~/.local/bin/cos is a link to it), and the skill around it.
+const SKILL_DIR = path.dirname(path.dirname(fs.realpathSync(__filename)));
+// Each role's program and model, kept in the skill's models.json (one place to change them).
+const MODELS_FILE = path.join(SKILL_DIR, "models.json");
 
-def save_config(cfg):
-    lines = [f"# {desc}\n{k}={cfg[k]}" for k, (desc, _) in SETTINGS.items() if k in cfg]
-    (HOME / "config.env").write_text("\n".join(lines) + "\n")
+// This machine's notes for a role, beside its skill and gitignored: role -> file.
+const SKILLS_DIR = path.dirname(SKILL_DIR);
+const LOCAL_NOTES = {
+  "chief-of-staff": path.join(SKILLS_DIR, "chief-of-staff/SKILL.local.md"),
+  lead: path.join(SKILLS_DIR, "project-lead/SKILL.local.md"),
+};
+const LOCAL_SEED = `# This machine (SKILL.local.md)
 
-
-def require_config(ask_all=False):
-    """Every setting, asking in a terminal for the missing ones (all of them with ask_all)."""
-    ensure_home()
-    cfg = config()
-    todo = [k for k in SETTINGS if ask_all or k not in cfg]
-    if not todo:
-        return cfg
-    if not sys.stdin.isatty():
-        raise Fail("this machine is not set up: " + ", ".join(todo) + " missing. "
-                   "Run `cos init` in a terminal, or `cos config <NAME> <value>` for each.", 2)
-    log(f"Setting up the Chief of Staff on this machine ({HOME / 'config.env'}). Press enter to keep the suggestion.")
-    for k in todo:
-        desc, default = SETTINGS[k]
-        current = cfg.get(k, default)
-        answer = input(f"{k}: {desc} [{current}]: ").strip()
-        cfg[k] = str(Path(answer or current).expanduser())
-        if not Path(cfg[k]).is_dir():
-            log(f"  note: {cfg[k]} is not a folder yet.")
-    save_config(cfg)
-    return cfg
-
-
-def project_dir(name):
-    d = HOME / "projects" / name
-    if not (d / "project.json").exists():
-        raise Fail(f"no project {name!r}; add it with: cos project add {name} --repo <path>", 2)
-    return d
-
-
-def projects():
-    out = []
-    for f in sorted((HOME / "projects").glob("*/project.json")):
-        out.append(read_json(f))
-    return out
-
-
-def items(include_closed=False):
-    out = []
-    for f in (HOME / "queue").glob("*.json"):
-        try:
-            it = read_json(f)
-        except (json.JSONDecodeError, OSError):
-            continue
-        if include_closed or it.get("status") != "closed":
-            out.append(it)
-    # Open first, then priority, then oldest first.
-    order = {"open": 0, "answered": 1, "closed": 2}
-    out.sort(key=lambda i: (order.get(i.get("status"), 3), i.get("priority", "p2"), i.get("created", "")))
-    return out
-
-
-def item_path(item_id):
-    p = HOME / "queue" / f"{item_id}.json"
-    if not p.exists():
-        raise Fail(f"no queue item {item_id!r}", 2)
-    return p
-
-
-def find_space(label):
-    """The Herdr space id a terminal labelled herdr.space=<label> landed in, if Herdr kept the label as its id."""
-    r = app("ls", check=False)
-    if r.returncode != 0:
-        return None
-    try:
-        data = json.loads(r.stdout)
-    except json.JSONDecodeError:
-        return None
-    for s in data.get("spaces", []):
-        if s.get("id") == label:
-            return s
-    return None
-
-
-def launch(template, name, cwd, space, task, labels=(), parent=True):
-    """Start an agent from a template in a Herdr space, check its first message landed.
-    hc types no notes about it into its parent: `cos inbox --wait` watches leads instead."""
-    args = ["run", "--bg", "--keep", "--json", "--no-notify", "--name", name, "--cwd", str(cwd),
-            "--label", f"herdr.space={space}"]
-    for lab in labels:
-        args += ["--label", lab]
-    args += ["--outlive-parent"] if parent else ["--no-parent"]
-    args += [template, task]
-    r = hc(*args)
-    try:
-        res = json.loads(r.stdout)
-    except json.JSONDecodeError:
-        res = {}
-    if (res.get("first_message") or {}).get("sent") is not False:
-        return res
-    # Claude asks before working in a folder it has not seen; "No, exit" is preselected.
-    screen = hc("read", name, "--lines", "0", check=False).stdout
-    if "trust this folder" in screen:
-        log(f"{name}: accepting Claude's trust prompt for {cwd}.")
-        hc("keys", name, "down", "enter")
-        hc("wait", name, "--timeout", "60", check=False)
-        if hc("send", name, task, check=False).returncode == 0:
-            return res
-    reason = (res.get("first_message") or {}).get("reason")
-    log(f"{name}: started, but its first message was not sent ({reason}).")
-    log(f"  Look with `hc read {name}`, resolve what it shows, then send the task with `hc send {name} ...`.")
-    return res
-
-
-# ---- commands ---------------------------------------------------------------
-
-def cmd_init(a):
-    require_config(ask_all=a.reset)
-    for role, f in LOCAL_NOTES.items():
-        if not f.exists():
-            f.write_text(LOCAL_SEED.format(role=role))
-            log(f"Wrote {f}: fill in this machine's notes (or ask the CoS to).")
-    print(HOME)
-
-
-def cmd_config(a):
-    cfg = config()
-    if a.name and a.name not in SETTINGS:
-        raise Fail(f"unknown setting {a.name}; settings: {', '.join(SETTINGS)}", 2)
-    if a.value is not None:
-        ensure_home()
-        cfg[a.name] = str(Path(a.value).expanduser())
-        save_config(cfg)
-    for k in [a.name] if a.name else SETTINGS:
-        print(f"{k}={cfg.get(k, '')}")
-
-
-# Each role's program and model, kept in the skill's models.json (one place to change them).
-MODELS_FILE = Path(__file__).resolve().parent.parent / "models.json"
-
-# This machine's notes for a role, beside its skill and gitignored: role -> file.
-SKILLS_DIR = Path(__file__).resolve().parent.parent.parent
-LOCAL_NOTES = {"chief-of-staff": SKILLS_DIR / "chief-of-staff/SKILL.local.md",
-               "lead": SKILLS_DIR / "project-lead/SKILL.local.md"}
-LOCAL_SEED = """# This machine (SKILL.local.md)
-
-Notes for this computer only, appended to the {role}'s system prompt by `cos exec`.
+Notes for this computer only, appended to the {role}'s system prompt by \`cos exec\`.
 Not committed. Replace each "(not set)" with the answer, or "none".
 
 ## Accounts per company
-(not set) Which Claude, Devin (`devin-as <account>`) and Codex login each company's work uses.
+(not set) Which Claude, Devin (\`devin-as <account>\`) and Codex login each company's work uses.
 
 ## Companies and repos
 (not set) Which companies' repos are cloned here, beyond what $COS_WORK_ROOT/AGENTS.md says.
@@ -314,525 +313,567 @@ Not committed. Replace each "(not set)" with the answer, or "none".
 (not set) The repo that tracks $COS_HOME/ceo.md, or "untracked".
 
 ## Other machines
-(not set) Machines leads may run on (`hc run --on <machine>`), and what each is for.
+(not set) Machines leads may run on (\`hc run --on <machine>\`), and what each is for.
 
 ## Tools
 (not set) Which of wt, gh (logged in), herdr-app and devin are installed, and gaps to work around.
 
 ## Reaching the CEO
 (not set) Working hours, and what may wait until then.
-"""
+`;
 
+function roles() {
+  try {
+    const rs = readJson(MODELS_FILE).roles;
+    if (!rs) throw new Error("no roles");
+    return rs;
+  } catch (e) {
+    throw new Fail(`cannot read roles from ${MODELS_FILE}: ${e.message}`);
+  }
+}
 
-def roles():
-    try:
-        return read_json(MODELS_FILE)["roles"]
-    except (OSError, KeyError, json.JSONDecodeError) as e:
-        raise Fail(f"cannot read roles from {MODELS_FILE}: {e}")
+// The executable's full path, as execvp would find it on $PATH.
+function which(prog) {
+  if (prog.includes("/")) return prog;
+  for (const dir of (process.env.PATH || "").split(":")) {
+    const p = path.join(dir || ".", prog);
+    try { fs.accessSync(p, fs.constants.X_OK); if (!isDir(p)) return p; } catch {}
+  }
+  throw new Fail(`${prog} is not on PATH`);
+}
 
+// Start a role's program and model with this machine's settings in its environment.
+async function cmdExec(a) {
+  const rs = roles();
+  if (!(a.role in rs)) throw new Fail(`unknown role ${a.role}; roles: ${Object.keys(rs).join(", ")} (${MODELS_FILE})`, 2);
+  const cfg = await requireConfig();
+  const env = { ...process.env, COS_WORK_ROOT: cfg.COS_WORK_ROOT, CLAUDE_CONFIG_DIR: cfg.COS_CLAUDE_CONFIG_DIR };
+  const argv = [rs[a.role].run, ...(rs[a.role].args || [])];
+  const local = LOCAL_NOTES[a.role];
+  if (local && exists(local) && argv[0] === "claude") argv.push("--append-system-prompt-file", local);
+  argv.push(...a.extra);
+  process.execve(which(argv[0]), argv, env);
+}
 
-def cmd_exec(a):
-    """Start a role's program and model with this machine's settings in its environment."""
-    rs = roles()
-    if a.role not in rs:
-        raise Fail(f"unknown role {a.role}; roles: {', '.join(rs)} ({MODELS_FILE})", 2)
-    cfg = require_config()
-    os.environ["COS_WORK_ROOT"] = cfg["COS_WORK_ROOT"]
-    os.environ["CLAUDE_CONFIG_DIR"] = cfg["COS_CLAUDE_CONFIG_DIR"]
-    argv = [rs[a.role]["run"], *rs[a.role].get("args", [])]
-    local = LOCAL_NOTES.get(a.role)
-    if local and local.exists() and argv[0] == "claude":
-        argv += ["--append-system-prompt-file", str(local)]
-    argv += a.extra
-    os.execvp(argv[0], argv)
+function cmdModels(a) {
+  const rs = roles();
+  if (a.json) return out(JSON.stringify(rs, null, 2));
+  for (const [name, r] of Object.entries(rs)) out(`${pad(name, 15)} ${r.run} ${(r.args || []).join(" ")}`);
+}
 
+// Open HQ: start the CoS in its own space with the Chief of Staff panel beside it. Safe to rerun.
+async function cmdUp() {
+  await requireConfig();
+  if (live(COS)) log("CoS is already running as `cos`.");
+  else {
+    const task = "Start your shift. Read ceo.md, then `cos status`, then report in your own pane (the CEO reads it in HQ; " +
+      "don't hc send it back) in five lines or fewer: what each lead is doing, what is stuck, and what is waiting in the queue.";
+    launch("chief-of-staff", COS, HOME, HQ_SPACE, task, ["cos.role=cos"], false);
+    log("Started the CoS as `cos`.");
+  }
+  if (!findSpace(HQ_SPACE)) {
+    log("The Herdr window is not open, so HQ is not shown; the CoS runs anyway. Rerun `cos up` with Herdr open.");
+    return out(COS);
+  }
+  app(["do", "space.rename", "--id", HQ_SPACE, "--name", "HQ"], false);
+  app(["do", "space.select", "--id", HQ_SPACE], false);
+  // The Chief of Staff panel (Queue + Fleet) is a side-panel child (layouts/cos.json), next to Files and Changes.
+  app(["do", "layout.switch", JSON.stringify({ name: "cos" })], false);
+  app(["do", "layout.select", JSON.stringify({ stack: "panel-body", child: "cos" })], false);
+  app(["do", "layout.show", JSON.stringify({ id: "panel" })], false);
+  out(COS);
+}
 
-def cmd_models(a):
-    rs = roles()
-    if a.json:
-        print(json.dumps(rs, indent=2))
-        return
-    for name, r in rs.items():
-        print(f"{name:<15} {r['run']} {' '.join(r.get('args', []))}")
+function cmdProjectAdd(a) {
+  ensureHome();
+  if (!NAME_RE.test(a.name)) throw new Fail("project names are 1-27 of a-z 0-9 -, starting with a letter or digit", 2);
+  let repo = path.resolve(expand(a.repo));
+  try { repo = fs.realpathSync(repo); } catch {}
+  if (!isDir(repo)) throw new Fail(`${repo} is not a folder`, 2);
+  const d = path.join(HOME, "projects", a.name);
+  fs.mkdirSync(d, { recursive: true });
+  let meta = { name: a.name, repo, lead: `lead-${a.name}`, space: `cos-${a.name}`, created: now() };
+  const pj = path.join(d, "project.json");
+  if (exists(pj)) meta = { ...meta, ...readJson(pj), repo };
+  writeJson(pj, meta);
+  const plan = path.join(d, "plan.md");
+  if (!exists(plan))
+    fs.writeFileSync(plan, `# ${a.name}\n\n## Goal\n${a.goal || "(not set yet)"}\n\n## Plan\n\n## Stuck\n\n## Done\n`);
+  const dec = path.join(d, "decisions.md");
+  if (!exists(dec)) fs.writeFileSync(dec, `# ${a.name} decisions\n\nOne line each: date, decision, who decided, why.\n\n`);
+  out(d);
+}
 
+function cmdProjectLs(a) {
+  const ps = projects();
+  for (const p of ps) {
+    const t = live(p.lead);
+    p.lead_status = word(t);
+    p.lead_address = t ? t.address ?? null : null;
+  }
+  if (a.json) return out(JSON.stringify(ps, null, 2));
+  for (const p of ps) out(`${pad(p.name, 16)} ${pad(p.lead_status, 8)} ${p.repo}`);
+}
 
-def cmd_up(a):
-    """Open HQ: start the CoS in its own space with the Chief of Staff panel beside it. Safe to rerun."""
-    require_config()
-    if live(COS):
-        log("CoS is already running as `cos`.")
-    else:
-        task = ("Start your shift. Read ceo.md, then `cos status`, then report in your own pane (the CEO reads it in HQ; "
-                "don't hc send it back) in five lines or fewer: what each lead is doing, what is stuck, and what is waiting in the queue.")
-        launch("chief-of-staff", COS, HOME, HQ_SPACE, task, labels=["cos.role=cos"], parent=False)
-        log("Started the CoS as `cos`.")
-    if not find_space(HQ_SPACE):
-        log("The Herdr window is not open, so HQ is not shown; the CoS runs anyway. Rerun `cos up` with Herdr open.")
-        print(COS)
-        return
-    app("do", "space.rename", "--id", HQ_SPACE, "--name", "HQ", check=False)
-    app("do", "space.select", "--id", HQ_SPACE, check=False)
-    # The Chief of Staff panel (Queue + Fleet) is a side-panel child (layouts/cos.json), next to Files and Changes.
-    app("do", "layout.switch", json.dumps({"name": "cos"}), check=False)
-    app("do", "layout.select", json.dumps({"stack": "panel-body", "child": "cos"}), check=False)
-    app("do", "layout.show", json.dumps({"id": "panel"}), check=False)
-    print(COS)
+function cmdLeadStart(a) {
+  const d = projectDir(a.name);
+  const p = readJson(path.join(d, "project.json"));
+  if (live(p.lead)) {
+    log(`${p.lead} is already running.`);
+    return out(p.lead);
+  }
+  const task = `You lead project \`${p.name}\`. Repo: ${p.repo}. Your notes: ${d}/plan.md and ${d}/decisions.md. ` +
+    `Report to the Chief of Staff with \`cos report --kind <done|stuck|decision|fyi> "..."\`, never \`hc send ${COS}\`. ` +
+    (a.goal ? `First goal from the CoS: ${a.goal}` : "Read your notes, then report to the CoS that you are up and what you will do first.");
+  launch("lead", p.lead, p.repo, p.space, task, [`cos.project=${p.name}`, "cos.role=lead"], true);
+  app(["do", "space.rename", "--id", p.space, "--name", p.name], false);
+  log(`Started ${p.lead} in space ${p.name}.`);
+  out(p.lead);
+}
 
+function cmdLeadStop(a) {
+  const p = readJson(path.join(projectDir(a.name), "project.json"));
+  if (!live(p.lead)) return log(`${p.lead} is not running.`);
+  forgetLead(p.lead);
+  hc(["kill", p.lead]);
+  hc(["rm", p.lead], false);
+  log(`Stopped ${p.lead} and its workers.`);
+}
 
-def cmd_project_add(a):
-    ensure_home()
-    if not NAME_RE.match(a.name):
-        raise Fail("project names are 1-27 of a-z 0-9 -, starting with a letter or digit", 2)
-    repo = Path(a.repo).expanduser().resolve()
-    if not repo.is_dir():
-        raise Fail(f"{repo} is not a folder", 2)
-    d = HOME / "projects" / a.name
-    d.mkdir(parents=True, exist_ok=True)
-    meta = {"name": a.name, "repo": str(repo), "lead": f"lead-{a.name}", "space": f"cos-{a.name}",
-            "created": now()}
-    pj = d / "project.json"
-    if pj.exists():
-        meta = {**meta, **read_json(pj), "repo": str(repo)}
-    write_json(pj, meta)
-    plan = d / "plan.md"
-    if not plan.exists():
-        plan.write_text(f"# {a.name}\n\n## Goal\n{a.goal or '(not set yet)'}\n\n## Plan\n\n## Stuck\n\n## Done\n")
-    dec = d / "decisions.md"
-    if not dec.exists():
-        dec.write_text(f"# {a.name} decisions\n\nOne line each: date, decision, who decided, why.\n\n")
-    print(d)
-
-
-def cmd_project_ls(a):
-    ps = projects()
-    for p in ps:
-        t = live(p["lead"])
-        p["lead_status"] = word(t)
-        p["lead_address"] = (t or {}).get("address")
-    if a.json:
-        print(json.dumps(ps, indent=2))
-        return
-    for p in ps:
-        print(f"{p['name']:<16} {p['lead_status']:<8} {p['repo']}")
-
-
-def cmd_lead_start(a):
-    d = project_dir(a.name)
-    p = read_json(d / "project.json")
-    if live(p["lead"]):
-        log(f"{p['lead']} is already running.")
-        print(p["lead"])
-        return
-    task = (f"You lead project `{p['name']}`. Repo: {p['repo']}. Your notes: {d}/plan.md and {d}/decisions.md. "
-            f"Report to the Chief of Staff with `cos report --kind <done|stuck|decision|fyi> \"...\"`, never `hc send {COS}`. "
-            + (f"First goal from the CoS: {a.goal}" if a.goal else "Read your notes, then report to the CoS that you are up and what you will do first."))
-    launch("lead", p["lead"], p["repo"], p["space"], task,
-           labels=[f"cos.project={p['name']}", "cos.role=lead"], parent=True)
-    app("do", "space.rename", "--id", p["space"], "--name", p["name"], check=False)
-    log(f"Started {p['lead']} in space {p['name']}.")
-    print(p["lead"])
-
-
-def cmd_lead_stop(a):
-    p = read_json(project_dir(a.name) / "project.json")
-    if not live(p["lead"]):
-        log(f"{p['lead']} is not running.")
-        return
-    forget_lead(p["lead"])
-    hc("kill", p["lead"])
-    hc("rm", p["lead"], check=False)
-    log(f"Stopped {p['lead']} and its workers.")
-
-
-def cmd_ask(a):
-    ensure_home()
-    if a.project != "hq":
-        project_dir(a.project)
-    item_id = dt.datetime.now().strftime("%m%d-%H%M") + "-" + secrets.token_hex(2)
-    att_dir = HOME / "queue" / item_id
-    atts = []
-    for src in a.attach or []:
-        if re.match(r"^https?://", src):
-            atts.append({"kind": "link", "url": src})
-            continue
-        s = Path(src).expanduser()
-        if not s.is_file():
-            raise Fail(f"attachment {src} is not a file", 2)
-        att_dir.mkdir(parents=True, exist_ok=True)
-        dest = att_dir / s.name
-        shutil.copy2(s, dest)
-        kind = "image" if s.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp") else \
-               "video" if s.suffix.lower() in (".mp4", ".mov", ".webm") else "file"
-        atts.append({"kind": kind, "path": str(dest)})
-    item = {
-        "id": item_id, "project": a.project, "from": a.sender or os.environ.get("HC_TERMINAL_ID") or "cos",
-        "kind": a.kind, "priority": a.priority, "title": a.title, "body": a.body or "",
-        "recommendation": a.recommend or "", "options": a.option or [], "attachments": atts,
-        "status": "open", "answer": None, "history": [], "created": now(), "updated": now(),
+function cmdAsk(a) {
+  ensureHome();
+  if (a.project !== "hq") projectDir(a.project);
+  const id = stamp("%m%d-%H%M") + "-" + hex2();
+  const attDir = path.join(HOME, "queue", id);
+  const atts = [];
+  for (const src of a.attach) {
+    if (/^https?:\/\//.test(src)) {
+      atts.push({ kind: "link", url: src });
+      continue;
     }
-    write_json(HOME / "queue" / f"{item_id}.json", item)
-    print(item_id)
+    const s = expand(src);
+    if (!exists(s) || !fs.statSync(s).isFile()) throw new Fail(`attachment ${src} is not a file`, 2);
+    fs.mkdirSync(attDir, { recursive: true });
+    const dest = path.join(attDir, path.basename(s));
+    fs.copyFileSync(s, dest);
+    const st = fs.statSync(s);
+    fs.utimesSync(dest, st.atime, st.mtime);
+    const ext = path.extname(s).toLowerCase();
+    const kind = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(ext) ? "image"
+      : [".mp4", ".mov", ".webm"].includes(ext) ? "video" : "file";
+    atts.push({ kind, path: dest });
+  }
+  const item = {
+    id, project: a.project, from: a.sender || process.env.HC_TERMINAL_ID || "cos",
+    kind: a.kind, priority: a.priority, title: a.title, body: a.body || "",
+    recommendation: a.recommend || "", options: a.option, attachments: atts,
+    status: "open", answer: null, history: [], created: now(), updated: now(),
+  };
+  writeJson(path.join(HOME, "queue", `${id}.json`), item);
+  out(id);
+}
 
+function cmdQueue(a) {
+  let its = items(a.all);
+  if (a.project) its = its.filter((i) => i.project === a.project);
+  if (a.json) return out(JSON.stringify(its, null, 2));
+  for (const i of its) out(`${i.id}  ${pad(i.status, 8)} ${i.priority} ${pad(i.kind, 8)} ${pad(i.project, 12)} ${i.title}`);
+}
 
-def cmd_queue(a):
-    its = items(include_closed=a.all)
-    if a.project:
-        its = [i for i in its if i["project"] == a.project]
-    if a.json:
-        print(json.dumps(its, indent=2))
-        return
-    for i in its:
-        print(f"{i['id']}  {i['status']:<8} {i['priority']} {i['kind']:<8} {i['project']:<12} {i['title']}")
+function cmdShow(a) {
+  process.stdout.write(fs.readFileSync(itemPath(a.id), "utf8"));
+}
 
+// You answered an item in the panel. Record it and hand it to the CoS (only the CoS).
+function cmdAnswer(a) {
+  const p = itemPath(a.id), it = readJson(p);
+  const answer = { verdict: a.verdict, text: a.text || "", choice: a.choice ?? null, at: now() };
+  if (it.answer) (it.history ||= []).push(it.answer);
+  Object.assign(it, { answer, status: "answered", updated: now() });
+  writeJson(p, it);
+  const msg = `[queue answer] ${it.id} (${it.project}, ${it.kind}): "${it.title}" -> ${a.verdict}` +
+    (a.choice ? ` [${a.choice}]` : "") + (a.text ? `: ${a.text}` : "") +
+    `. Asked by ${it.from}. Pass it on, record any lasting preference in ceo.md, ` +
+    `and \`cos close ${it.id}\` once it is addressed.`;
+  if (!a.no_send) {
+    deliver("answer", "ceo", it.project, msg, { item: it.id });
+    if (!live(COS)) log("The CoS is not running; the answer is in its inbox for its next shift.");
+  }
+  out(it.id);
+}
 
-def cmd_show(a):
-    print(item_path(a.id).read_text(), end="")
+// ---- inbox: messages for the CoS that never type into its pane ---------------
 
+// Put one message in the CoS's inbox; returns its id.
+function deliver(kind, sender, project, text, extra = {}) {
+  const d = path.join(HOME, "inbox");
+  fs.mkdirSync(d, { recursive: true });
+  const id = stamp("%Y%m%d-%H%M%S") + "-" + hex2();
+  writeJson(path.join(d, `${id}.json`), { id, kind, from: sender, project, text, at: now(), ...extra });
+  return id;
+}
 
-def cmd_answer(a):
-    """You answered an item in the panel. Record it and hand it to the CoS (only the CoS)."""
-    p = item_path(a.id)
-    it = read_json(p)
-    answer = {"verdict": a.verdict, "text": a.text or "", "choice": a.choice, "at": now()}
-    if it.get("answer"):
-        it.setdefault("history", []).append(it["answer"])
-    it.update(answer=answer, status="answered", updated=now())
-    write_json(p, it)
-    msg = (f"[queue answer] {it['id']} ({it['project']}, {it['kind']}): \"{it['title']}\" -> {a.verdict}"
-           + (f" [{a.choice}]" if a.choice else "") + (f": {a.text}" if a.text else "")
-           + f". Asked by {it['from']}. Pass it on, record any lasting preference in ceo.md, "
-             f"and `cos close {it['id']}` once it is addressed.")
-    if not a.no_send:
-        deliver("answer", "ceo", it["project"], msg, item=it["id"])
-        if not live(COS):
-            log("The CoS is not running; the answer is in its inbox for its next shift.")
-    print(it["id"])
+function unread() {
+  const d = path.join(HOME, "inbox");
+  if (!isDir(d)) return [];
+  return fs.readdirSync(d).filter((f) => f.endsWith(".json")).sort().map((f) => readJson(path.join(d, f)));
+}
 
+const SEEN_FILE = path.join(HOME, "inbox", "leads.state");
+const readSeen = () => (exists(SEEN_FILE) ? readJson(SEEN_FILE) : {});
 
-# ---- inbox: messages for the CoS that never type into its pane ---------------
+// Inbox messages for leads that turned blocked or stopped since the last look.
+function watchLeads() {
+  const seen = readSeen(), nowSeen = {};
+  for (const p of projects()) {
+    const st = word(live(p.lead));
+    nowSeen[p.lead] = st;
+    const before = seen[p.lead]; // undefined on the first look: nothing to compare with
+    if (before === undefined || before === st) continue;
+    if (st === "blocked")
+      deliver("blocked", p.lead, p.name, `${p.lead} is blocked: it needs a person. Read it with \`hc read ${p.lead} --lines 60\`.`);
+    else if (st === "stopped")
+      deliver("stopped", p.lead, p.name, `${p.lead} has stopped. Restart it with \`cos lead start ${p.name}\` if its plan has open work.`);
+  }
+  fs.mkdirSync(path.join(HOME, "inbox"), { recursive: true });
+  fs.writeFileSync(SEEN_FILE, JSON.stringify({ ...seen, ...nowSeen }));
+}
 
-def deliver(kind, sender, project, text, **extra):
-    """Put one message in the CoS's inbox; returns its id."""
-    d = HOME / "inbox"
-    d.mkdir(parents=True, exist_ok=True)
-    msg_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(2)
-    write_json(d / f"{msg_id}.json", {"id": msg_id, "kind": kind, "from": sender, "project": project,
-                                      "text": text, "at": now(), **extra})
-    return msg_id
+// A lead the CoS stopped on purpose: no `stopped` message for it.
+function forgetLead(lead) {
+  const seen = readSeen();
+  if (lead in seen) {
+    seen[lead] = "stopped";
+    fs.writeFileSync(SEEN_FILE, JSON.stringify(seen));
+  }
+}
 
+// A lead (or anyone) reports to the CoS without typing into its pane.
+function cmdReport(a) {
+  const me = process.env.HC_TERMINAL_ID;
+  const t = me ? hcJson("get", me) : null;
+  const labels = (t && t.labels) || {};
+  const sender = a.sender || (t && t.name) || me || "unknown";
+  const project = a.project || labels["cos.project"] || "hq";
+  const text = a.file ? fs.readFileSync(a.file, "utf8") : a.text;
+  if (!text) throw new Fail("give the report as text or with --file", 2);
+  const id = deliver(a.kind, sender, project, text, a.file ? { file: path.resolve(a.file) } : {});
+  if (!live(COS)) log("The CoS is not running; your report waits in its inbox for its next shift.");
+  out(id);
+}
 
-def unread():
-    d = HOME / "inbox"
-    return [read_json(f) for f in sorted(d.glob("*.json"))] if d.is_dir() else []
+function showMessages(msgs, asJson) {
+  if (asJson) return out(JSON.stringify(msgs, null, 2));
+  for (const m of msgs) {
+    out(`--- ${m.id}  ${m.kind}  from ${m.from}  (${m.project}, ${m.at})`);
+    out(m.text.trimEnd());
+  }
+}
 
+async function cmdInbox(a) {
+  if (a.done.length) {
+    const dest = path.join(HOME, "inbox", "done");
+    fs.mkdirSync(dest, { recursive: true });
+    for (const id of a.done) {
+      const f = path.join(HOME, "inbox", `${id}.json`);
+      if (!exists(f)) throw new Fail(`no unread message ${id}`, 2);
+      fs.renameSync(f, path.join(dest, path.basename(f)));
+    }
+    return;
+  }
+  let msgs;
+  if (a.wait) {
+    for (;;) {
+      watchLeads();
+      msgs = unread();
+      if (msgs.length) break;
+      await sleep(3000);
+    }
+  } else {
+    msgs = unread();
+    if (!msgs.length && !a.json) log("Inbox is empty.");
+  }
+  showMessages(msgs, a.json);
+}
 
-def watch_leads():
-    """Inbox messages for leads that turned blocked or stopped since the last look."""
-    seen_file = HOME / "inbox" / "leads.state"
-    seen = read_json(seen_file) if seen_file.exists() else {}
-    now_seen = {}
-    for p in projects():
-        st = word(live(p["lead"]))
-        now_seen[p["lead"]] = st
-        before = seen.get(p["lead"])  # None on the first look: nothing to compare with
-        if before is None or before == st:
-            continue
-        if st == "blocked":
-            deliver("blocked", p["lead"], p["name"], f"{p['lead']} is blocked: it needs a person. Read it with `hc read {p['lead']} --lines 60`.")
-        elif st == "stopped":
-            deliver("stopped", p["lead"], p["name"], f"{p['lead']} has stopped. Restart it with `cos lead start {p['name']}` if its plan has open work.")
-    (HOME / "inbox").mkdir(parents=True, exist_ok=True)
-    seen_file.write_text(json.dumps({**seen, **now_seen}))
+function cmdClose(a) {
+  const p = itemPath(a.id), it = readJson(p);
+  Object.assign(it, { status: "closed", closed_note: a.note || "", updated: now() });
+  writeJson(p, it);
+  out(it.id);
+}
 
+function cmdReopen(a) {
+  const p = itemPath(a.id), it = readJson(p);
+  Object.assign(it, { status: "open", updated: now() });
+  if (a.note) it.body = ((it.body || "") + `\n\nUpdate ${now()}: ${a.note}`).trim();
+  writeJson(p, it);
+  out(it.id);
+}
 
-def forget_lead(lead):
-    """A lead the CoS stopped on purpose: no `stopped` message for it."""
-    seen_file = HOME / "inbox" / "leads.state"
-    seen = read_json(seen_file) if seen_file.exists() else {}
-    if lead in seen:
-        seen[lead] = "stopped"
-        seen_file.write_text(json.dumps(seen))
+// Claude API list prices per model ($/MTok), kept in the skill's prices.json so they
+// can be updated as Anthropic changes them. Seats aren't billed per token, so
+// `cos stats` reports what the same tokens would cost on the API.
+const PRICES_FILE = path.join(SKILL_DIR, "prices.json");
 
+function prices() {
+  try { return readJson(PRICES_FILE).models || {}; } catch { return {}; }
+}
 
-def cmd_report(a):
-    """A lead (or anyone) reports to the CoS without typing into its pane."""
-    me = os.environ.get("HC_TERMINAL_ID")
-    t = hc_json("get", me) if me else None
-    labels = (t or {}).get("labels") or {}
-    sender = a.sender or (t or {}).get("name") or me or "unknown"
-    project = a.project or labels.get("cos.project") or "hq"
-    text = Path(a.file).read_text() if a.file else a.text
-    if not text:
-        raise Fail("give the report as text or with --file", 2)
-    msg_id = deliver(a.kind, sender, project, text, **({"file": str(Path(a.file).resolve())} if a.file else {}))
-    if not live(COS):
-        log("The CoS is not running; your report waits in its inbox for its next shift.")
-    print(msg_id)
+// Model, context in use and API-rate cost of one Claude Code transcript.
+// Each assistant message is logged once per content block with the same usage, so
+// messages are counted once by id. Context is the last message's whole prompt.
+function transcriptUsage(file, table) {
+  let text;
+  try { text = fs.readFileSync(file, "utf8"); } catch { return null; }
+  const seen = new Set();
+  let cost = 0, last = null, model = null;
+  for (const line of text.split("\n")) {
+    if (!line.includes('"usage"')) continue;
+    let m;
+    try { m = JSON.parse(line).message || {}; } catch { continue; }
+    const u = m.usage, mid = m.id;
+    if (!u || seen.has(mid)) continue;
+    seen.add(mid);
+    model = m.model || model;
+    const p = table[model];
+    if (p == null) cost = null; // one unpriced message makes the total unknown
+    else if (cost !== null) {
+      const w1h = (u.cache_creation || {}).ephemeral_1h_input_tokens || 0;
+      const w5m = (u.cache_creation_input_tokens || 0) - w1h;
+      cost += ((u.input_tokens || 0) * p.input + w5m * p.cache_write_5m + w1h * p.cache_write_1h
+        + (u.cache_read_input_tokens || 0) * p.cache_read + (u.output_tokens || 0) * p.output) / 1e6;
+    }
+    last = u;
+  }
+  const window = (table[model] || {}).context ?? null;
+  if (last === null) return { model, context: 0, window, cost: 0, messages: 0 };
+  const context = (last.input_tokens || 0) + (last.cache_creation_input_tokens || 0) + (last.cache_read_input_tokens || 0);
+  return { model, context, window, cost: cost === null ? null : round4(cost), messages: seen.size };
+}
 
+// One terminal for `cos stats`: hc's status plus, for Claude, its transcript's usage.
+function agentRow(t, role, depth, table) {
+  const full = hcJson("get", t.address) || {};
+  const labels = full.labels || {};
+  const row = { address: t.address, name: t.name || t.address, agent: t.agent ?? null,
+    role, depth, status: word(t), where: t.where ?? null };
+  const file = labels["claude.transcript"];
+  if (file) Object.assign(row, transcriptUsage(file, table) || {});
+  return row;
+}
 
-def show_messages(msgs, as_json):
-    if as_json:
-        print(json.dumps(msgs, indent=2))
-        return
-    for m in msgs:
-        print(f"--- {m['id']}  {m['kind']}  from {m['from']}  ({m['project']}, {m['at']})")
-        print(m["text"].rstrip())
+// The fleet for the panel's Fleet tab: the CoS, then each project's lead and its workers.
+function cmdStats() {
+  const ls = (hcJson("ls") || {}).terminals || [];
+  const table = prices();
+  const byParent = {};
+  for (const t of ls) (byParent[t.parent ?? null] ||= []).push(t);
+  const tree = (t, role, depth) =>
+    [agentRow(t, role, depth, table), ...(byParent[t.address] || []).flatMap((k) => tree(k, "worker", depth + 1))];
 
+  const byName = Object.fromEntries(ls.filter((t) => t.name).map((t) => [t.name, t]));
+  const cosT = byName[COS];
+  const res = { cos: cosT ? agentRow(cosT, "cos", 0, table) : { name: COS, status: "stopped", role: "cos" },
+    projects: [], queue: { open: 0, answered: 0 } };
+  const its = items();
+  for (const i of its) if (i.status in res.queue) res.queue[i.status]++;
+  for (const p of projects()) {
+    const plan = path.join(HOME, "projects", p.name, "plan.md");
+    const m = exists(plan) ? fs.readFileSync(plan, "utf8").match(/## Goal\n(.+)/) : null;
+    const lead = byName[p.lead];
+    const agents = lead ? tree(lead, "lead", 0) : [];
+    res.projects.push({ name: p.name, goal: m ? m[1].trim() : "", lead_status: word(lead), agents,
+      queue_open: its.filter((i) => i.project === p.name && i.status === "open").length,
+      cost: round4(agents.reduce((s, r) => s + (r.cost || 0), 0)) });
+  }
+  res.cost = round4((res.cos.cost || 0) + res.projects.reduce((s, p) => s + p.cost, 0));
+  res.prices_file = PRICES_FILE;
+  out(JSON.stringify(res, null, 2));
+}
 
-def cmd_inbox(a):
-    if a.done:
-        dest = HOME / "inbox" / "done"
-        dest.mkdir(parents=True, exist_ok=True)
-        for msg_id in a.done:
-            f = HOME / "inbox" / f"{msg_id}.json"
-            if not f.exists():
-                raise Fail(f"no unread message {msg_id}", 2)
-            f.rename(dest / f.name)
-        return
-    if a.wait:
-        while True:
-            watch_leads()
-            msgs = unread()
-            if msgs:
-                break
-            time.sleep(3)
-    else:
-        msgs = unread()
-        if not msgs and not a.json:
-            log("Inbox is empty.")
-    show_messages(msgs, a.json)
+function cmdStatus(a) {
+  ensureHome();
+  const its = items(true);
+  const rows = projects().map((p) => {
+    const t = live(p.lead);
+    let workers = [];
+    if (t) {
+      const all = (hcJson("ls") || {}).terminals || [];
+      workers = all.filter((x) => x.parent === t.address && x.state === "live");
+    }
+    return { project: p.name, lead: p.lead, lead_status: word(t),
+      workers: workers.map((w) => ({ name: w.name || w.address, status: word(w) })),
+      open_items: its.filter((i) => i.project === p.name && i.status === "open").length, repo: p.repo };
+  });
+  const res = { cos: word(live(COS)), home: HOME, projects: rows,
+    queue: { open: its.filter((i) => i.status === "open").length, answered: its.filter((i) => i.status === "answered").length } };
+  if (a.json) return out(JSON.stringify(res, null, 2));
+  out(`CoS: ${res.cos}   queue: ${res.queue.open} open, ${res.queue.answered} answered   state: ${HOME}`);
+  for (const r of rows) {
+    const ws = r.workers.map((w) => `${w.name} ${w.status}`).join(", ") || "no workers";
+    out(`  ${pad(r.project, 14)} lead ${pad(r.lead_status, 8)} ${r.open_items} open  [${ws}]`);
+  }
+}
 
+// ---- arguments ----------------------------------------------------------------
 
-def cmd_close(a):
-    p = item_path(a.id)
-    it = read_json(p)
-    it.update(status="closed", closed_note=a.note or "", updated=now())
-    write_json(p, it)
-    print(it["id"])
+// Each command: its positionals ("name", "name?" optional, "name..." the rest verbatim) and
+// options (flag -> {key, help, bool, many: repeatable, list: one or more values, choices, required, def}).
+const json = { "--json": { bool: true } };
+const COMMANDS = {
+  init: { fn: cmdInit, help: "set up this machine: the state folder and settings (asks for missing ones); prints its path",
+    opts: { "--reset": { bool: true, help: "ask for every setting again" } } },
+  config: { fn: cmdConfig, help: "print this machine's settings, or set one: cos config COS_WORK_ROOT ~/work", pos: ["name?", "value?"] },
+  exec: { fn: cmdExec, help: "start a role (chief-of-staff, lead, implementer, ...: the template names) with its model from models.json and this machine's settings (the templates use this)",
+    pos: ["role", "extra..."] },
+  models: { fn: cmdModels, help: "each role's program and model (models.json)", opts: json },
+  up: { fn: cmdUp, help: "open HQ: start the CoS and the Chief of Staff panel (safe to rerun)" },
+  status: { fn: cmdStatus, help: "CoS, leads, their workers and queue counts", opts: json },
+  "project add": { fn: cmdProjectAdd, help: "add a project (or change its repo)", pos: ["name"],
+    opts: { "--repo": { required: true }, "--goal": {} } },
+  "project ls": { fn: cmdProjectLs, help: "list projects with their lead's status", opts: json },
+  "lead start": { fn: cmdLeadStart, help: "start lead-<project> in its own space", pos: ["name"],
+    opts: { "--goal": { help: "the first goal to hand it" } } },
+  "lead stop": { fn: cmdLeadStop, help: "kill lead-<project> and its workers", pos: ["name"] },
+  ask: { fn: cmdAsk, help: "put an item in the CEO's queue; prints its id", opts: {
+    "--project": { required: true, help: "project name, or hq for org-wide items" },
+    "--title": { required: true, help: "one line the CEO can decide from" },
+    "--kind": { choices: KINDS, def: "decision" },
+    "--priority": { choices: PRIORITIES, def: "p2", help: "p0 blocks work now ... p3 whenever" },
+    "--body": { help: "context: what, why now, what happens on each answer (markdown)" },
+    "--recommend": { help: "the answer you recommend and why, in one or two lines" },
+    "--option": { many: true, help: "a choice the CEO can pick (repeatable)" },
+    "--attach": { many: true, help: "screenshot/video/file path or URL (repeatable)" },
+    "--from": { key: "sender", help: "who raised it (default: $HC_TERMINAL_ID)" } } },
+  report: { fn: cmdReport, help: "a lead's report to the CoS, into its inbox (never `hc send cos`); prints its id", pos: ["text?"], opts: {
+    "--kind": { choices: REPORT_KINDS, def: "fyi" },
+    "--file": { help: "a file holding the report (for anything longer than ten lines)" },
+    "--project": { help: "default: your terminal's cos.project label" },
+    "--from": { key: "sender", help: "default: your hc name" } } },
+  inbox: { fn: cmdInbox, help: "the CoS's unread messages: leads' reports, panel answers, stopped leads", opts: {
+    "--wait": { bool: true, help: "block until there is one (run it in the background), then print them" },
+    "--done": { list: true, help: "mark messages handled (one or more ids)" }, ...json } },
+  queue: { fn: cmdQueue, help: "list queue items, open first by priority",
+    opts: { "--all": { bool: true, help: "include closed items" }, "--project": {}, ...json } },
+  show: { fn: cmdShow, help: "print one item's JSON", pos: ["id"] },
+  answer: { fn: cmdAnswer, help: "record the CEO's answer and put it in the CoS's inbox (the panel runs this)", pos: ["id"], opts: {
+    "--verdict": { choices: VERDICTS, required: true }, "--text": {}, "--choice": {},
+    "--no-send": { bool: true, help: "record only, no inbox message" } } },
+  stats: { fn: cmdStats, help: "JSON for the Fleet tab: agents' status, context and API-rate cost (prices.json)" },
+  close: { fn: cmdClose, help: "close an item once its answer is acted on", pos: ["id"], opts: { "--note": {} } },
+  reopen: { fn: cmdReopen, help: "put an answered or closed item back in front of the CEO", pos: ["id"], opts: { "--note": {} } },
+};
 
+const keyOf = (flag, o) => o.key || flag.slice(2).replace(/-/g, "_");
 
-def cmd_reopen(a):
-    p = item_path(a.id)
-    it = read_json(p)
-    it.update(status="open", updated=now())
-    if a.note:
-        it["body"] = (it.get("body", "") + f"\n\nUpdate {now()}: {a.note}").strip()
-    write_json(p, it)
-    print(it["id"])
+function usage(name, c) {
+  const pos = (c.pos || []).map((p) => (p.endsWith("?") ? `[${p.slice(0, -1)}]` : p.endsWith("...") ? `[${p}]` : p));
+  const opts = Object.entries(c.opts || {}).map(([f, o]) => {
+    const v = o.bool ? f : `${f} ${o.choices ? `{${o.choices.join(",")}}` : keyOf(f, o).toUpperCase()}${o.list ? " ..." : ""}`;
+    return o.required ? v : `[${v}]`;
+  });
+  return ["usage: cos", name, ...opts, ...pos].join(" ");
+}
 
+function help(name, c) {
+  const lines = [usage(name, c), "", c.help];
+  const opts = Object.entries(c.opts || {});
+  if (opts.length) {
+    lines.push("", "options:");
+    for (const [f, o] of opts) {
+      const extra = [o.help, o.choices && `one of ${o.choices.join(", ")}`, o.def && `default ${o.def}`, o.required && "required"];
+      lines.push(`  ${pad(f, 14)} ${extra.filter(Boolean).join("; ")}`);
+    }
+  }
+  return lines.join("\n");
+}
 
-# Claude API list prices per model ($/MTok), kept in the skill's prices.json so they
-# can be updated as Anthropic changes them. Seats aren't billed per token, so
-# `cos stats` reports what the same tokens would cost on the API.
-PRICES_FILE = Path(__file__).resolve().parent.parent / "prices.json"
+function topHelp() {
+  const lines = ["usage: cos <command> [options]   (cos <command> --help for one)", "", DOC, "", "commands:"];
+  for (const [name, c] of Object.entries(COMMANDS)) lines.push(`  ${pad(name, 13)} ${c.help}`);
+  return lines.join("\n");
+}
 
+function parse(argv) {
+  const bad = (msg, name, c) => {
+    log(c ? usage(name, c) : "usage: cos <command> [options]   (cos --help lists them)");
+    throw new Fail(msg, 2);
+  };
+  if (!argv.length) bad("a command is required");
+  if (argv[0] === "-h" || argv[0] === "--help") return out(topHelp()), null;
+  let name = argv[0], rest = argv.slice(1);
+  const group = Object.keys(COMMANDS).filter((k) => k.startsWith(name + " "));
+  if (group.length) {
+    if (!rest.length || rest[0] === "-h" || rest[0] === "--help") {
+      out(`usage: cos ${name} {${group.map((k) => k.split(" ")[1]).join(",")}} ...\n`);
+      for (const k of group) out(`  ${pad(k, 13)} ${COMMANDS[k].help}`);
+      return rest.length ? null : bad(`${name}: a subcommand is required`);
+    }
+    name += " " + rest[0];
+    rest = rest.slice(1);
+  }
+  const c = COMMANDS[name];
+  if (!c) bad(`unknown command '${name}'`);
+  const a = { cmd: name };
+  const opts = c.opts || {};
+  for (const [f, o] of Object.entries(opts)) a[keyOf(f, o)] = o.bool ? false : o.many || o.list ? [] : o.def ?? null;
+  const pos = [];
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if ((c.pos || []).at(-1)?.endsWith("...") && pos.length === c.pos.length - 1) {
+      a.extra = rest.slice(i); // the rest goes to the program untouched, flags included
+      break;
+    }
+    if (arg === "-h" || arg === "--help") return out(help(name, c)), null;
+    if (!arg.startsWith("--") || arg === "--") {
+      pos.push(arg);
+      continue;
+    }
+    let [flag, val] = arg.includes("=") ? [arg.slice(0, arg.indexOf("=")), arg.slice(arg.indexOf("=") + 1)] : [arg, undefined];
+    const o = opts[flag];
+    if (!o) bad(`unrecognized argument ${flag}`, name, c);
+    const k = keyOf(flag, o);
+    if (o.bool) {
+      a[k] = true;
+      continue;
+    }
+    if (o.list) {
+      if (val !== undefined) a[k].push(val);
+      while (i + 1 < rest.length && !rest[i + 1].startsWith("--")) a[k].push(rest[++i]);
+      if (!a[k].length) bad(`${flag} expects at least one value`, name, c);
+      continue;
+    }
+    if (val === undefined) {
+      if (i + 1 >= rest.length) bad(`${flag} expects a value`, name, c);
+      val = rest[++i];
+    }
+    if (o.choices && !o.choices.includes(val)) bad(`${flag}: '${val}' is not one of ${o.choices.join(", ")}`, name, c);
+    if (o.many) a[k].push(val);
+    else a[k] = val;
+  }
+  const spec = c.pos || [];
+  for (const [n, p] of spec.entries()) {
+    const key = p.replace(/[?.]+$/, "");
+    if (p.endsWith("...")) a[key] ??= [];
+    else if (n < pos.length) a[key] = pos[n];
+    else if (p.endsWith("?")) a[key] = null;
+    else bad(`missing ${key}`, name, c);
+  }
+  if (pos.length > spec.filter((p) => !p.endsWith("...")).length) bad(`unexpected argument ${pos.at(-1)}`, name, c);
+  for (const [f, o] of Object.entries(opts)) if (o.required && a[keyOf(f, o)] == null) bad(`${f} is required`, name, c);
+  return a;
+}
 
-def prices():
-    try:
-        return read_json(PRICES_FILE).get("models", {})
-    except (OSError, json.JSONDecodeError):
-        return {}
+async function main() {
+  try {
+    const a = parse(process.argv.slice(2));
+    if (a) await COMMANDS[a.cmd].fn(a);
+  } catch (e) {
+    if (!(e instanceof Fail)) throw e;
+    log(`cos: ${e.message}`);
+    process.exit(e.code);
+  }
+}
 
-
-def transcript_usage(path, table):
-    """Model, context in use and API-rate cost of one Claude Code transcript.
-
-    Each assistant message is logged once per content block with the same usage, so
-    messages are counted once by id. Context is the last message's whole prompt."""
-    seen, cost, last, model = set(), 0.0, None, None
-    try:
-        f = open(path, encoding="utf-8")
-    except OSError:
-        return None
-    with f:
-        for line in f:
-            if '"usage"' not in line:
-                continue
-            try:
-                m = json.loads(line).get("message") or {}
-            except json.JSONDecodeError:
-                continue
-            u, mid = m.get("usage"), m.get("id")
-            if not u or mid in seen:
-                continue
-            seen.add(mid)
-            model = m.get("model") or model
-            p = table.get(model)
-            if p is None:
-                cost = None  # one unpriced message makes the total unknown
-            elif cost is not None:
-                split = u.get("cache_creation") or {}
-                w1h = split.get("ephemeral_1h_input_tokens", 0)
-                w5m = u.get("cache_creation_input_tokens", 0) - w1h
-                cost += (u.get("input_tokens", 0) * p["input"] + w5m * p["cache_write_5m"] + w1h * p["cache_write_1h"]
-                         + u.get("cache_read_input_tokens", 0) * p["cache_read"] + u.get("output_tokens", 0) * p["output"]) / 1e6
-            last = u
-    window = (table.get(model) or {}).get("context")
-    if last is None:
-        return {"model": model, "context": 0, "window": window, "cost": 0.0, "messages": 0}
-    context = last.get("input_tokens", 0) + last.get("cache_creation_input_tokens", 0) + last.get("cache_read_input_tokens", 0)
-    return {"model": model, "context": context, "window": window,
-            "cost": None if cost is None else round(cost, 4), "messages": len(seen)}
-
-
-def agent_row(t, role, depth, table):
-    """One terminal for `cos stats`: hc's status plus, for Claude, its transcript's usage."""
-    full = hc_json("get", t["address"]) or {}
-    labels = full.get("labels") or {}
-    row = {"address": t["address"], "name": t.get("name") or t["address"], "agent": t.get("agent"),
-           "role": role, "depth": depth, "status": word(t), "where": t.get("where")}
-    path = labels.get("claude.transcript")
-    if path:
-        row.update(transcript_usage(path, table) or {})
-    return row
-
-
-def cmd_stats(a):
-    """The fleet for the panel's Fleet tab: the CoS, then each project's lead and its workers."""
-    ls = (hc_json("ls") or {}).get("terminals", [])
-    table = prices()
-    by_parent = {}
-    for t in ls:
-        by_parent.setdefault(t.get("parent"), []).append(t)
-
-    def tree(t, role, depth):
-        rows = [agent_row(t, role, depth, table)]
-        for k in by_parent.get(t["address"], []):
-            rows += tree(k, "worker", depth + 1)
-        return rows
-
-    by_name = {t.get("name"): t for t in ls if t.get("name")}
-    cos_t = by_name.get(COS)
-    out = {"cos": agent_row(cos_t, "cos", 0, table) if cos_t else {"name": COS, "status": "stopped", "role": "cos"},
-           "projects": [], "queue": {"open": 0, "answered": 0}}
-    for i in items():
-        if i.get("status") in out["queue"]:
-            out["queue"][i["status"]] += 1
-    for p in projects():
-        plan = (HOME / "projects" / p["name"] / "plan.md")
-        goal = ""
-        if plan.exists():
-            m = re.search(r"## Goal\n(.+)", plan.read_text())
-            goal = m.group(1).strip() if m else ""
-        lead = by_name.get(p["lead"])
-        agents = tree(lead, "lead", 0) if lead else []
-        out["projects"].append({"name": p["name"], "goal": goal, "lead_status": word(lead), "agents": agents,
-                                "queue_open": sum(1 for i in items() if i.get("project") == p["name"] and i.get("status") == "open"),
-                                "cost": round(sum(r.get("cost") or 0 for r in agents), 4)})
-    out["cost"] = round((out["cos"].get("cost") or 0) + sum(p["cost"] for p in out["projects"]), 4)
-    out["prices_file"] = str(PRICES_FILE)
-    print(json.dumps(out, indent=2))
-
-
-def cmd_status(a):
-    ensure_home()
-    ps = projects()
-    rows = []
-    for p in ps:
-        t = live(p["lead"])
-        workers = []
-        if t:
-            all_t = (hc_json("ls") or {}).get("terminals", [])
-            workers = [x for x in all_t if x.get("parent") == t.get("address") and x.get("state") == "live"]
-        open_n = sum(1 for i in items() if i["project"] == p["name"] and i["status"] == "open")
-        rows.append({"project": p["name"], "lead": p["lead"], "lead_status": word(t),
-                     "workers": [{"name": w.get("name") or w.get("address"), "status": word(w)} for w in workers],
-                     "open_items": open_n, "repo": p["repo"]})
-    cos = live(COS)
-    out = {"cos": word(cos), "home": str(HOME), "projects": rows,
-           "queue": {s: sum(1 for i in items(True) if i["status"] == s) for s in ("open", "answered")}}
-    if a.json:
-        print(json.dumps(out, indent=2))
-        return
-    print(f"CoS: {out['cos']}   queue: {out['queue']['open']} open, {out['queue']['answered']} answered   state: {HOME}")
-    for r in rows:
-        ws = ", ".join(f"{w['name']} {w['status']}" for w in r["workers"]) or "no workers"
-        print(f"  {r['project']:<14} lead {r['lead_status']:<8} {r['open_items']} open  [{ws}]")
-
-
-def main():
-    ap = argparse.ArgumentParser(prog="cos", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = ap.add_subparsers(dest="cmd", required=True)
-
-    s = sub.add_parser("init", help="set up this machine: the state folder and settings (asks for missing ones); prints its path")
-    s.add_argument("--reset", action="store_true", help="ask for every setting again"); s.set_defaults(fn=cmd_init)
-    s = sub.add_parser("config", help="print this machine's settings, or set one: cos config COS_WORK_ROOT ~/work")
-    s.add_argument("name", nargs="?"); s.add_argument("value", nargs="?"); s.set_defaults(fn=cmd_config)
-    s = sub.add_parser("exec", help="start a role (chief-of-staff, lead, implementer, ...: the template names) with its model from models.json and this machine's settings (the templates use this)")
-    s.add_argument("role"); s.add_argument("extra", nargs=argparse.REMAINDER, help="more arguments for the program")
-    s.set_defaults(fn=cmd_exec)
-    s = sub.add_parser("models", help="each role's program and model (models.json)")
-    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_models)
-    sub.add_parser("up", help="open HQ: start the CoS and the Chief of Staff panel (safe to rerun)").set_defaults(fn=cmd_up)
-
-    s = sub.add_parser("status", help="CoS, leads, their workers and queue counts")
-    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_status)
-
-    pr = sub.add_parser("project", help="add or list projects").add_subparsers(dest="pcmd", required=True)
-    s = pr.add_parser("add", help="add a project (or change its repo)")
-    s.add_argument("name"); s.add_argument("--repo", required=True); s.add_argument("--goal")
-    s.set_defaults(fn=cmd_project_add)
-    s = pr.add_parser("ls", help="list projects with their lead's status")
-    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_project_ls)
-
-    ld = sub.add_parser("lead", help="start or stop a project's lead").add_subparsers(dest="lcmd", required=True)
-    s = ld.add_parser("start", help="start lead-<project> in its own space")
-    s.add_argument("name"); s.add_argument("--goal", help="the first goal to hand it")
-    s.set_defaults(fn=cmd_lead_start)
-    s = ld.add_parser("stop", help="kill lead-<project> and its workers")
-    s.add_argument("name"); s.set_defaults(fn=cmd_lead_stop)
-
-    s = sub.add_parser("ask", help="put an item in the CEO's queue; prints its id")
-    s.add_argument("--project", required=True, help="project name, or hq for org-wide items")
-    s.add_argument("--title", required=True, help="one line the CEO can decide from")
-    s.add_argument("--kind", choices=KINDS, default="decision")
-    s.add_argument("--priority", choices=PRIORITIES, default="p2", help="p0 blocks work now ... p3 whenever")
-    s.add_argument("--body", help="context: what, why now, what happens on each answer (markdown)")
-    s.add_argument("--recommend", help="the answer you recommend and why, in one or two lines")
-    s.add_argument("--option", action="append", help="a choice the CEO can pick (repeatable)")
-    s.add_argument("--attach", action="append", help="screenshot/video/file path or URL (repeatable)")
-    s.add_argument("--from", dest="sender", help="who raised it (default: $HC_TERMINAL_ID)")
-    s.set_defaults(fn=cmd_ask)
-
-    s = sub.add_parser("report", help="a lead's report to the CoS, into its inbox (never `hc send cos`); prints its id")
-    s.add_argument("text", nargs="?", help="the report (or --file)")
-    s.add_argument("--kind", choices=REPORT_KINDS, default="fyi")
-    s.add_argument("--file", help="a file holding the report (for anything longer than ten lines)")
-    s.add_argument("--project", help="default: your terminal's cos.project label")
-    s.add_argument("--from", dest="sender", help="default: your hc name")
-    s.set_defaults(fn=cmd_report)
-
-    s = sub.add_parser("inbox", help="the CoS's unread messages: leads' reports, panel answers, stopped leads")
-    s.add_argument("--wait", action="store_true", help="block until there is one (run it in the background), then print them")
-    s.add_argument("--done", nargs="+", metavar="ID", help="mark messages handled")
-    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_inbox)
-
-    s = sub.add_parser("queue", help="list queue items, open first by priority")
-    s.add_argument("--all", action="store_true", help="include closed items")
-    s.add_argument("--project"); s.add_argument("--json", action="store_true")
-    s.set_defaults(fn=cmd_queue)
-
-    s = sub.add_parser("show", help="print one item's JSON"); s.add_argument("id"); s.set_defaults(fn=cmd_show)
-
-    s = sub.add_parser("answer", help="record the CEO's answer and put it in the CoS's inbox (the panel runs this)")
-    s.add_argument("id"); s.add_argument("--verdict", choices=VERDICTS, required=True)
-    s.add_argument("--text"); s.add_argument("--choice")
-    s.add_argument("--no-send", action="store_true", help="record only, no inbox message")
-    s.set_defaults(fn=cmd_answer)
-
-    sub.add_parser("stats", help="JSON for the Fleet tab: agents' status, context and API-rate cost (prices.json)").set_defaults(fn=cmd_stats)
-    s = sub.add_parser("close", help="close an item once its answer is acted on")
-    s.add_argument("id"); s.add_argument("--note"); s.set_defaults(fn=cmd_close)
-    s = sub.add_parser("reopen", help="put an answered or closed item back in front of the CEO")
-    s.add_argument("id"); s.add_argument("--note"); s.set_defaults(fn=cmd_reopen)
-
-    a = ap.parse_args()
-    try:
-        a.fn(a)
-    except Fail as e:
-        log(f"cos: {e}")
-        sys.exit(e.code)
-
-
-if __name__ == "__main__":
-    main()
+main();
