@@ -12,9 +12,8 @@ target="$HOME"
 # in the repo.
 folded_dirs=(
   .agents/skills
-  .config/herdr-core  # only templates/; stow folds it whole anyway
   .config/zsh
-  .local/state/cos  # the CoS writes here on purpose; its .gitignore keeps all but ceo.md out
+  .local/state/cos  # the CoS writes here on purpose; its .gitignore keeps it all out
 )
 
 # Paths in the home package that stay in the repo and never get a link in ~.

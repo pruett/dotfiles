@@ -2,15 +2,15 @@
 
 ## Launch
 
-One worker per chunk, started from its template in the background, named `<project>-<role>-<slug>` (32 characters at most):
+One worker per chunk, started in the background with `cos run`, named `<project>-<role>-<slug>` (32 characters at most):
 
 ```sh
 dir=$(wt new <repo>/<slug>)        # code-writing chunks only; prints the worktree path
-hc run --bg --name api-impl-ratelimit --cwd "$dir" implementer "<brief>"
+cos run implementer api-impl-ratelimit --cwd "$dir" "<brief>"
 ```
 
 - Code-writing chunks (`implementer`) each get their own worktree from `wt new` (the worktrees skill); `researcher`, `reviewer` and `tester` run in the repo or in the worktree they look at.
-- Check `first_message.sent` in the launch output. When it is false, `hc read <name>` before doing anything else (a trust dialog needs `hc keys <name> enter`), then send the brief once.
+- The brief is the worker's first prompt and its role's rules are its system prompt, so the brief holds only the work. `cos run` accepts Claude's folder-trust prompt itself; when it warns the worker reported no status, `hc read <name>` before doing anything else.
 - Start every independent chunk before waiting on any.
 
 ## Brief
