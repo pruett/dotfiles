@@ -594,6 +594,14 @@ function showMessages(msgs, asJson) {
   }
 }
 
+// For the panel's Inbox tab: unread messages, then the last n handled ones, newest first.
+function inboxHistory(n) {
+  const d = path.join(HOME, "inbox", "done");
+  const done = isDir(d) ? fs.readdirSync(d).filter((f) => f.endsWith(".json")).sort().reverse().slice(0, n) : [];
+  return [...unread().map((m) => ({ ...m, status: "unread" })),
+    ...done.map((f) => ({ ...readJson(path.join(d, f)), status: "handled" }))];
+}
+
 async function cmdInbox(a) {
   if (a.done.length) {
     const dest = path.join(HOME, "inbox", "done");
@@ -601,10 +609,12 @@ async function cmdInbox(a) {
     for (const id of a.done) {
       const f = path.join(HOME, "inbox", `${id}.json`);
       if (!exists(f)) throw new Fail(`no unread message ${id}`, 2);
-      fs.renameSync(f, path.join(dest, path.basename(f)));
+      writeJson(path.join(dest, path.basename(f)), { ...readJson(f), handled: now() });
+      fs.unlinkSync(f);
     }
     return;
   }
+  if (a.history != null) return out(JSON.stringify(inboxHistory(Number(a.history) || 0), null, 2));
   let msgs;
   if (a.wait) {
     for (;;) {
@@ -779,7 +789,8 @@ const COMMANDS = {
     "--from": { key: "sender", help: "default: your hc name" } } },
   inbox: { fn: cmdInbox, help: "the CoS's unread messages: leads' reports, panel answers, stopped leads", opts: {
     "--wait": { bool: true, help: "block until there is one (run it in the background), then print them" },
-    "--done": { list: true, help: "mark messages handled (one or more ids)" }, ...json } },
+    "--done": { list: true, help: "mark messages handled (one or more ids)" },
+    "--history": { help: "JSON of the unread messages and the last N handled ones, each with a status (the panel's Inbox tab)" }, ...json } },
   queue: { fn: cmdQueue, help: "list queue items, open first by priority",
     opts: { "--all": { bool: true, help: "include closed items" }, "--project": {}, ...json } },
   show: { fn: cmdShow, help: "print one item's JSON", pos: ["id"] },

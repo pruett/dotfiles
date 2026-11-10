@@ -1,7 +1,8 @@
-// chief-of-staff: the CEO's panel in the Chief of Staff org, shown only in HQ. Two tabs:
-// Queue (decisions waiting on the CEO) and Fleet (each project's lead and workers, with
+// chief-of-staff: the CEO's panel in the Chief of Staff org, shown only in HQ. Three tabs:
+// Queue (decisions waiting on the CEO), Fleet (each project's lead and workers, with
 // status, context in use and an API-rate cost estimate from `cos stats` and the
-// skill's prices.json).
+// skill's prices.json) and Inbox (what leads and the Queue tab sent up to the CoS, read-only:
+// `cos inbox --history`, waiting first, then the last 30 the CoS handled).
 //
 // The Queue tab is the CEO's one queue.
 //
@@ -20,7 +21,7 @@
 //   Changes showing the open and answered queue counts. It is always on screen, so it also raises
 //   the toast for new p0/p1 items.
 //
-// t switches Queue / Fleet. In Queue, the list fills the panel; Enter or a click opens an item full height, Esc goes back.
+// t switches Queue / Fleet / Inbox. In Queue, the list fills the panel; Enter or a click opens an item full height, Esc goes back.
 //
 // Keys (panel focused): j/k or arrows move · Enter open · Esc back · a approve · c request changes ·
 // f feedback · x reject · 1-9 pick an option · o open the first attachment ·
@@ -40,6 +41,11 @@ const KIND_LABEL = { decision: "Decision", review: "Review", approval: "Approval
 const MODEL = { "claude-fable-5-1": "Fable 5.1", "claude-opus-5-5": "Opus 5.5", "claude-sonnet-5-5": "Sonnet 5.5", "claude-haiku-5-5": "Haiku 5.5" };
 const money = (n) => (n == null ? "—" : n < 10 ? `$${n.toFixed(2)}` : `$${Math.round(n)}`);
 const tokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n ?? 0));
+// Inbox message kinds: label and the theme color of its dot.
+const INBOX_KIND = { done: ["Done", "done"], stuck: ["Stuck", "blocked"], decision: ["Needs decision", "working"], fyi: ["FYI", "dim"],
+  answer: ["Your answer", "accent"], blocked: ["Lead blocked", "blocked"], stopped: ["Lead stopped", "dim"] };
+const PAGES = ["queue", "fleet", "inbox"];
+const span = (ms) => { const m = Math.max(0, ms / 60000); return m < 1 ? "<1m" : m < 60 ? `${Math.round(m)}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`; };
 const VERB = { approve: "Approved", changes: "Changes requested", feedback: "Feedback", choose: "Chose", reject: "Rejected" };
 
 function age(iso) {
@@ -104,13 +110,25 @@ export default class Queue extends View {
     this.input.on("submit", (_e, cx) => this.submitNote(cx));
 
     watchQueue(cx, (cx) => this.reload(cx));
-    this.page = "queue"; // or "fleet"
+    this.page = "queue"; // or "fleet", "inbox"
     this.fleet = null; // `cos stats`, loaded while the Fleet tab shows
+    this.inbox = []; // `cos inbox --history`: unread first, then handled, newest first
+    this.inboxOpen = null; // id of the message shown in full
+    cx.spawn(async (cx) => {
+      await exec("mkdir", ["-p", `${STATE()}/inbox`]);
+      this.loadInbox(cx);
+      for (;;) {
+        try { await watchFolder(`${STATE()}/inbox`); } catch { return; }
+        this.loadInbox(cx);
+      }
+    });
+    cx.timer.every(30000, (cx) => this.loadInbox(cx));
     cx.timer.every(10000, (cx) => { if (this.page === "fleet") this.loadFleet(cx); });
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
         if (c === "focus") this.handle.focus();
+        if (PAGES.includes(c)) this.setPage(c, cx); // herdr-app do chief-of-staff.<page>
         cx.notify();
       }
     });
@@ -259,9 +277,19 @@ export default class Queue extends View {
     });
   }
 
+  loadInbox(cx) {
+    cx.spawn(async (cx) => {
+      const r = await exec(COS(), ["inbox", "--history", "30"]).catch((e) => ({ code: 1, stderr: String(e) }));
+      if (r.code !== 0) { this.inboxError = r.stderr.trim() || "cos inbox failed"; cx.notify(); return; }
+      try { this.inbox = JSON.parse(r.stdout); this.inboxError = null; } catch { this.inboxError = "cos inbox printed something unexpected"; }
+      cx.notify();
+    });
+  }
+
   setPage(page, cx) {
     this.page = page;
     if (page === "fleet") this.loadFleet(cx);
+    if (page === "inbox") this.loadInbox(cx);
     this.handle.focus();
     cx.notify();
   }
@@ -349,8 +377,8 @@ export default class Queue extends View {
       return;
     }
     const handled = () => { cx.stop_propagation(); cx.notify(); };
-    if (k === "t") { this.setPage(this.page === "queue" ? "fleet" : "queue", cx); return handled(); }
-    if (this.page === "fleet") return;
+    if (k === "t") { this.setPage(PAGES[(PAGES.indexOf(this.page) + 1) % PAGES.length], cx); return handled(); }
+    if (this.page !== "queue") return;
     const it = this.current();
     const n = this.shown().length;
     if (k === "j" || k === "down") { this.sel = Math.min(n - 1, this.sel + 1); return handled(); }
@@ -393,6 +421,7 @@ export default class Queue extends View {
       .child(div().text_size(13).font_semibold().pr(6).child("Chief of Staff"))
       .child(pageTab("queue", "Queue", openN))
       .child(pageTab("fleet", "Fleet", null))
+      .child(pageTab("inbox", "Inbox", this.inbox.filter((m) => m.status === "unread").length))
       .child(div().flex_1())
       .when(this.busy, (el) => el.child(div().text_size(11).text_color(t.dim).frames(["sending ·", "sending ··", "sending ···"], 300)));
     const header = h_flex().px(12).py(6).gap(6).items_center().border_b_1().border_color(t.border)
@@ -427,6 +456,7 @@ export default class Queue extends View {
       .track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       .child(top);
     if (this.page === "fleet") return root.child(this.renderFleet(t)).child(this.footer(null, t));
+    if (this.page === "inbox") return root.child(this.renderInbox(t)).child(this.footer(null, t));
     return root.child(header)
       .when(Boolean(this.error), (el) => el.child(div().px(12).py(6).bg(t.raised).text_size(11.5).text_color(t.blocked).child(this.error)))
       .child(body)
@@ -484,6 +514,43 @@ export default class Queue extends View {
       .children(d.projects.map((p) => card(p.name, p.goal, p.lead_status, p.cost, p.agents)));
   }
 
+  // The Inbox tab: how leads (and the Queue tab) reach the CoS. Read-only; the CoS drains it.
+  renderInbox(t) {
+    if (this.inboxError) return v_flex().flex_1().p(16).child(div().text_size(12.5).text_color(t.blocked).child(this.inboxError));
+    const waiting = this.inbox.filter((m) => m.status === "unread");
+    const handled = this.inbox.filter((m) => m.status === "handled");
+    const section = (label) => div().px(4).pt(10).pb(4).text_size(10.5).font_semibold().text_color(t.dim).child(label.toUpperCase());
+    const note = (text, color) => div().px(4).py(2).text_size(11.5).text_color(color ?? t.dim).child(text);
+    const row = (m) => {
+      const [label, color] = INBOX_KIND[m.kind] ?? [m.kind, "dim"];
+      const open = this.inboxOpen === m.id;
+      const from = m.from === "ceo" ? "you, in the Queue tab" : m.from;
+      const when = m.status === "unread" ? `waiting ${span(Date.now() - Date.parse(m.at))}`
+        : `${age(m.at)} ago` + (m.handled ? ` · handled in ${span(Date.parse(m.handled) - Date.parse(m.at))}` : "");
+      const pending = m.status === "unread";
+      const first = (m.text || "").replace(/^\[queue answer\] /, "").split("\n")[0];
+      return v_flex().id(`msg-${m.id}`).px(8).py(6).gap(3).rounded(6).cursor_pointer()
+        .bg(open ? t.selected : t.surface).hover((s) => s.bg(open ? t.selected : t.hover))
+        .on_click((_e, cx) => { this.inboxOpen = open ? null : m.id; cx.notify(); })
+        .child(h_flex().gap(6).items_center()
+          .child(div().size(7).flex_none().rounded(4).bg(t[color] ?? t.dim))
+          .child(div().text_size(11.5).font_semibold().text_color(t.foreground).child(label))
+          .child(div().flex_1().min_w(0).text_size(11).text_color(t.dim).truncate().child(`from ${from} · ${m.project}`))
+          .child(div().flex_none().text_size(11).text_color(pending ? t.working : t.dim).child(when)))
+        .child(div().pl(13).text_size(12).text_color(t.muted).when(!open, (el) => el.truncate()).child(open ? "" : first))
+        .when(open, (el) => el.child(div().ml(13).p(8).rounded(6).bg(t.raised).border_1().border_color(t.border).text_size(12)
+          .child(TextView.markdown(`inbox-${m.id}`, m.text || "").selectable(true))));
+    };
+    const oldest = waiting.length ? Date.now() - Math.min(...waiting.map((m) => Date.parse(m.at))) : 0;
+    return v_flex().id("inbox").flex_1().min_h(0).overflow_y_scrollbar().p(8).gap(1)
+      .child(note("Leads report with `cos report` and your Queue answers land here too. The CoS waits on it with `cos inbox --wait`, acts on each message, then marks it handled."))
+      .child(section(`Waiting for the CoS · ${waiting.length}`))
+      .when(oldest > 5 * 60000, (el) => el.child(note(`The oldest has waited ${span(oldest)}. Check the CoS is running (Fleet tab).`, t.blocked)))
+      .children(waiting.length ? waiting.map(row) : [note("Nothing waiting: the CoS has handled everything.")])
+      .child(section(`Handled · last ${handled.length}`))
+      .children(handled.length ? handled.map(row) : [note("Nothing handled yet.")]);
+  }
+
   // Shows an agent's pane, wherever it is.
   focusAgent(address) {
     const pane = terminals().find((k) => k.address === address)?.pane;
@@ -528,8 +595,10 @@ export default class Queue extends View {
       .child(div().px(5).rounded(4).bg(t.raised).border_1().border_color(t.border).text_size(10.5).font_medium().child(k))
       .child(div().text_size(11).text_color(t.muted).child(label));
     const modeLabel = { changes: "What should change?", feedback: "Your feedback", reject: "Why not?" }[this.mode];
+    if (this.page === "inbox") return h_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(10)
+      .child(key("t", "queue")).child(div().text_size(11).text_color(t.dim).child("Click a message to read it in full"));
     if (this.page === "fleet") return h_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(10)
-      .child(key("t", "queue")).child(div().text_size(11).text_color(t.dim).child("Click an agent to show it · cost at API list prices (prices.json)"));
+      .child(key("t", "inbox")).child(div().text_size(11).text_color(t.dim).child("Click an agent to show it · cost at API list prices (prices.json)"));
     const open = this.view === "open" && it;
     const nav = this.opened ? key("esc", "back") : key("enter", "open");
     return v_flex().border_t_1().border_color(t.border).bg(t.chrome).px(12).py(8).gap(6)
