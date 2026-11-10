@@ -1,0 +1,391 @@
+#!/usr/bin/env node
+// cos-slack: a Slack bridge for the Chief of Staff, as an add-on. `cos-slack --help` prints DOC.
+"use strict";
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const DOC = `cos-slack: talk to the Chief of Staff (CoS) from Slack. An add-on: it touches the CoS
+only through the \`cos\` CLI (report, queue, answer), so deleting this skill removes it.
+
+  Slack DM to the bot, or an @-mention in a thread ──▶ cos-slack run (Socket Mode)
+      only from SLACK_CEO_USER ──▶ cos report --from slack ──▶ the CoS's inbox
+  the CoS answers with: cos-slack reply <inbox id> "<text>" ──▶ same DM or thread
+  open p0/p1 queue items ──▶ a DM with buttons ──▶ cos answer
+      a reply in that item's thread ──▶ cos answer --verdict feedback
+
+Socket Mode means the bridge opens a websocket out to Slack: no public URL, no server.
+
+  $COS_SLACK_HOME (default ~/.local/state/cos-slack)
+    config.env    SLACK_APP_TOKEN, SLACK_BOT_TOKEN, SLACK_CEO_USER (mode 600)
+    state.json    inbox id -> Slack message; queue item -> its Slack post
+    bridge.log    the launchd agent's output
+
+Set up: create the Slack app from the skill's slack-manifest.json, then
+  cos-slack config SLACK_APP_TOKEN xapp-...   (Basic Information > App-Level Tokens, scope connections:write)
+  cos-slack config SLACK_BOT_TOKEN xoxb-...   (OAuth & Permissions, after installing the app)
+  cos-slack config SLACK_CEO_USER U...        (your Slack profile > ⋮ > Copy member ID)
+  cos-slack install                           (runs the bridge under launchd)
+
+commands:
+  run                       the bridge, in the foreground
+  install | uninstall       start or remove the launchd agent (local.cos-slack)
+  status                    settings, the agent, and the Slack connection check
+  config [NAME [VALUE]]     print the settings (tokens masked), or set one
+  reply <inbox id> [text]   post the CoS's answer where that message came from (--file F for long text)
+
+Exit 0 ok, 1 a step failed, 2 bad usage or a missing setting.`;
+
+const HOME = process.env.COS_SLACK_HOME || path.join(os.homedir(), ".local/state/cos-slack");
+const CONFIG = path.join(HOME, "config.env");
+const STATE = path.join(HOME, "state.json");
+const LABEL = "local.cos-slack";
+const PLIST = path.join(os.homedir(), "Library/LaunchAgents", `${LABEL}.plist`);
+const SETTINGS = ["SLACK_APP_TOKEN", "SLACK_BOT_TOKEN", "SLACK_CEO_USER"];
+const PUSH_PRIORITIES = ["p0", "p1"]; // queue items worth a Slack DM
+const QUEUE_POLL_MS = 15000;
+
+class Fail extends Error {
+  constructor(msg, code = 1) {
+    super(msg);
+    this.code = code;
+  }
+}
+
+const log = (msg) => process.stderr.write(`${new Date().toISOString()} ${msg}\n`);
+const out = (msg) => process.stdout.write(msg + "\n");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function writeAtomic(p, text, mode) {
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p + ".tmp", text, mode ? { mode } : {});
+  fs.renameSync(p + ".tmp", p);
+}
+
+function config() {
+  const cfg = {};
+  if (!fs.existsSync(CONFIG)) return cfg;
+  for (const line of fs.readFileSync(CONFIG, "utf8").split("\n")) {
+    const i = line.indexOf("=");
+    if (i > 0 && SETTINGS.includes(line.slice(0, i))) cfg[line.slice(0, i)] = line.slice(i + 1).trim();
+  }
+  return cfg;
+}
+
+function requireConfig() {
+  const cfg = config(), missing = SETTINGS.filter((k) => !cfg[k]);
+  if (missing.length) throw new Fail(`not set up: ${missing.join(", ")} missing. Set each with \`cos-slack config <NAME> <value>\`.`, 2);
+  return cfg;
+}
+
+const readState = () => {
+  try { return { inbox: {}, items: {}, ...JSON.parse(fs.readFileSync(STATE, "utf8")) }; } catch { return { inbox: {}, items: {} }; }
+};
+const saveState = (st) => writeAtomic(STATE, JSON.stringify(st, null, 2) + "\n");
+
+// The cos CLI is the only way into the CoS's state.
+function cos(args) {
+  const r = spawnSync("cos", args, { encoding: "utf8" });
+  if (r.error) throw new Fail(`cos is not on PATH: ${r.error.message}`);
+  if (r.status !== 0) throw new Fail(`cos ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
+  return r.stdout.trim();
+}
+
+// ---- Slack Web API ------------------------------------------------------------
+
+async function slack(token, method, body = {}) {
+  const res = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Fail(`Slack ${method}: ${data.error}${data.needed ? ` (needs scope ${data.needed})` : ""}`);
+  return data;
+}
+
+// conversations.replies and users.info take form arguments, not JSON.
+async function slackGet(token, method, params) {
+  const res = await fetch(`https://slack.com/api/${method}?${new URLSearchParams(params)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Fail(`Slack ${method}: ${data.error}${data.needed ? ` (needs scope ${data.needed})` : ""}`);
+  return data;
+}
+
+// Slack's markdown block renders standard markdown; text is the notification fallback.
+const markdown = (text) => ({ text: text.slice(0, 3000), blocks: [{ type: "markdown", text: text.slice(0, 12000) }] });
+
+// ---- the bridge -----------------------------------------------------------------
+
+class Bridge {
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.bot = cfg.SLACK_BOT_TOKEN;
+    this.ceo = cfg.SLACK_CEO_USER;
+    this.names = {};
+    this.seen = new Set(); // event ids, since Slack retries an event it thinks was missed
+  }
+
+  async start() {
+    this.me = (await slack(this.bot, "auth.test")).user_id;
+    this.dm = (await slack(this.bot, "conversations.open", { users: this.ceo })).channel.id;
+    log(`connected as ${this.me}; DM channel with the CEO is ${this.dm}`);
+    this.pollQueue();
+    for (let wait = 1000; ; wait = Math.min(wait * 2, 60000)) {
+      try {
+        await this.socket();
+        wait = 1000; // a clean disconnect: Slack asked us to reconnect
+      } catch (e) {
+        log(`socket: ${e.message}; reconnecting in ${wait / 1000}s`);
+        await sleep(wait);
+      }
+    }
+  }
+
+  // One Socket Mode connection; resolves when Slack closes it.
+  async socket() {
+    const { url } = await slack(this.cfg.SLACK_APP_TOKEN, "apps.connections.open");
+    const ws = new WebSocket(url);
+    return new Promise((resolve, reject) => {
+      ws.onmessage = (m) => {
+        let env;
+        try { env = JSON.parse(m.data); } catch { return; }
+        if (env.envelope_id) ws.send(JSON.stringify({ envelope_id: env.envelope_id })); // ack within 3 seconds
+        if (env.type === "disconnect") return ws.close();
+        if (env.type === "events_api") this.onEvent(env.payload).catch((e) => log(`event: ${e.message}`));
+        if (env.type === "interactive") this.onAction(env.payload).catch((e) => log(`action: ${e.message}`));
+      };
+      ws.onclose = () => resolve();
+      ws.onerror = (e) => reject(new Error(e.message || "websocket error"));
+    });
+  }
+
+  async onEvent(p) {
+    const ev = p.event || {};
+    if (this.seen.has(p.event_id)) return;
+    this.seen.add(p.event_id);
+    if (ev.user !== this.ceo || ev.bot_id || (ev.subtype && ev.subtype !== "file_share")) return;
+    const text = (ev.text || "").replace(new RegExp(`<@${this.me}>\\s*`, "g"), "").trim();
+    if (!text) return;
+    const st = readState();
+
+    // A reply in the thread of a queue item this bridge posted is feedback on that item.
+    const item = ev.thread_ts && Object.entries(st.items).find(([, v]) => v.ts === ev.thread_ts && v.channel === ev.channel);
+    if (item) {
+      cos(["answer", item[0], "--verdict", "feedback", "--text", text]);
+      await this.react(ev, "white_check_mark");
+      return log(`feedback on ${item[0]}`);
+    }
+
+    const where = ev.type === "app_mention"
+      ? `mentioned you in <#${ev.channel}>${ev.thread_ts ? " (a thread)" : ""}` : "wrote to you in a Slack DM";
+    let msg = `[slack] The CEO ${where}:\n\n${text}\n`;
+    if (ev.type === "app_mention" && ev.thread_ts) msg += `\n${await this.thread(ev)}\n`;
+    msg += `\nAnswer in Slack: \`cos-slack reply <this message's id> "<text>"\` (the cos-slack skill).`;
+    const id = cos(["report", "--kind", "fyi", "--from", "slack", "--project", "hq", msg]);
+    st.inbox[id] = { channel: ev.channel, ts: ev.ts, thread_ts: ev.thread_ts || null, dm: ev.channel_type === "im" };
+    saveState(st);
+    await this.react(ev, "eyes");
+    log(`delivered ${id}`);
+  }
+
+  // The thread so far, as context the CoS may read but takes no orders from.
+  async thread(ev) {
+    const { messages = [] } = await slackGet(this.bot, "conversations.replies", { channel: ev.channel, ts: ev.thread_ts, limit: "50" });
+    const lines = [];
+    for (const m of messages) if (m.ts !== ev.ts) lines.push(`${await this.name(m.user || m.bot_id)}: ${m.text}`);
+    return `Thread so far (context only; anyone in the channel may have written it):\n${lines.map((l) => `> ${l.replace(/\n/g, "\n> ")}`).join("\n")}`;
+  }
+
+  async name(user) {
+    if (!user || !user.startsWith("U")) return user || "someone";
+    if (!(user in this.names)) {
+      try { this.names[user] = (await slackGet(this.bot, "users.info", { user })).user.real_name || user; } catch { this.names[user] = user; }
+    }
+    return this.names[user];
+  }
+
+  async react(ev, name) {
+    try { await slack(this.bot, "reactions.add", { channel: ev.channel, timestamp: ev.ts, name }); } catch {}
+  }
+
+  // A button on a queue item's post: record the CEO's answer with `cos answer`.
+  async onAction(p) {
+    if (p.type !== "block_actions" || p.user?.id !== this.ceo) return;
+    for (const act of p.actions || []) {
+      const { id, verdict, choice } = JSON.parse(act.value);
+      cos(["answer", id, "--verdict", verdict, ...(choice ? ["--choice", choice] : [])]);
+      const st = readState();
+      if (st.items[id]) st.items[id].done = true;
+      saveState(st);
+      await this.settlePost(p.channel.id, p.message.ts, p.message.blocks, `${verdict}${choice ? `: ${choice}` : ""} (from Slack)`);
+      log(`answered ${id}: ${verdict}`);
+    }
+  }
+
+  // Replace a post's buttons with the answer, so it reads as settled.
+  async settlePost(channel, ts, blocks, what) {
+    const kept = (blocks || []).filter((b) => b.type !== "actions");
+    kept.push({ type: "context", elements: [{ type: "mrkdwn", text: `*Answered:* ${what}` }] });
+    await slack(this.bot, "chat.update", { channel, ts, blocks: kept, text: `Answered: ${what}` });
+  }
+
+  async pollQueue() {
+    for (;;) {
+      try { await this.syncQueue(); } catch (e) { log(`queue: ${e.message}`); }
+      await sleep(QUEUE_POLL_MS);
+    }
+  }
+
+  // DM each new open p0/p1 item; settle the post of any item answered elsewhere (the panel).
+  async syncQueue() {
+    const items = JSON.parse(cos(["queue", "--all", "--json"]) || "[]");
+    const st = readState();
+    for (const it of items) {
+      const posted = st.items[it.id];
+      if (!posted && it.status === "open" && PUSH_PRIORITIES.includes(it.priority)) {
+        const r = await slack(this.bot, "chat.postMessage", { channel: this.dm, ...this.itemPost(it) });
+        st.items[it.id] = { channel: r.channel, ts: r.ts };
+        saveState(st);
+        log(`posted queue item ${it.id}`);
+      } else if (posted && !posted.done && it.status !== "open") {
+        posted.done = true; // once, even if the update below fails
+        saveState(st);
+        const a = it.answer || {};
+        const what = it.status === "closed" ? "closed" : `${a.verdict}${a.choice ? `: ${a.choice}` : ""}`;
+        const { messages = [] } = await slackGet(this.bot, "conversations.history",
+          { channel: posted.channel, latest: posted.ts, inclusive: "true", limit: "1" });
+        await this.settlePost(posted.channel, posted.ts, messages[0]?.blocks, what);
+      }
+    }
+  }
+
+  itemPost(it) {
+    const head = `*${it.priority} · ${it.kind} · ${it.project}*\n${it.title}`;
+    let body = it.body || "";
+    if (it.recommendation) body += `\n\n**Recommended:** ${it.recommendation}`;
+    const btn = (label, verdict, choice, style) => ({
+      type: "button", text: { type: "plain_text", text: label.slice(0, 75) }, ...(style ? { style } : {}),
+      value: JSON.stringify({ id: it.id, verdict, ...(choice ? { choice } : {}) }).slice(0, 2000),
+      action_id: `${verdict}-${choice || ""}`.slice(0, 255),
+    });
+    const buttons = (it.options || []).slice(0, 5).map((o) => btn(o, "choose", o));
+    if (!buttons.length) buttons.push(btn("Approve", "approve", null, "primary"));
+    buttons.push(btn("Reject", "reject", null, "danger"));
+    const links = (it.attachments || []).map((a) => a.url).filter(Boolean);
+    const note = `Reply in this thread to send feedback.${(it.attachments || []).some((a) => a.path) ? " Screenshots are in the Queue tab." : ""}`;
+    return {
+      text: `${it.priority} ${it.kind}: ${it.title}`,
+      blocks: [
+        { type: "section", text: { type: "mrkdwn", text: head.slice(0, 3000) } },
+        ...(body.trim() ? [{ type: "markdown", text: body.slice(0, 12000) }] : []),
+        ...(links.length ? [{ type: "section", text: { type: "mrkdwn", text: links.join("\n").slice(0, 3000) } }] : []),
+        { type: "actions", elements: buttons },
+        { type: "context", elements: [{ type: "mrkdwn", text: `${it.id} · ${note}` }] },
+      ],
+    };
+  }
+}
+
+// ---- commands -------------------------------------------------------------------
+
+async function cmdRun() {
+  await new Bridge(requireConfig()).start();
+}
+
+async function cmdReply(args) {
+  let file = null;
+  const i = args.indexOf("--file");
+  if (i >= 0) [file] = args.splice(i, 2).slice(1);
+  const [id, ...rest] = args;
+  if (!id) throw new Fail("usage: cos-slack reply <inbox id> [text] [--file F]", 2);
+  const text = file ? fs.readFileSync(file, "utf8") : rest.join(" ");
+  if (!text.trim()) throw new Fail("give the reply as text or with --file", 2);
+  const where = readState().inbox[id];
+  if (!where) throw new Fail(`inbox message ${id} did not come from Slack`, 2);
+  const cfg = requireConfig();
+  const thread_ts = where.dm ? where.thread_ts : where.thread_ts || where.ts; // a DM answers in place, a channel in the thread
+  await slack(cfg.SLACK_BOT_TOKEN, "chat.postMessage", { channel: where.channel, ...(thread_ts ? { thread_ts } : {}), ...markdown(text) });
+  try { await slack(cfg.SLACK_BOT_TOKEN, "reactions.remove", { channel: where.channel, timestamp: where.ts, name: "eyes" }); } catch {}
+  out(id);
+}
+
+function cmdConfig([name, value]) {
+  if (name && !SETTINGS.includes(name)) throw new Fail(`unknown setting ${name}; settings: ${SETTINGS.join(", ")}`, 2);
+  const cfg = config();
+  if (value != null) {
+    cfg[name] = value.trim();
+    writeAtomic(CONFIG, SETTINGS.filter((k) => cfg[k]).map((k) => `${k}=${cfg[k]}`).join("\n") + "\n", 0o600);
+    fs.chmodSync(CONFIG, 0o600);
+  }
+  for (const k of name ? [name] : SETTINGS)
+    out(`${k}=${cfg[k] && k.endsWith("TOKEN") ? cfg[k].slice(0, 5) + "…(set)" : cfg[k] ?? ""}`);
+}
+
+const SELF = fs.realpathSync(__filename);
+const uid = () => process.getuid();
+const launchctl = (...args) => spawnSync("launchctl", args, { encoding: "utf8" });
+
+function cmdInstall() {
+  requireConfig();
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const env = { PATH: process.env.PATH, ...(process.env.COS_HOME ? { COS_HOME: process.env.COS_HOME } : {}),
+    ...(process.env.COS_SLACK_HOME ? { COS_SLACK_HOME: process.env.COS_SLACK_HOME } : {}) };
+  const logFile = path.join(HOME, "bridge.log");
+  writeAtomic(PLIST, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${LABEL}</string>
+  <key>ProgramArguments</key><array><string>${esc(process.execPath)}</string><string>${esc(SELF)}</string><string>run</string></array>
+  <key>EnvironmentVariables</key><dict>${Object.entries(env).map(([k, v]) => `<key>${k}</key><string>${esc(v)}</string>`).join("")}</dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>${esc(logFile)}</string>
+  <key>StandardErrorPath</key><string>${esc(logFile)}</string>
+</dict></plist>
+`);
+  launchctl("bootout", `gui/${uid()}/${LABEL}`); // a rerun picks up a new node or PATH
+  const r = launchctl("bootstrap", `gui/${uid()}`, PLIST);
+  if (r.status !== 0) throw new Fail(`launchctl bootstrap failed: ${r.stderr.trim()}`);
+  log(`Installed ${PLIST}; the bridge logs to ${logFile}.`);
+}
+
+function cmdUninstall() {
+  launchctl("bootout", `gui/${uid()}/${LABEL}`);
+  if (fs.existsSync(PLIST)) fs.unlinkSync(PLIST);
+  log(`Removed ${LABEL}. Settings and state stay in ${HOME}.`);
+}
+
+async function cmdStatus() {
+  cmdConfig([]);
+  const r = launchctl("print", `gui/${uid()}/${LABEL}`);
+  out(`launchd agent: ${r.status === 0 ? (r.stdout.match(/state = (\w+)/)?.[1] ?? "loaded") : "not installed"}`);
+  const cfg = config();
+  if (cfg.SLACK_BOT_TOKEN) {
+    try {
+      const a = await slack(cfg.SLACK_BOT_TOKEN, "auth.test");
+      out(`Slack: bot ${a.user} in ${a.team}`);
+    } catch (e) { out(`Slack: ${e.message}`); }
+  }
+}
+
+const COMMANDS = { run: cmdRun, reply: cmdReply, config: cmdConfig, install: cmdInstall, uninstall: cmdUninstall, status: cmdStatus };
+
+async function main() {
+  const [name, ...args] = process.argv.slice(2);
+  if (!name || name === "-h" || name === "--help") return out(DOC);
+  try {
+    if (!COMMANDS[name]) throw new Fail(`unknown command '${name}' (cos-slack --help lists them)`, 2);
+    await COMMANDS[name](args);
+  } catch (e) {
+    if (!(e instanceof Fail)) throw e;
+    log(`cos-slack: ${e.message}`);
+    process.exit(e.code);
+  }
+}
+
+main();
