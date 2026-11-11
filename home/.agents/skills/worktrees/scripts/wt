@@ -200,8 +200,11 @@ copy_includes() { # copy_includes <main> <dest>; prints the number of files copi
 }
 
 in_dir() { # in_dir <dir> <shell command>: run it there, under mise when mise is installed
+  # No auto-install: `mise exec` would otherwise install every missing tool in the
+  # global config first (node lts, npm:portless), so a repo that needs none of them
+  # (flight: xcodegen) failed setup whenever one of those installs did.
   if command -v mise >/dev/null 2>&1; then
-    (cd "$1" && mise exec -- sh -c "$2")
+    (cd "$1" && MISE_EXEC_AUTO_INSTALL=false mise exec -- sh -c "$2")
   else
     (cd "$1" && sh -c "$2")
   fi
@@ -723,7 +726,8 @@ A [section] is the path of a main checkout; its worktrees go to
   note     = Run the dev server on 3001 only.
 
 setup and teardown run with sh -c in the worktree, under mise when it is
-installed, with the env entries exported. setup stops at the first failure.
+installed (tools mise lacks are not installed; run `mise install` in the main
+checkout), with the env entries exported. setup stops at the first failure.
 Values expand {slug}, {slug_id} (slug with _ for -), {repo}, {main}, {path}.
 A note prints after wt new and in wt info.
 EOF

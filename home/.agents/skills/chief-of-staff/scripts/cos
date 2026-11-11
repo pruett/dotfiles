@@ -39,7 +39,11 @@ files that become its system prompt (the CoS: its SKILL.md and SKILL.local.md; a
 project-lead's; a worker: worker.md). \`cos up\` starts the CoS, \`cos lead start\` a lead,
 and a lead starts its workers with \`cos run\`; all three go through \`cos exec <role>\`,
 which puts this machine's settings in the agent's environment: $COS_WORK_ROOT, and
-CLAUDE_CONFIG_DIR from COS_CLAUDE_CONFIG_DIR.
+CLAUDE_CONFIG_DIR from COS_CLAUDE_CONFIG_DIR unless that is "default".
+
+\`cos up\` needs the Chief of Staff layout and mods in Herdr's config folder
+(~/.config/herdr-app/layouts/cos.json and the mods it names), which \`dot link\` puts there;
+\`cos init\` and \`cos up\` say which are missing.
 
 stdout carries data (ids, paths, JSON with --json); progress goes to stderr.
 Exit 0 ok, 1 a step failed, 2 bad usage or a missing precondition.`;
@@ -61,7 +65,9 @@ const NAME_RE = /^[a-z0-9][a-z0-9-]{0,26}$/; // lead-<name> must fit hc's 32-cha
 // This machine's settings, kept in $COS_HOME/config.env: name -> [what it is, suggested value].
 const SETTINGS = {
   COS_WORK_ROOT: ["the folder your repos live under (one folder per company or group)", "~/work"],
-  COS_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR)", "~/.claude"],
+  COS_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR); " +
+    "\"default\" leaves it unset, so Claude uses ~/.claude and ~/.claude.json. Name a folder only for " +
+    "a second profile such as ~/.claude-work", "default"],
 };
 
 class Fail extends Error {
@@ -164,7 +170,7 @@ async function requireConfig(askAll = false) {
       const [desc, def] = SETTINGS[k], current = cfg[k] ?? def;
       const answer = (await rl.question(`${k}: ${desc} [${current}]: `)).trim();
       cfg[k] = expand(answer || current);
-      if (!isDir(cfg[k])) log(`  note: ${cfg[k]} is not a folder yet.`);
+      if (cfg[k] && cfg[k] !== "default" && !isDir(cfg[k])) log(`  note: ${cfg[k]} is not a folder yet.`);
     }
   } finally {
     rl.close();
@@ -266,7 +272,36 @@ async function cmdInit(a) {
       log(`Wrote ${f}: fill in this machine's notes (or ask the CoS to).`);
     }
   }
+  checkHerdrFiles();
   out(HOME);
+}
+
+// Herdr's config folder, where `dot link` puts the Chief of Staff layout and its mods.
+const HERDR_APP = path.join(os.homedir(), ".config/herdr-app");
+const LAYOUT = path.join(HERDR_APP, "layouts/cos.json");
+
+// Says which of the layout and the mods it names are missing; true when none are.
+// Herdr's built-in mods sit in the same mods/ folder, so every name is checked alike.
+function checkHerdrFiles() {
+  const missing = [];
+  let layout = null;
+  try { layout = readJson(LAYOUT); } catch { missing.push(LAYOUT); }
+  const mods = new Set();
+  (function walk(n) {
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (!n || typeof n !== "object") return;
+    if (typeof n.mod === "string") mods.add(n.mod);
+    if (typeof n.terminal_menu === "string") mods.add(n.terminal_menu);
+    Object.values(n).forEach(walk);
+  })(layout);
+  for (const m of mods) {
+    const f = path.join(HERDR_APP, "mods", m, "mod.json");
+    if (!exists(f)) missing.push(f);
+  }
+  if (missing.length)
+    log(`The Chief of Staff panel cannot load; missing (or links to nothing):\n  ${missing.join("\n  ")}\n` +
+      "Run `dot link` in your dotfiles repo, then `cos up`.");
+  return !missing.length;
 }
 
 function cmdConfig(a) {
@@ -362,7 +397,9 @@ async function cmdExec(a) {
   // "default" keeps Claude's own default (~/.claude + ~/.claude.json). Setting
   // CLAUDE_CONFIG_DIR=~/.claude explicitly makes Claude read ~/.claude/.claude.json
   // instead, which looks like a fresh, logged-out install.
-  if (cfg.COS_CLAUDE_CONFIG_DIR && cfg.COS_CLAUDE_CONFIG_DIR !== "default") env.CLAUDE_CONFIG_DIR = cfg.COS_CLAUDE_CONFIG_DIR;
+  // ~/.claude itself counts as "default" for the same reason.
+  const dir = cfg.COS_CLAUDE_CONFIG_DIR;
+  if (dir && dir !== "default" && dir !== path.join(os.homedir(), ".claude")) env.CLAUDE_CONFIG_DIR = dir;
   const argv = [r.run, ...(r.args || [])], extra = [...a.extra], prompt = rolePrompt(a.role, r);
   if (r.run === "claude") argv.push("--append-system-prompt", prompt);
   else if (extra.length && !extra.at(-1).startsWith("-")) extra.push(`${prompt}\n\n---\n\n${extra.pop()}`);
@@ -406,7 +443,14 @@ async function cmdUp() {
   app(["do", "space.rename", "--id", HQ_SPACE, "--name", "HQ"], false);
   app(["do", "space.select", "--id", HQ_SPACE], false);
   // The Chief of Staff panel (Queue + Fleet) is a side-panel child (layouts/cos.json), next to Files and Changes.
-  app(["do", "layout.switch", JSON.stringify({ name: "cos" })], false);
+  if (!checkHerdrFiles()) return out(COS);
+  const sw = app(["do", "layout.switch", JSON.stringify({ name: "cos" })], false);
+  if (sw.status !== 0) {
+    log(`Herdr would not switch to the cos layout: ${(sw.stderr || sw.stdout).trim()}\n` +
+      "A setting Herdr does not know rejects every layout switch (for example a \"theme\" in " +
+      "~/.config/herdr-app/settings.json that this Herdr lacks); fix it or update Herdr, then rerun `cos up`.");
+    return out(COS);
+  }
   app(["do", "layout.select", JSON.stringify({ stack: "panel-body", child: "cos" })], false);
   app(["do", "layout.show", JSON.stringify({ id: "panel" })], false);
   out(COS);

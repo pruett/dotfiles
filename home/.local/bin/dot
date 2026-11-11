@@ -13,7 +13,6 @@ target="$HOME"
 folded_dirs=(
   .agents/skills
   .config/zsh
-  .local/state/cos  # the CoS writes here on purpose; its .gitignore keeps it all out
 )
 
 # Paths in the home package that stay in the repo and never get a link in ~.
@@ -152,13 +151,14 @@ dangling_links() {
 }
 
 cmd_link() {
-  local package dir entry
+  local package dir entry rc=0
   for package in $(packages); do
     stow_package "$package"
     info "Stowed $package"
   done
+  # A refused folder doesn't stop the rest; link exits 1 at the end instead.
   for dir in "${folded_dirs[@]}"; do
-    link_folded_dir "$dir"
+    link_folded_dir "$dir" || rc=1
   done
   while IFS= read -r entry; do
     rm "$entry"
@@ -168,6 +168,7 @@ cmd_link() {
     rm "$entry"
     info "Removed link to ignored path $entry"
   done < <(ignored_links)
+  return "$rc"
 }
 
 cmd_status() {
