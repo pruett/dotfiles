@@ -11,3 +11,4 @@ newest last.
   changes what a user sees.
 
 ## Learned
+- Leads may merge to dev or other integration branches once a human reviewer approved and required checks pass. Merging to a production branch (main/release), deploying, and anything above still ask. A project's own stricter rule wins (approved 2026-11-11, 1111-1117-b917).
