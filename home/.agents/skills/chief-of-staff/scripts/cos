@@ -17,6 +17,7 @@ the panel touch that shared state, so its file layout stays consistent:
 
   $COS_HOME (default ~/.local/state/cos)
     config.env                   this machine's settings (\`cos init\` asks for them)
+    brain.md                     your standing rules (\`cos init\` seeds it)
     projects/<p>/project.json    name, repo, lead terminal name, space label
     projects/<p>/plan.md         goal, current plan, what is stuck
     projects/<p>/decisions.md    dated decisions, newest last
@@ -25,8 +26,8 @@ the panel touch that shared state, so its file layout stays consistent:
     queue/<id>.json              one item waiting for (or answered by) you
     queue/<id>/                  its attachments: screenshots, videos, notes
 
-Your standing rules, learned by the CoS from your answers, are the skill's brain.md
-(part of the CoS's system prompt), not state.
+Your standing rules, learned by the CoS from your answers, are $COS_HOME/brain.md:
+part of the CoS's system prompt, local to this machine's fleet and never committed.
 
 Terminals (hc names): the CoS is \`cos\`; a project's lead is \`lead-<p>\`.
 Nothing types into the CoS's pane, which is yours: leads report with \`cos report\`,
@@ -272,6 +273,11 @@ async function cmdInit(a) {
       log(`Wrote ${f}: fill in this machine's notes (or ask the CoS to).`);
     }
   }
+  const brain = path.join(HOME, "brain.md");
+  if (!exists(brain)) {
+    fs.writeFileSync(brain, BRAIN_SEED);
+    log(`Wrote ${brain}: the CEO's standing rules, which the CoS adds to once you approve a rule.`);
+  }
   checkHerdrFiles();
   out(HOME);
 }
@@ -325,6 +331,22 @@ const ROLES_FILE = path.join(SKILL_DIR, "roles.json");
 // Roles started by their own command rather than `cos run`.
 const OWN_COMMAND = { "chief-of-staff": "cos up", lead: "cos lead start <project>" };
 
+// The CEO's standing rules for this fleet, seeded once into $COS_HOME/brain.md.
+const BRAIN_SEED = `# Brain
+
+The CEO's rules that hold across every project, learned by the CoS from their answers.
+Part of the CoS's system prompt (roles.json). The CoS settles anything a line here
+already answers, and appends a line only after the CEO approves it. One rule per line;
+newest last. Local to this machine's fleet; never committed.
+
+## Always ask me
+- Merging to a main branch, deploying, deleting anything remote, spending money.
+- Anything a lead would do differently in each of two credible ways and that
+  changes what a user sees.
+
+## Learned
+`;
+
 // This machine's notes for a role, beside its skill and gitignored (`cos init` seeds them): role -> file.
 const LOCAL_NOTES = {
   "chief-of-staff": path.join(SKILLS_DIR, "chief-of-staff/SKILL.local.md"),
@@ -368,10 +390,11 @@ function role(name) {
 }
 
 // A role's system prompt: its name, then its prompt files without their frontmatter.
+// A file starting "$COS_HOME/" is in the state folder; any other is under the skills folder.
 function rolePrompt(name, r) {
   const parts = [`Your role in the Chief of Staff org: ${name}.`];
   for (const rel of r.prompt || []) {
-    const f = path.join(SKILLS_DIR, rel);
+    const f = rel.startsWith("$COS_HOME/") ? path.join(HOME, rel.slice(10)) : path.join(SKILLS_DIR, rel);
     if (exists(f)) parts.push(fs.readFileSync(f, "utf8").replace(/^---\n[\s\S]*?\n---\n/, "").trim());
   }
   return parts.join("\n\n");
@@ -565,7 +588,7 @@ function cmdAnswer(a) {
   writeJson(p, it);
   const msg = `[queue answer] ${it.id} (${it.project}, ${it.kind}): "${it.title}" -> ${a.verdict}` +
     (a.choice ? ` [${a.choice}]` : "") + (a.text ? `: ${a.text}` : "") +
-    `. Asked by ${it.from}. Pass it on, append any rule that holds across projects to brain.md (once approved), ` +
+    `. Asked by ${it.from}. Pass it on, append any rule that holds across projects to $COS_HOME/brain.md (once approved), ` +
     `and \`cos close ${it.id}\` once it is addressed.`;
   if (!a.no_send) {
     deliver("answer", "ceo", it.project, msg, { item: it.id });
