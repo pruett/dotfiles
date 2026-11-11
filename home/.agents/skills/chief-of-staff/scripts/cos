@@ -358,7 +358,11 @@ function which(prog) {
 async function cmdExec(a) {
   const r = role(a.role);
   const cfg = await requireConfig();
-  const env = { ...process.env, COS_WORK_ROOT: cfg.COS_WORK_ROOT, CLAUDE_CONFIG_DIR: cfg.COS_CLAUDE_CONFIG_DIR };
+  const env = { ...process.env, COS_WORK_ROOT: cfg.COS_WORK_ROOT };
+  // "default" keeps Claude's own default (~/.claude + ~/.claude.json). Setting
+  // CLAUDE_CONFIG_DIR=~/.claude explicitly makes Claude read ~/.claude/.claude.json
+  // instead, which looks like a fresh, logged-out install.
+  if (cfg.COS_CLAUDE_CONFIG_DIR && cfg.COS_CLAUDE_CONFIG_DIR !== "default") env.CLAUDE_CONFIG_DIR = cfg.COS_CLAUDE_CONFIG_DIR;
   const argv = [r.run, ...(r.args || [])], extra = [...a.extra], prompt = rolePrompt(a.role, r);
   if (r.run === "claude") argv.push("--append-system-prompt", prompt);
   else if (extra.length && !extra.at(-1).startsWith("-")) extra.push(`${prompt}\n\n---\n\n${extra.pop()}`);
