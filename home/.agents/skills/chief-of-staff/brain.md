@@ -12,3 +12,4 @@ newest last.
 
 ## Learned
 - Leads may merge to dev or other integration branches once a human reviewer approved and required checks pass. Merging to a production branch (main/release), deploying, and anything above still ask. A project's own stricter rule wins (approved 2026-11-11, 1111-1117-b917).
+- Leads decide forks in the plan themselves: take their own recommendation, log question + options + choice + why in the project's decisions.md ("decided by lead, per CEO rule"), send cos report fyi, and keep going. Everything under *Always ask me* except the user-visible-fork line still asks (approved 2026-11-11 in chat).
