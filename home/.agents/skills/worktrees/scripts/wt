@@ -492,22 +492,41 @@ cmd_setup() { # re-apply the repo's rules to an existing worktree
 # ── info ─────────────────────────────────────────────────────────────────────
 
 cmd_info() { # the rules wt applies to one repo's worktrees, expanded for the current one
-  case "${1:-}" in -h|--help) help_info; exit 0 ;; esac
-  local main slug="<slug>" k v
+  case "${1:-}" in
+    -h|--help) help_info; exit 0 ;;
+    --all) info_all; return ;;
+  esac
+  local main slug="<slug>"
   if [ -n "${1:-}" ]; then
     main=$(entry_for_name "${1%%/*}") || die 2 "repo '${1%%/*}' is not in $(tilde "$WT_CONFIG")" "wt ls --all"
     case "$1" in */*) slug="${1#*/}" ;; esac
   else
-    main=$(entry_for_path "$PWD") || die 2 "$(tilde "$PWD") is not inside an allowed repo" "wt info <repo>"
+    main=$(entry_for_path "$PWD") || { info_all; return; }
     case "$PWD/" in "$(dirname "$main")/$WT_DIR/$(basename "$main")/"*)
       slug="${PWD#"$(dirname "$main")/$WT_DIR/$(basename "$main")/"}"; slug="${slug%%/*}" ;;
     esac
   fi
   set_entry "$main"
-  printf 'repo       %s\n' "$(tilde "$E_MAIN")"
-  printf 'worktrees  %s\n' "$(tilde "$E_ROOT/$WT_DIR/$E_REPO")/"
+  info_block "$main" "$slug"
+}
+
+info_all() { # every allowed repo's block, in config order
+  local main first=1
+  while IFS= read -r main; do
+    [ "$first" = 1 ] || echo; first=0
+    info_block "$main" "<slug>"
+  done <<<"$MAINS"
+}
+
+info_block() { # info_block <main> <slug>
+  local k v
+  E_MAIN="$1"; E_REPO=$(basename "$1"); E_ROOT=$(dirname "$1")
+  printf 'repo       %s%s\n' "$(tilde "$E_MAIN")" "$([ -e "$E_MAIN/.git" ] || echo ' (not cloned)')"
+  printf 'new        wt new %s/%s\n' "$E_REPO" "$2"
+  printf 'worktree   %s\n' "$(tilde "$E_ROOT/$WT_DIR/$E_REPO")/$2"
+  printf 'branch     %s%s\n' "$BRANCH_PREFIX" "$2"
   for k in include env setup teardown note; do
-    while IFS= read -r v; do [ -n "$v" ] && printf '%-10s %s\n' "$k" "$(expand "$v" "$slug")"; done < <(cfg_values "$E_MAIN" "$k")
+    while IFS= read -r v; do [ -n "$v" ] && printf '%-10s %s\n' "$k" "$(expand "$v" "$2")"; done < <(cfg_values "$E_MAIN" "$k")
   done
 }
 
@@ -693,7 +712,7 @@ verbs
   new <target>      make a worktree ready to run; prints its path
   path <target>     print the path of an existing worktree
   setup [<target>]  re-apply the repo's rules to an existing worktree
-  info [<repo>]     the rules wt applies to that repo's worktrees (default: here)
+  info [<repo>]     where that repo's worktrees live and how to boot one (--all: every repo)
   ls                linked worktrees of each allowed repo, with PR state
   rm <target>       remove one worktree
   prune             remove worktrees whose PR merged or closed (dry run first)
@@ -768,11 +787,13 @@ EOF
 }
 
 help_info() { cat <<EOF
-usage: wt info [<repo>[/<slug>]]
+usage: wt info [<repo>[/<slug>] | --all]
 
-prints the config entries for that repo (default: the one holding the current
-directory), with {slug} and the other placeholders filled in when you are in a
-worktree or name one: include · env · setup · teardown · note.
+the map for that repo (default: the one holding the current directory): its
+main checkout, the wt new command, the worktree path and branch, then its config
+entries (include · env · setup · teardown · note), with {slug} and the other
+placeholders filled in when you are in a worktree or name one. --all, or run
+outside every allowed repo, prints the map for each allowed repo.
 EOF
 }
 

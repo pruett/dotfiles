@@ -7,6 +7,10 @@ description: "Make, find, remove and prune git worktrees with the `wt` CLI. Use 
 
 `wt` (on `PATH`; its source is [`scripts/wt`](scripts/wt), run that when `wt` is missing) manages worktrees for the repos its config allows. Worktrees live **beside** the repos, never inside them, and `wt new` makes each one ready to run: it copies the repo's gitignored essentials, trusts mise and runs the repo's setup command. A bare `git worktree add` skips all of that.
 
+## Map
+
+`wt info --all` prints, for every repo `wt` manages: the main checkout, the `wt new` command, the worktree path and branch, and the `setup` and `note` lines that say how to boot and test it there. `wt info <repo>` prints one. Each block comes from that repo's section of the [`config`](config): a fact about booting a repo's worktree belongs there as a `note`, not in this file.
+
 ## Learn the current CLI
 
 `wt help` and `wt <verb> --help` are the contract: the layout, the allowed repos (`wt help config`), every verb and flag. Read the help of each verb before you first use it. stdout is data only (a path, or `ls` rows); progress goes to stderr. Exit 2 means bad usage or a precondition, exit 1 means a step failed, and every non-zero exit prints a `fix:` line. Run that line, unless it discards work (`--force`, `prune --yes`): those need the user's go-ahead.
