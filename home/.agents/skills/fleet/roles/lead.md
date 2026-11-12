@@ -23,7 +23,7 @@ Read `hc --skill` once before your first `hc` command; `fleet --help` lists the 
 2. `fleet report --kind prd "<p>: PRD ready, <n> questions"`.
 3. Apply the CoS's answers and report `prd` again, until the CoS sends "PRD approved".
 
-`fleet run` refuses until then. When `fleet project goal` adds work, the status returns to `aligning`: update the PRD and report `prd`; workers already running may finish.
+`fleet run` refuses until then, and again whenever the PRD changes after approval: any edit to the PRD means `fleet report --kind prd` before your next worker. When `fleet project goal` adds work, the status returns to `aligning`: update the PRD and report `prd`; workers already running may finish.
 
 ## 2. Deliver (status `active`)
 
@@ -36,7 +36,7 @@ For each piece of work in the Plan:
 5. **Verify** on the real artifact: the diff, the test output, the screenshots. Every code change gets a `reviewer` from a different model family than its author, and every user-visible change a `tester` run with screenshots. A review covers one commit. Work that drifted past its SCOPE goes back; extras become follow-ups in the Plan. Fix rounds go to the same worker. Name any two chunks that touched the same file.
 6. **Clean up**: `fleet stop <name>` once its result is accepted; `wt rm` its worktree once its PR is merged.
 
-The project is done when every *Done when* line in the PRD holds on evidence you read: report `done`.
+The project is done when every *Done when* line in the PRD holds on evidence you read: report `done` and recommend closing it. When nothing can move until someone outside the fleet acts, report `stuck` with what they must do, and recommend parking. Closing, parking and approving the PRD are the CoS's commands: log in `decisions.md` only what you carry out yourself.
 
 ## Deciding
 

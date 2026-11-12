@@ -20,6 +20,7 @@ A project's life:
   fleet report --kind prd                        the lead asks the CoS to sign the PRD
   fleet project approve <p>                      status active: the lead may start workers
   fleet project goal <p> "<more>"                new work: back to aligning
+  fleet project park <p> --reason "..."          status parked: waits on people; \`project start\` resumes
   fleet project close <p>                        status closed: lead and workers stop
 
   $FLEET_HOME (default ~/.local/state/fleet)
@@ -28,7 +29,7 @@ A project's life:
     projects/<p>/brief.md        your words, dated; only added to
     projects/<p>/project.md      the lead's spec: PRD, Standing orders, Now, Plan, Stuck, Done
     projects/<p>/decisions.md    dated decisions, newest last
-    projects/<p>/project.json    name, lead, status, the approved PRD's hash
+    projects/<p>/project.json    name, lead, status (aligning|active|parked|closed), the approved PRD's hash
     inbox/<id>.json              a message for the CoS; inbox/done/ once handled
     queue/<id>.json, queue/<id>/ one item for you, and its attachments
 
@@ -587,8 +588,28 @@ function cmdProjectStart(a) {
   need("you", "cos");
   const p = project(a.name);
   if (p.status === "closed") throw new Fail(`${a.name} is closed`, 2);
+  if (p.status === "parked") {
+    Object.assign(p, { status: p.parked_from || "active", parked_from: undefined, parked_reason: undefined });
+    saveProject(p);
+    appendDecision(a.name, `Unparked. Decided by: ${ROLE === "you" ? "CEO" : "CoS"}.`);
+  }
   startLead(p);
   out(p.lead);
+}
+
+// A project waiting on people, not work: its lead and workers stop until `fleet project start`.
+function cmdProjectPark(a) {
+  need("you", "cos");
+  const p = project(a.name);
+  if (p.status === "closed" || p.status === "parked") throw new Fail(`${a.name} is ${p.status}`, 2);
+  for (const w of workers(p)) stopTerminal(w.name);
+  forgetLead(p.lead);
+  stopTerminal(p.lead);
+  Object.assign(p, { parked_from: p.status, status: "parked", parked_reason: a.reason });
+  saveProject(p);
+  appendDecision(a.name, `Parked: ${a.reason}. Decided by: ${ROLE === "you" ? "CEO" : "CoS"}.`);
+  log(`Parked ${a.name}; \`fleet project start ${a.name}\` resumes it.`);
+  out(p.status);
 }
 
 function cmdProjectClose(a) {
@@ -766,7 +787,7 @@ const readSeen = () => (exists(SEEN_FILE) ? readJson(SEEN_FILE) : {});
 function watchLeads() {
   const seen = readSeen(), nowSeen = {};
   for (const p of projects()) {
-    if (p.status === "closed") continue;
+    if (["closed", "parked"].includes(p.status)) continue;
     const st = word(live(p.lead));
     nowSeen[p.lead] = st;
     const before = seen[p.lead]; // undefined on the first look: nothing to compare with
@@ -934,7 +955,7 @@ function cmdStats() {
   const its = items();
   for (const i of its) if (i.status in res.queue) res.queue[i.status]++;
   for (const p of projects()) {
-    if (p.status === "closed") continue;
+    if (["closed", "parked"].includes(p.status)) continue;
     const lead = byName[p.lead];
     // Workers outlive their lead, so they are found by name rather than as its children.
     const agents = [...(lead ? [agentRow(lead, "lead", 0, table)] : []),
@@ -989,6 +1010,8 @@ const COMMANDS = {
   "project approve": { fn: cmdProjectApprove, who: "you, cos", help: "sign the PRD: refuses while a field is empty or TBD; status active", pos: ["name"] },
   "project goal": { fn: cmdProjectGoal, who: "you, cos", help: "add work to brief.md; status back to aligning", pos: ["name", "text"] },
   "project start": { fn: cmdProjectStart, who: "you, cos", help: "start a stopped lead; it resumes from its files", pos: ["name"] },
+  "project park": { fn: cmdProjectPark, who: "you, cos", help: "stop a project that waits on people, not work; `project start` resumes it",
+    pos: ["name"], opts: { "--reason": { required: true, help: "what it waits on" } } },
   "project close": { fn: cmdProjectClose, who: "you, cos", help: "stop the lead and its workers; status closed; files stay", pos: ["name"] },
   "project ls": { fn: cmdProjectLs, help: "list projects with their status and lead", opts: json },
   run: { fn: cmdRun, who: "lead", help: "start a worker <project>-<role>-<slug>: fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name",

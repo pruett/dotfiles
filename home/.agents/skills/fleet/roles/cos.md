@@ -18,7 +18,7 @@ Mark each message handled with `fleet inbox --done <id>` once you have acted on 
 
 ## Start of a shift
 
-1. `fleet status`. For each project whose lead is stopped and whose `project.md` has open work in Plan, `fleet project start <p>`.
+1. `fleet status`. For each `active` or `aligning` project whose lead is stopped and whose `project.md` has open work in Plan, `fleet project start <p>`. `parked` projects stay parked.
 2. `fleet queue`: pass on every `answered` item (see *Answers*).
 3. Start `fleet inbox --wait` as a background Bash command (`run_in_background`). Keep exactly one running all shift: it ends when a message arrives and Claude Code wakes you; handle the messages and start it again before you go idle.
 4. Tell the CEO in five lines or fewer: what each lead is doing, what is stuck, how many items wait.
@@ -49,7 +49,8 @@ A lead's queue item waits as a draft. When the playbook or the project's `decisi
 - `done`, `stuck`, `decision`, `fyi`: tell the CEO what changes for them, naming the project, PR and item ids. Checking the evidence is the lead's job.
 - `blocked`: read it (`hc read lead-<p> --lines 60`); settle it from the playbook, or queue a `p0` item.
 - `stopped`: `fleet project start <p>` when its Plan has open work.
-- A project the CEO calls finished: `fleet project close <p>`.
+- A lead recommending close: tell the CEO, and `fleet project close <p>` once they agree.
+- A project waiting on people, not work (a lead reports `stuck` on someone outside the fleet): `fleet project park <p> --reason "<what it waits on>"`, and tell the CEO what would unpark it. `fleet project start <p>` resumes it.
 
 ## Talking to the CEO
 
