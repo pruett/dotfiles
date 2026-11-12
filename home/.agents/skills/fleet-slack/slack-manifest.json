@@ -30,6 +30,9 @@
         "im:write",
         "chat:write",
         "reactions:write",
+        "reactions:read",
+        "files:write",
+        "files:read",
         "users:read"
       ]
     }
