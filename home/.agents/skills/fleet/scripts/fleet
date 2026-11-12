@@ -35,7 +35,7 @@ A project's life:
 
 Terminals (hc names): the CoS is \`cos\`; a lead is \`lead-<p>\`; a worker \`<p>-<role>-<slug>\`.
 Nothing types into the CoS's pane, which is yours: leads report with \`fleet report\` and your
-answers go through \`fleet answer\`; both land in the inbox. The CoS talks to leads with \`hc send\`.
+answers go through \`fleet answer\`; both land in the inbox. The CoS talks to leads with \`fleet send\`.
 
 Every agent starts through \`fleet exec <role>\`, which sets FLEET_HOME, FLEET_WORK_ROOT,
 FLEET_ROLE, FLEET_PROJECT_DIR (leads and workers) and CLAUDE_CONFIG_DIR. Commands check
@@ -659,6 +659,26 @@ function cmdStop(a) {
   log(`Stopped ${a.name}.`);
 }
 
+// A message from the CoS to a lead, or from a lead to one of its workers. hc tags it
+// <hc from="…">, which would turn a leading /command into plain text, so a message that
+// starts with "/" goes untagged, as if typed, and its /command runs.
+function cmdSend(a) {
+  need("you", "cos", "lead");
+  if (ROLE === "lead") {
+    const p = myProject();
+    if (!a.name.startsWith(`${p.name}-`)) throw new Fail(`${a.name} is not one of ${p.name}'s workers`, 2);
+    if (!live(a.name)) throw new Fail(`${a.name} is not running; \`fleet ls\` lists your workers`, 2);
+  } else {
+    if (!/^lead-/.test(a.name)) throw new Fail(`${a.name} is not a lead (lead-<p>)`, 2);
+    if (!live(a.name)) throw new Fail(`${a.name} is not running; start it with \`fleet project start ${a.name.slice(5)}\``, 2);
+  }
+  const raw = a.text.startsWith("/"), env = { ...process.env };
+  if (raw) delete env.HC_TERMINAL_ID; // without it hc cannot tag the sender
+  const r = spawnSync("hc", ["send", a.name, a.text], { encoding: "utf8", env });
+  if (r.status !== 0) throw new Fail(`hc send failed: ${(r.stderr || r.stdout || "").trim()}`);
+  log(`Sent to ${a.name}${raw ? " untagged" : ""}.`);
+}
+
 // A lead whose context is filling up restarts itself; its workers keep running.
 function cmdHandoff() {
   need("lead");
@@ -1008,6 +1028,8 @@ const COMMANDS = {
   run: { fn: cmdRun, who: "lead", help: "start a worker <project>-<role>-<slug>: fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name",
     pos: ["role", "slug", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
+  send: { fn: cmdSend, who: "you, cos (to a lead), lead (to its own workers)", help: "a message to a lead, or a lead's to its worker; one that starts with \"/\" goes untagged, so its /command runs",
+    pos: ["name", "text"] },
   stop: { fn: cmdStop, who: "lead", help: "kill one of this project's workers", pos: ["name"] },
   handoff: { fn: cmdHandoff, who: "lead", help: "restart this lead with a fresh context once Now in prd.md is current; workers keep running" },
   report: { fn: cmdReport, who: "lead, you", help: "a report to the CoS, into its inbox (never `hc send cos`); prints its id", pos: ["text?"], opts: {
