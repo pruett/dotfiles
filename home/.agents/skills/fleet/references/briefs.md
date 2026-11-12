@@ -10,7 +10,8 @@ fleet run implementer ratelimit --cwd "$dir" "<brief>"
 ```
 
 - Code-writing chunks (`implementer`, and `cloud-agent` when it writes code) each get their own worktree from `wt new` (the worktrees skill); `researcher`, `reviewer` and `tester` run in the repo or in the worktree they look at.
-- `cloud-agent` (Devin) must start under `$FLEET_WORK_ROOT/<company>/`: its Devin account is the company folder.
+- `cloud-agent` (Devin) must start under `$FLEET_WORK_ROOT/<company>/`: its Devin account is the company folder. In a cloud session it sets the repo with `/repo` before its first message: a message first leaves a pending session that `/repo` cannot fix, and only a fresh `devin --cloud` recovers. It watches its own PR and fixes CI and review threads itself, so read the PR's thread and commits before sending it a fix.
+- `reviewer` (Codex) can write only under its `--cwd`. Its findings go in a file there (`./review-<slug>.md`, left untracked), reported by path; copy it into `evidence/` yourself if you keep it.
 - The brief is the worker's first prompt and its role's rules (`roles/worker.md`) are its system prompt, so the brief holds only the work. `fleet run` accepts Claude's folder-trust prompt itself; when it warns the worker reported no status, `hc read <name>` before anything else.
 
 ## Brief
@@ -24,7 +25,7 @@ CONTEXT     file and PR pointers; the PRD lines it serves; earlier workers' resu
 PRINCIPLES  the principle files it reads and follows, by path (principles.md says which)
 ACCEPTANCE  checkable criteria, one per line
 VERIFY      exact commands to run, plus known gotchas
-EVIDENCE    where to save screenshots / recordings / findings: $FLEET_PROJECT_DIR/evidence/<worker>/
+EVIDENCE    where to save screenshots / recordings / findings: $FLEET_PROJECT_DIR/evidence/<worker>/ (a reviewer: a file in its own folder)
 FORBIDDEN   no merges, no rebases of shared branches, no edits outside SCOPE, no new agents
 REPORT      hc send lead-<project> "<status, branch, PR, commands run + output, evidence paths, deviations>"
 ```
