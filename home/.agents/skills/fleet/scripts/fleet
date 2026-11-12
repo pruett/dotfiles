@@ -25,7 +25,7 @@ A project's life:
 
   $FLEET_HOME (default ~/.local/state/fleet)
     config.env                   this machine's settings (\`fleet init\` asks for them)
-    playbook.md                  your rules, accounts and machine notes; in every CoS and lead prompt
+    playbook.md                  your rules; in every CoS and lead prompt
     projects/<p>/brief.md        your words, dated; only added to
     projects/<p>/prd.md      the lead's spec: PRD, Standing orders, Now, Plan, Stuck, Done
     projects/<p>/decisions.md    dated decisions, newest last
@@ -355,7 +355,7 @@ async function cmdInit(a) {
   const pb = path.join(HOME, "playbook.md");
   if (!exists(pb)) {
     fs.writeFileSync(pb, PLAYBOOK_SEED);
-    log(`Wrote ${pb}: your rules, accounts and machine notes. Fill in each "(not set)", or let the CoS ask you.`);
+    log(`Wrote ${pb}: your rules for the CoS and leads.`);
   }
   checkHerdrFiles();
   out(HOME);
@@ -407,29 +407,20 @@ const SKILL_DIR = path.dirname(path.dirname(SELF));
 // Each role's program, model and system prompt files, kept in the skill's roles.json.
 const ROLES_FILE = path.join(SKILL_DIR, "roles.json");
 
-// Your rules, accounts and machine notes, seeded once into $FLEET_HOME/playbook.md.
+// Your rules, seeded once into $FLEET_HOME/playbook.md.
 const PLAYBOOK_SEED = `# Playbook
 
-Your rules, accounts and machine notes. Part of every CoS and lead system prompt
-(roles.json). Local to this machine; never committed. Rules: one per line, newest last;
-the CoS appends one only after you approve it. Replace each "(not set)" with the answer.
+Your rules for the CoS and leads; part of their system prompts (roles.json). Local to this
+machine; never committed. One rule per line, newest last; the CoS appends one only after
+you approve it. Which program and login each role uses is in roles.json, not here.
 
 ## Always ask me
-- Merging to a main branch, deploying, deleting anything remote, spending money.
+- Merging to a production branch, deploying, deleting anything remote, spending money.
 
 ## Learned
 
-## Accounts
-(not set) Which Claude, Devin (\`devin-as <account>\`) and Codex login each company's work uses.
-
-## Companies and repos
-(not set) Which companies' repos are under $FLEET_WORK_ROOT, and their base branches.
-
-## Machine
-(not set) Tools installed (wt, gh, herdr-app, devin), other machines (\`hc machine ls\`).
-
-## Reaching me
-(not set) Working hours, and what may wait until then.
+## Worktrees
+- Every agent that changes code works in its own worktree from \`wt new <repo>/<project>-<slug>\`, never in a repo's main checkout. \`wt info <repo>\` (or \`--all\`) says where it lives and how to boot it (the \`worktrees\` skill).
 `;
 
 function roles() {
