@@ -1,0 +1,26 @@
+# Playbook
+
+Example of playbook.md: your rules, accounts and machine notes, part of every CoS and
+lead system prompt. Copy it to playbook.md beside this file and make it yours (`fleet init`
+seeds one if none exists). Rules: one per line, newest last; the CoS appends one only
+after you approve it.
+
+## Always ask me
+- Merging to a main branch, deploying, deleting anything remote, spending money.
+
+## Learned
+- Leads may merge to dev once a human reviewer approved and required checks pass (approved 2026-01-15).
+
+## Accounts
+- Claude: every agent uses `~/.claude` for every company.
+- Devin: `devin-as acme …` for Acme work (the `devin` skill).
+- Codex: the default login in `~/.codex`.
+
+## Companies and repos
+- Acme: `$FLEET_WORK_ROOT/acme/{web,api}`; base branch `dev`, production `main`.
+
+## Machine
+- wt, gh, herdr-app, hc and devin are installed. No other machines (`hc machine ls` is empty).
+
+## Reaching me
+- Mon-Fri 9:00-18:00 ET. Outside those hours only p0 items need me.
