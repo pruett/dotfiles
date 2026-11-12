@@ -1,7 +1,7 @@
-// my-spaces: Herdr's `spaces` (mod.clone, 0.1.14) plus the Chief of Staff org as a tree.
-// The space running the CoS (cos.role=cos) is a root; a lead's space (cos.role=lead)
-// nests under it; spaces whose agents are a project's workers (cos.project=<p>) nest
-// under that project's lead. Labels come from `cos` and the leads (`hc label`).
+// my-spaces: Herdr's `spaces` (mod.clone, 0.1.14) plus the fleet as a tree.
+// The space running the CoS (fleet.role=cos) is a root; a lead's space (fleet.role=lead)
+// nests under it; spaces whose agents are a project's workers (fleet.project=<p>) nest
+// under that project's lead. Labels come from `fleet` when it starts each agent.
 //
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
@@ -40,9 +40,9 @@ function cosParents(sp) {
   const rank = { cos: 0, lead: 1, worker: 2 };
   const best = {}; // space id -> { role, project }
   for (const k of terminals()) {
-    const l = k.labels ?? {}, space = l["herdr.space"], role = l["cos.role"];
+    const l = k.labels ?? {}, space = l["herdr.space"], r = l["fleet.role"], role = r === "cos" || r === "lead" ? r : r && "worker";
     if (k.state !== "live" || !ids.has(space) || !(role in rank)) continue;
-    if (!best[space] || rank[role] < rank[best[space].role]) best[space] = { role, project: l["cos.project"] };
+    if (!best[space] || rank[role] < rank[best[space].role]) best[space] = { role, project: l["fleet.project"] };
   }
   const hq = Object.keys(best).find((id) => best[id].role === "cos");
   const leadOf = {};

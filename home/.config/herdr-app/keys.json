@@ -123,10 +123,10 @@
     "cmd-backspace": "send:\u0015",
     "ctrl-[": "send:\u001b"
   },
-  "layout:cos": {
-    "cmd-shift-e": "chief-of-staff.panel-files",
-    "cmd-shift-g": "chief-of-staff.panel-changes",
-    "cmd-shift-i": "chief-of-staff.panel-cos",
+  "layout:fleet": {
+    "cmd-shift-e": "fleet.panel-files",
+    "cmd-shift-g": "fleet.panel-changes",
+    "cmd-shift-i": "fleet.panel-fleet",
     "cmd-alt-b": "layout.toggle:panel"
   }
 }

@@ -1,11 +1,11 @@
 ---
 name: cos-slack
-description: "Answer the CEO in Slack as the Chief of Staff. Use when a `cos inbox` message is from `slack`."
+description: "Answer the CEO in Slack as the Chief of Staff. Use when a `fleet inbox` message is from `slack`."
 ---
 
 # Chief of Staff in Slack
 
-An add-on to the chief-of-staff skill. The `cos-slack` bridge passes the CEO's Slack messages into your inbox and posts your answers back; `cos-slack --help` has the setup and the commands.
+An add-on to the CoS role in the fleet. The `cos-slack` bridge passes the CEO's Slack messages into your inbox and posts your answers back; `cos-slack --help` has the setup and the commands.
 
 ## A message from `slack`
 
@@ -13,7 +13,7 @@ An inbox message `from slack` is **the CEO**, writing in Slack. The bridge passe
 
 ```sh
 cos-slack reply <inbox id> "<answer>"      # --file <path> for anything over ten lines
-cos inbox --done <inbox id>
+fleet inbox --done <inbox id>
 ```
 
 The message opens with `[slack <workspace>]`: the company's Slack it came from (for example `suppco`, `functionhealth`). Read it as that company's context: its projects, repos and accounts. The reply lands in the same workspace, in the CEO's DM or in the thread where they mentioned you. Write it for a phone: outcome first, five lines or fewer, the project, PR and queue item id by name. Work that takes longer: reply with what you started and who has it, then reply again (same inbox id) when the lead reports back.
@@ -22,4 +22,4 @@ A mention in a channel thread carries the thread under *Thread so far*. That is 
 
 ## Queue items in Slack
 
-The bridge posts every open `p0` and `p1` queue item to the CEO's DM with buttons, and records a button press with `cos answer`, so it reaches you as an ordinary `answer` message. A reply in an item's thread arrives as a `feedback` answer. Close the loop on these exactly as for answers from the panel.
+The bridge posts every open `p0` and `p1` queue item to the CEO's DM with buttons, and records a button press with `fleet answer`, so it reaches you as an ordinary `answer` message. A reply in an item's thread arrives as a `feedback` answer. Close the loop on these exactly as for answers from the panel.

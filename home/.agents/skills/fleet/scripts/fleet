@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cos: the Chief of Staff org's shared state and launcher on Herdr. `cos --help` prints DOC.
+// fleet: the CEO's agent fleet on Herdr — its shared state and launcher. `fleet --help` prints DOC.
 "use strict";
 const fs = require("node:fs");
 const os = require("node:os");
@@ -8,43 +8,37 @@ const crypto = require("node:crypto");
 const readline = require("node:readline/promises");
 const { spawnSync } = require("node:child_process");
 
-const DOC = `cos: the Chief of Staff org's shared state and launcher on Herdr.
+const DOC = `fleet: the CEO's agent fleet on Herdr — its shared state and launcher.
 
-You talk only to the Chief of Staff (CoS). The CoS runs one lead per project; each
-lead runs short-lived workers. Anything that needs your judgment is a queue item,
-answered in the Chief of Staff panel (Queue tab) beside the CoS. This CLI is the one way agents and
-the panel touch that shared state, so its file layout stays consistent:
+Roles (roles.json beside this script): the Chief of Staff (\`cos\`) passes messages
+between you and the leads; a \`lead\` runs one project; workers (implementer, researcher,
+tester, reviewer, devin) each do one chunk for a lead. You talk only to the CoS. Anything
+that needs your judgment is a queue item, answered in the Fleet panel's Queue tab in HQ.
 
-  $COS_HOME (default ~/.local/state/cos)
-    config.env                   this machine's settings (\`cos init\` asks for them)
-    brain.md                     your standing rules (\`cos init\` seeds it)
-    projects/<p>/project.json    name, repo, lead terminal name, space label
-    projects/<p>/plan.md         goal, current plan, what is stuck
+A project's life:
+  fleet project new <p> --brief "<your words>"   status aligning: its lead writes the PRD
+  fleet report --kind prd                        the lead asks the CoS to sign the PRD
+  fleet project approve <p>                      status active: the lead may start workers
+  fleet project goal <p> "<more>"                new work: back to aligning
+  fleet project close <p>                        status closed: lead and workers stop
+
+  $FLEET_HOME (default ~/.local/state/fleet)
+    config.env                   this machine's settings (\`fleet init\` asks for them)
+    playbook.md                  your rules, accounts and machine notes; in every CoS and lead prompt
+    projects/<p>/brief.md        your words, dated; only added to
+    projects/<p>/project.md      the lead's spec: PRD, Standing orders, Now, Plan, Stuck, Done
     projects/<p>/decisions.md    dated decisions, newest last
-    inbox/<id>.json              a message for the CoS: a lead's report, your panel answer,
-                                 a lead that stopped; inbox/done/ once the CoS handled it
-    queue/<id>.json              one item waiting for (or answered by) you
-    queue/<id>/                  its attachments: screenshots, videos, notes
+    projects/<p>/project.json    name, lead, status, the approved PRD's hash
+    inbox/<id>.json              a message for the CoS; inbox/done/ once handled
+    queue/<id>.json, queue/<id>/ one item for you, and its attachments
 
-Your standing rules, learned by the CoS from your answers, are $COS_HOME/brain.md:
-part of the CoS's system prompt, local to this machine's fleet and never committed.
+Terminals (hc names): the CoS is \`cos\`; a lead is \`lead-<p>\`; a worker \`<p>-<role>-<slug>\`.
+Nothing types into the CoS's pane, which is yours: leads report with \`fleet report\` and your
+answers go through \`fleet answer\`; both land in the inbox. The CoS talks to leads with \`hc send\`.
 
-Terminals (hc names): the CoS is \`cos\`; a project's lead is \`lead-<p>\`.
-Nothing types into the CoS's pane, which is yours: leads report with \`cos report\`,
-your panel answers go through \`cos answer\`, and both land in the inbox. The CoS keeps
-\`cos inbox --wait\` running in the background, which also notices a lead that is
-blocked or has stopped. The CoS talks to leads with plain \`hc send\`.
-
-Every agent is one of the roles in the skill's roles.json: its program, model and the
-files that become its system prompt (the CoS: its SKILL.md and SKILL.local.md; a lead:
-project-lead's; a worker: worker.md). \`cos up\` starts the CoS, \`cos lead start\` a lead,
-and a lead starts its workers with \`cos run\`; all three go through \`cos exec <role>\`,
-which puts this machine's settings in the agent's environment: $COS_WORK_ROOT, and
-CLAUDE_CONFIG_DIR from COS_CLAUDE_CONFIG_DIR unless that is "default".
-
-\`cos up\` needs the Chief of Staff layout and mods in Herdr's config folder
-(~/.config/herdr-app/layouts/cos.json and the mods it names), which \`dot link\` puts there;
-\`cos init\` and \`cos up\` say which are missing.
+Every agent starts through \`fleet exec <role>\`, which sets FLEET_HOME, FLEET_WORK_ROOT,
+FLEET_ROLE, FLEET_PROJECT_DIR (leads and workers) and CLAUDE_CONFIG_DIR. Commands check
+FLEET_ROLE: only a lead starts workers, only the CoS forwards drafts.
 
 stdout carries data (ids, paths, JSON with --json); progress goes to stderr.
 Exit 0 ok, 1 a step failed, 2 bad usage or a missing precondition.`;
@@ -54,19 +48,22 @@ const expand = (p) => {
   return s.length > 1 ? path.normalize(s).replace(/\/+$/, "") : s;
 };
 
-const HOME = process.env.COS_HOME ? expand(process.env.COS_HOME) : path.join(os.homedir(), ".local/state/cos");
+const HOME = process.env.FLEET_HOME ? expand(process.env.FLEET_HOME) : path.join(os.homedir(), ".local/state/fleet");
 const COS = "cos"; // the CoS terminal's hc name
-const HQ_SPACE = "cos-hq"; // herdr.space label for the CoS's space
+const HQ_SPACE = "fleet-hq"; // herdr.space label for the CoS's space
 const PRIORITIES = ["p0", "p1", "p2", "p3"];
 const KINDS = ["decision", "review", "approval", "fyi", "idea"];
-const REPORT_KINDS = ["done", "stuck", "decision", "fyi"]; // what a lead's `cos report` says
+const REPORT_KINDS = ["prd", "done", "stuck", "decision", "fyi"]; // what a lead's `fleet report` says
 const VERDICTS = ["approve", "changes", "feedback", "choose", "reject"];
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,26}$/; // lead-<name> must fit hc's 32-character names
+const PRD_FIELDS = ["Goal", "Done when", "Repos", "Worktrees", "Scope", "Verification"];
+const ROLE = process.env.FLEET_ROLE || "you"; // who is running this command
+const LEADERS = ["cos", "lead"]; // roles started by `fleet up` and `fleet project`, never `fleet run`
 
-// This machine's settings, kept in $COS_HOME/config.env: name -> [what it is, suggested value].
+// This machine's settings, kept in $FLEET_HOME/config.env: name -> [what it is, suggested value].
 const SETTINGS = {
-  COS_WORK_ROOT: ["the folder your repos live under (one folder per company or group)", "~/work"],
-  COS_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR); " +
+  FLEET_WORK_ROOT: ["the folder your repos live under (one folder per company or group)", "~/work"],
+  FLEET_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR); " +
     "\"default\" leaves it unset, so Claude uses ~/.claude and ~/.claude.json. Name a folder only for " +
     "a second profile such as ~/.claude-work", "default"],
 };
@@ -85,6 +82,7 @@ const exists = (p) => fs.existsSync(p);
 const pad = (s, n) => String(s ?? "").padEnd(n);
 const round4 = (x) => Math.round(x * 1e4) / 1e4;
 const hex2 = () => crypto.randomBytes(2).toString("hex");
+const sha = (s) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
 
 function stamp(fmt) {
   const d = new Date(), z = (n) => String(n).padStart(2, "0");
@@ -136,6 +134,12 @@ function live(name) {
   return t && t.state === "live" ? t : null;
 }
 
+// Refuse a command outside the roles allowed to run it ("you" is a person, the panel or a bridge).
+function need(...roles) {
+  if (!roles.includes(ROLE))
+    throw new Fail(`only ${roles.map((r) => (r === "you" ? "you (no FLEET_ROLE)" : `the ${r}`)).join(" or ")} may run this; you are ${ROLE === "you" ? "not in a fleet role" : `the ${ROLE}`}`, 2);
+}
+
 function ensureHome() {
   for (const sub of ["projects", "queue"]) fs.mkdirSync(path.join(HOME, sub), { recursive: true });
 }
@@ -163,8 +167,8 @@ async function requireConfig(askAll = false) {
   if (!todo.length) return cfg;
   if (!process.stdin.isTTY)
     throw new Fail(`this machine is not set up: ${todo.join(", ")} missing. ` +
-      "Run `cos init` in a terminal, or `cos config <NAME> <value>` for each.", 2);
-  log(`Setting up the Chief of Staff on this machine (${path.join(HOME, "config.env")}). Press enter to keep the suggestion.`);
+      "Run `fleet init` in a terminal, or `fleet config <NAME> <value>` for each.", 2);
+  log(`Setting up the fleet on this machine (${path.join(HOME, "config.env")}). Press enter to keep the suggestion.`);
   const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
   try {
     for (const k of todo) {
@@ -184,12 +188,17 @@ function isDir(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
-function projectDir(name) {
-  const d = path.join(HOME, "projects", name);
-  if (!exists(path.join(d, "project.json")))
-    throw new Fail(`no project '${name}'; add it with: cos project add ${name} --repo <path>`, 2);
-  return d;
+// ---- projects -------------------------------------------------------------------
+
+const projDir = (name) => path.join(HOME, "projects", name);
+
+function project(name) {
+  const pj = path.join(projDir(name), "project.json");
+  if (!exists(pj)) throw new Fail(`no project '${name}'; start one with: fleet project new ${name} --brief "..."`, 2);
+  return readJson(pj);
 }
+
+const saveProject = (p) => writeJson(path.join(projDir(p.name), "project.json"), p);
 
 function projects() {
   const dir = path.join(HOME, "projects");
@@ -198,17 +207,91 @@ function projects() {
     .map((n) => path.join(dir, n, "project.json")).filter(exists).map(readJson);
 }
 
-function items(includeClosed = false) {
+// The project this lead or worker belongs to, from FLEET_PROJECT_DIR.
+function myProject() {
+  const d = process.env.FLEET_PROJECT_DIR;
+  if (!d) throw new Fail("FLEET_PROJECT_DIR is not set; run this as a lead started by `fleet project`", 2);
+  return project(path.basename(d));
+}
+
+// The PRD section of project.md: its text, and each field's body (or null when missing).
+function readPrd(name) {
+  const f = path.join(projDir(name), "project.md");
+  const md = exists(f) ? fs.readFileSync(f, "utf8") : "";
+  const m = md.match(/^## PRD[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+  const text = m ? m[1].trim() : "";
+  const fields = {};
+  for (const name of PRD_FIELDS) {
+    const fm = text.match(new RegExp(`^### ${name}[^\\n]*\\n([\\s\\S]*?)(?=^### |(?![\\s\\S]))`, "m"));
+    fields[name] = fm ? fm[1].trim() : null;
+  }
+  return { text, fields };
+}
+
+function appendDecision(name, line) {
+  fs.appendFileSync(path.join(projDir(name), "decisions.md"), `- ${stamp("%Y-%m-%d")}: ${line}\n`);
+}
+
+const PROJECT_MD = (name) => `# ${name}
+
+## PRD
+The lead fills each field (~/.agents/skills/fleet/references/prd.md), noting where each answer came from;
+an open question stays as "TBD: <question> — rec: <your answer>". The CoS signs it with
+\`fleet project approve\`; after that it stays fixed until \`fleet project goal\`.
+
+${PRD_FIELDS.map((f) => `### ${f}\nTBD`).join("\n\n")}
+
+## Standing orders
+Project rules beyond playbook.md, as they stand now. Change a line in place and log the change in decisions.md.
+
+## Now
+The resume point: workers in flight, what you are waiting on, your next step.
+
+## Plan
+
+## Stuck
+
+## Done
+`;
+
+// Start (or restart) a project's lead in its own space; its first prompt depends on the status.
+function startLead(p) {
+  if (live(p.lead)) return log(`${p.lead} is already running.`);
+  const d = projDir(p.name);
+  const task = `You lead project \`${p.name}\`. Folder: ${d}. Status: ${p.status}. ` + (p.status === "aligning"
+    ? "Read brief.md, fill the PRD in project.md per ~/.agents/skills/fleet/references/prd.md, then send `fleet report --kind prd`."
+    : "Read brief.md, project.md (Now first) and decisions.md, then carry on. `fleet ls` lists workers still running.");
+  launch({ role: "lead", name: p.lead, cwd: d, task, space: p.space, labels: [`fleet.project=${p.name}`],
+    parent: "outlive", keep: true });
+  app(["do", "space.rename", "--id", p.space, "--name", p.name], false);
+  log(`Started ${p.lead} in space ${p.name}.`);
+}
+
+function stopTerminal(name) {
+  hc(["kill", name], false);
+  hc(["rm", name], false);
+}
+
+// A project's workers: live terminals named <project>-<role>-<slug>.
+function workers(p) {
+  const rs = Object.keys(roles()).filter((r) => !LEADERS.includes(r));
+  return ((hcJson("ls") || {}).terminals || [])
+    .filter((t) => t.name && rs.some((r) => t.name.startsWith(`${p.name}-${r}-`)));
+}
+
+// ---- queue --------------------------------------------------------------------
+
+function items({ closed = false, drafts = false } = {}) {
   const dir = path.join(HOME, "queue"), list = [];
   for (const f of isDir(dir) ? fs.readdirSync(dir) : []) {
     if (!f.endsWith(".json")) continue;
     let it;
     try { it = readJson(path.join(dir, f)); } catch { continue; }
-    if (includeClosed || it.status !== "closed") list.push(it);
+    if ((closed || it.status !== "closed") && (drafts || it.status !== "draft")) list.push(it);
   }
   // Open first, then priority, then oldest first.
-  const order = { open: 0, answered: 1, closed: 2 };
-  const key = (i) => [order[i.status] ?? 3, i.priority ?? "p2", i.created ?? ""];
+  const order = { open: 0, answered: 1, draft: 2, closed: 3 };
+  const key = (i) => [order[i.status] ?? 4, i.priority ?? "p2", i.created ?? ""];
   return list.sort((a, b) => {
     const [x, y] = [key(a), key(b)];
     for (let n = 0; n < 3; n++) if (x[n] !== y[n]) return x[n] < y[n] ? -1 : 1;
@@ -222,6 +305,8 @@ function itemPath(id) {
   return p;
 }
 
+// ---- launching ----------------------------------------------------------------
+
 // The Herdr space id a terminal labelled herdr.space=<label> landed in, if Herdr kept the label as its id.
 function findSpace(label) {
   const r = app(["ls"], false);
@@ -229,19 +314,18 @@ function findSpace(label) {
   try { return (JSON.parse(r.stdout).spaces || []).find((s) => s.id === label) || null; } catch { return null; }
 }
 
-// Start a role as `cos exec <role> <task>` in an hc terminal; the task is the agent's first
+// Start a role as `fleet exec <role> <task>` in an hc terminal; the task is the agent's first
 // prompt, so nothing is typed into it. parent: "child" (ends with the caller), "outlive"
-// (a lead: outlives the CoS's restarts) or "none" (the CoS). hc types no notes about it
-// into its parent: `cos inbox --wait` watches leads, and leads wait on their workers.
+// (leads and workers: they survive their parent's restarts) or "none" (the CoS). hc types no
+// notes about it into its parent: `fleet inbox --wait` watches leads, and leads read their workers.
 function launch({ role, name, cwd, task, space, labels = [], parent = "child", keep = false }) {
-  const args = ["run", "--bg", "--json", "--no-notify", "--name", name, "--cwd", cwd,
-    "--label", `cos.role=${role === "chief-of-staff" ? COS : role}`]; // my-spaces finds HQ by cos.role=cos
+  const args = ["run", "--bg", "--json", "--no-notify", "--name", name, "--cwd", cwd, "--label", `fleet.role=${role}`];
   if (keep) args.push("--keep");
   if (space) args.push("--label", `herdr.space=${space}`);
   for (const lab of labels) args.push("--label", lab);
   if (parent === "outlive") args.push("--outlive-parent");
   if (parent === "none") args.push("--no-parent");
-  args.push("--", SELF, "exec", role, task);
+  args.push("--", "env", `FLEET_HOME=${HOME}`, SELF, "exec", role, task); // hc run passes no environment
   hc(args);
   settle(name, cwd);
 }
@@ -267,24 +351,18 @@ function settle(name, cwd) {
 
 async function cmdInit(a) {
   await requireConfig(a.reset);
-  for (const [role, f] of Object.entries(LOCAL_NOTES)) {
-    if (!exists(f)) {
-      fs.writeFileSync(f, LOCAL_SEED.replace("{role}", role));
-      log(`Wrote ${f}: fill in this machine's notes (or ask the CoS to).`);
-    }
-  }
-  const brain = path.join(HOME, "brain.md");
-  if (!exists(brain)) {
-    fs.writeFileSync(brain, BRAIN_SEED);
-    log(`Wrote ${brain}: the CEO's standing rules, which the CoS adds to once you approve a rule.`);
+  const pb = path.join(HOME, "playbook.md");
+  if (!exists(pb)) {
+    fs.writeFileSync(pb, PLAYBOOK_SEED);
+    log(`Wrote ${pb}: your rules, accounts and machine notes. Fill in each "(not set)", or let the CoS ask you.`);
   }
   checkHerdrFiles();
   out(HOME);
 }
 
-// Herdr's config folder, where `dot link` puts the Chief of Staff layout and its mods.
+// Herdr's config folder, where `dot link` puts the fleet layout and its mods.
 const HERDR_APP = path.join(os.homedir(), ".config/herdr-app");
-const LAYOUT = path.join(HERDR_APP, "layouts/cos.json");
+const LAYOUT = path.join(HERDR_APP, "layouts/fleet.json");
 
 // Says which of the layout and the mods it names are missing; true when none are.
 // Herdr's built-in mods sit in the same mods/ folder, so every name is checked alike.
@@ -305,8 +383,8 @@ function checkHerdrFiles() {
     if (!exists(f)) missing.push(f);
   }
   if (missing.length)
-    log(`The Chief of Staff panel cannot load; missing (or links to nothing):\n  ${missing.join("\n  ")}\n` +
-      "Run `dot link` in your dotfiles repo, then `cos up`.");
+    log(`The Fleet panel cannot load; missing (or links to nothing):\n  ${missing.join("\n  ")}\n` +
+      "Run `dot link` in your dotfiles repo, then `fleet up`.");
   return !missing.length;
 }
 
@@ -322,54 +400,34 @@ function cmdConfig(a) {
   for (const k of a.name ? [a.name] : Object.keys(SETTINGS)) out(`${k}=${cfg[k] ?? ""}`);
 }
 
-// Where this script really lives (~/.local/bin/cos is a link to it), and the skill around it.
+// Where this script really lives (~/.local/bin/fleet is a link to it), and the skill around it.
 const SELF = fs.realpathSync(__filename);
 const SKILL_DIR = path.dirname(path.dirname(SELF));
-const SKILLS_DIR = path.dirname(SKILL_DIR);
 // Each role's program, model and system prompt files, kept in the skill's roles.json.
 const ROLES_FILE = path.join(SKILL_DIR, "roles.json");
-// Roles started by their own command rather than `cos run`.
-const OWN_COMMAND = { "chief-of-staff": "cos up", lead: "cos lead start <project>" };
 
-// The CEO's standing rules for this fleet, seeded once into $COS_HOME/brain.md.
-const BRAIN_SEED = `# Brain
+// Your rules, accounts and machine notes, seeded once into $FLEET_HOME/playbook.md.
+const PLAYBOOK_SEED = `# Playbook
 
-The CEO's rules that hold across every project, learned by the CoS from their answers.
-Part of the CoS's system prompt (roles.json). The CoS settles anything a line here
-already answers, and appends a line only after the CEO approves it. One rule per line;
-newest last. Local to this machine's fleet; never committed.
+Your rules, accounts and machine notes. Part of every CoS and lead system prompt
+(roles.json). Local to this machine; never committed. Rules: one per line, newest last;
+the CoS appends one only after you approve it. Replace each "(not set)" with the answer.
 
 ## Always ask me
 - Merging to a main branch, deploying, deleting anything remote, spending money.
-- Anything a lead would do differently in each of two credible ways and that
-  changes what a user sees.
 
 ## Learned
-`;
 
-// This machine's notes for a role, beside its skill and gitignored (`cos init` seeds them): role -> file.
-const LOCAL_NOTES = {
-  "chief-of-staff": path.join(SKILLS_DIR, "chief-of-staff/SKILL.local.md"),
-  lead: path.join(SKILLS_DIR, "project-lead/SKILL.local.md"),
-};
-const LOCAL_SEED = `# This machine (SKILL.local.md)
-
-Notes for this computer only, appended to the {role}'s system prompt by \`cos exec\`.
-Not committed. Replace each "(not set)" with the answer, or "none".
-
-## Accounts per company
+## Accounts
 (not set) Which Claude, Devin (\`devin-as <account>\`) and Codex login each company's work uses.
 
 ## Companies and repos
-(not set) Which companies' repos are cloned here, beyond what $COS_WORK_ROOT/AGENTS.md says.
+(not set) Which companies' repos are under $FLEET_WORK_ROOT, and their base branches.
 
-## Other machines
-(not set) Machines leads may run on (\`hc run --on <machine>\`), and what each is for.
+## Machine
+(not set) Tools installed (wt, gh, herdr-app, devin), other machines (\`hc machine ls\`).
 
-## Tools
-(not set) Which of wt, gh (logged in), herdr-app and devin are installed, and gaps to work around.
-
-## Reaching the CEO
+## Reaching me
 (not set) Working hours, and what may wait until then.
 `;
 
@@ -390,11 +448,11 @@ function role(name) {
 }
 
 // A role's system prompt: its name, then its prompt files without their frontmatter.
-// A file starting "$COS_HOME/" is in the state folder; any other is under the skills folder.
+// A file starting "$FLEET_HOME/" is in the state folder; any other is under this skill.
 function rolePrompt(name, r) {
-  const parts = [`Your role in the Chief of Staff org: ${name}.`];
+  const parts = [`Your role in the fleet: ${name}.`];
   for (const rel of r.prompt || []) {
-    const f = rel.startsWith("$COS_HOME/") ? path.join(HOME, rel.slice(10)) : path.join(SKILLS_DIR, rel);
+    const f = rel.startsWith("$FLEET_HOME/") ? path.join(HOME, rel.slice(12)) : path.join(SKILL_DIR, rel);
     if (exists(f)) parts.push(fs.readFileSync(f, "utf8").replace(/^---\n[\s\S]*?\n---\n/, "").trim());
   }
   return parts.join("\n\n");
@@ -416,14 +474,25 @@ function which(prog) {
 async function cmdExec(a) {
   const r = role(a.role);
   const cfg = await requireConfig();
-  const env = { ...process.env, COS_WORK_ROOT: cfg.COS_WORK_ROOT };
+  const env = { ...process.env, FLEET_HOME: HOME, FLEET_WORK_ROOT: cfg.FLEET_WORK_ROOT, FLEET_ROLE: a.role };
+  delete env.FLEET_PROJECT_DIR;
+  const me = process.env.HC_TERMINAL_ID;
+  const proj = ((me && hcJson("get", me)) || {}).labels?.["fleet.project"];
+  if (proj) env.FLEET_PROJECT_DIR = projDir(proj);
   // "default" keeps Claude's own default (~/.claude + ~/.claude.json). Setting
   // CLAUDE_CONFIG_DIR=~/.claude explicitly makes Claude read ~/.claude/.claude.json
   // instead, which looks like a fresh, logged-out install.
   // ~/.claude itself counts as "default" for the same reason.
-  const dir = cfg.COS_CLAUDE_CONFIG_DIR;
+  const dir = cfg.FLEET_CLAUDE_CONFIG_DIR;
   if (dir && dir !== "default" && dir !== path.join(os.homedir(), ".claude")) env.CLAUDE_CONFIG_DIR = dir;
-  const argv = [r.run, ...(r.args || [])], extra = [...a.extra], prompt = rolePrompt(a.role, r);
+  // {company}: the folder under FLEET_WORK_ROOT this agent works in (devin-as takes it as the account).
+  const company = () => {
+    const rel = path.relative(fs.realpathSync(cfg.FLEET_WORK_ROOT), fs.realpathSync(process.cwd()));
+    if (!rel || rel.startsWith("..")) throw new Fail(`${a.role} must run under ${cfg.FLEET_WORK_ROOT}/<company>/`, 2);
+    return rel.split(path.sep)[0];
+  };
+  const args = (r.args || []).map((x) => (x === "{company}" ? company() : x));
+  const argv = [r.run, ...args], extra = [...a.extra], prompt = rolePrompt(a.role, r);
   if (r.run === "claude") argv.push("--append-system-prompt", prompt);
   else if (extra.length && !extra.at(-1).startsWith("-")) extra.push(`${prompt}\n\n---\n\n${extra.pop()}`);
   else extra.push(prompt);
@@ -435,109 +504,169 @@ function cmdRoles(a) {
   const rs = roles();
   if (a.json) return out(JSON.stringify(rs, null, 2));
   for (const [name, r] of Object.entries(rs))
-    out(`${pad(name, 15)} ${r.run} ${(r.args || []).join(" ")}\n${" ".repeat(16)}prompt: ${(r.prompt || []).join(", ") || "none"}`);
+    out(`${pad(name, 12)} ${r.run} ${(r.args || []).join(" ")}\n${" ".repeat(13)}prompt: ${(r.prompt || []).join(", ") || "none"}`);
 }
 
-// A lead starts a worker: `cos run implementer api-impl-x --cwd <worktree> "<brief>"`.
-function cmdRun(a) {
-  role(a.role);
-  if (OWN_COMMAND[a.role]) throw new Fail(`start the ${a.role} with \`${OWN_COMMAND[a.role]}\``, 2);
-  if (a.name.length > 32) throw new Fail("hc names are at most 32 characters", 2);
-  const me = process.env.HC_TERMINAL_ID;
-  const project = ((me && hcJson("get", me)) || {}).labels?.["cos.project"];
-  launch({ role: a.role, name: a.name, cwd: path.resolve(expand(a.cwd || ".")), task: a.task,
-    labels: project ? [`cos.project=${project}`] : [] });
-  out(a.name);
-}
-
-// Open HQ: start the CoS in its own space with the Chief of Staff panel beside it. Safe to rerun.
+// Open HQ: start the CoS in its own space with the Fleet panel beside it. Safe to rerun.
 async function cmdUp() {
+  need("you");
   await requireConfig();
-  if (live(COS)) log("CoS is already running as `cos`.");
+  if (live(COS)) log("The CoS is already running as `cos`.");
   else {
-    launch({ role: "chief-of-staff", name: COS, cwd: fs.realpathSync(HOME), task: "Start your shift.",
+    launch({ role: "cos", name: COS, cwd: fs.realpathSync(HOME), task: "Start your shift.",
       space: HQ_SPACE, parent: "none", keep: true });
     log("Started the CoS as `cos`.");
   }
   if (!findSpace(HQ_SPACE)) {
-    log("The Herdr window is not open, so HQ is not shown; the CoS runs anyway. Rerun `cos up` with Herdr open.");
+    log("The Herdr window is not open, so HQ is not shown; the CoS runs anyway. Rerun `fleet up` with Herdr open.");
     return out(COS);
   }
   app(["do", "space.rename", "--id", HQ_SPACE, "--name", "HQ"], false);
   app(["do", "space.select", "--id", HQ_SPACE], false);
-  // The Chief of Staff panel (Queue + Fleet) is a side-panel child (layouts/cos.json), next to Files and Changes.
+  // The Fleet panel (Queue, Fleet, Inbox) is a side-panel child (layouts/fleet.json), next to Files and Changes.
   if (!checkHerdrFiles()) return out(COS);
-  const sw = app(["do", "layout.switch", JSON.stringify({ name: "cos" })], false);
+  const sw = app(["do", "layout.switch", JSON.stringify({ name: "fleet" })], false);
   if (sw.status !== 0) {
-    log(`Herdr would not switch to the cos layout: ${(sw.stderr || sw.stdout).trim()}\n` +
+    log(`Herdr would not switch to the fleet layout: ${(sw.stderr || sw.stdout).trim()}\n` +
       "A setting Herdr does not know rejects every layout switch (for example a \"theme\" in " +
-      "~/.config/herdr-app/settings.json that this Herdr lacks); fix it or update Herdr, then rerun `cos up`.");
+      "~/.config/herdr-app/settings.json that this Herdr lacks); fix it or update Herdr, then rerun `fleet up`.");
     return out(COS);
   }
-  app(["do", "layout.select", JSON.stringify({ stack: "panel-body", child: "cos" })], false);
+  app(["do", "layout.select", JSON.stringify({ stack: "panel-body", child: "fleet" })], false);
   app(["do", "layout.show", JSON.stringify({ id: "panel" })], false);
   out(COS);
 }
 
-function cmdProjectAdd(a) {
+function cmdProjectNew(a) {
+  need("you", "cos");
   ensureHome();
   if (!NAME_RE.test(a.name)) throw new Fail("project names are 1-27 of a-z 0-9 -, starting with a letter or digit", 2);
-  let repo = path.resolve(expand(a.repo));
-  try { repo = fs.realpathSync(repo); } catch {}
-  if (!isDir(repo)) throw new Fail(`${repo} is not a folder`, 2);
-  const d = path.join(HOME, "projects", a.name);
-  fs.mkdirSync(d, { recursive: true });
-  let meta = { name: a.name, repo, lead: `lead-${a.name}`, space: `cos-${a.name}`, created: now() };
-  const pj = path.join(d, "project.json");
-  if (exists(pj)) meta = { ...meta, ...readJson(pj), repo };
-  writeJson(pj, meta);
-  const plan = path.join(d, "plan.md");
-  if (!exists(plan))
-    fs.writeFileSync(plan, `# ${a.name}\n\n## Goal\n${a.goal || "(not set yet)"}\n\n## Plan\n\n## Stuck\n\n## Done\n`);
-  const dec = path.join(d, "decisions.md");
-  if (!exists(dec)) fs.writeFileSync(dec, `# ${a.name} decisions\n\nOne line each: date, decision, who decided, why.\n\n`);
+  if (!live(COS)) throw new Fail("the CoS is not running, so nobody would read the lead's PRD; run `fleet up` first", 2);
+  const d = projDir(a.name);
+  if (exists(path.join(d, "project.json"))) throw new Fail(`project '${a.name}' exists; add work with \`fleet project goal\``, 2);
+  for (const sub of ["briefs", "reports", "evidence", "drafts"]) fs.mkdirSync(path.join(d, sub), { recursive: true });
+  fs.writeFileSync(path.join(d, "brief.md"), `# ${a.name} brief\n\nYour words, word for word. Only added to.\n\n## ${stamp("%Y-%m-%d")}\n${a.brief.trim()}\n`);
+  fs.writeFileSync(path.join(d, "project.md"), PROJECT_MD(a.name));
+  fs.writeFileSync(path.join(d, "decisions.md"), `# ${a.name} decisions\n\nOne line each: date, decision, who decided, why. Newest last.\n\n`);
+  const p = { name: a.name, lead: `lead-${a.name}`, space: `fleet-${a.name}`, status: "aligning", prd_hash: null, created: now() };
+  saveProject(p);
+  startLead(p);
   out(d);
+}
+
+function cmdProjectApprove(a) {
+  need("you", "cos");
+  const p = project(a.name);
+  if (p.status === "closed") throw new Fail(`${a.name} is closed`, 2);
+  const { text, fields } = readPrd(a.name);
+  const bad = PRD_FIELDS.filter((f) => !fields[f] || /\bTBD\b/.test(fields[f]));
+  if (bad.length) throw new Fail(`the PRD is not ready; fill in or settle: ${bad.join(", ")}`, 2);
+  Object.assign(p, { status: "active", prd_hash: sha(text), approved: now() });
+  saveProject(p);
+  appendDecision(a.name, `PRD approved. Decided by: ${ROLE === "you" ? "CEO" : "CoS"}.`);
+  if (live(p.lead)) hc(["send", p.lead, "PRD approved. Status: active. Start work."], false);
+  else log(`${p.lead} is not running; start it with \`fleet project start ${a.name}\`.`);
+  out(p.status);
+}
+
+function cmdProjectGoal(a) {
+  need("you", "cos");
+  const p = project(a.name);
+  if (p.status === "closed") throw new Fail(`${a.name} is closed; start a new project`, 2);
+  fs.appendFileSync(path.join(projDir(a.name), "brief.md"), `\n## ${stamp("%Y-%m-%d")}\n${a.text.trim()}\n`);
+  Object.assign(p, { status: "aligning", prd_hash: null });
+  saveProject(p);
+  const msg = "New work was added to brief.md. Status: aligning. Update the PRD in project.md, then `fleet report --kind prd`. " +
+    "Workers already running may finish; start no new ones until the PRD is approved.";
+  if (live(p.lead)) hc(["send", p.lead, msg], false);
+  else startLead(p);
+  out(p.status);
+}
+
+function cmdProjectStart(a) {
+  need("you", "cos");
+  const p = project(a.name);
+  if (p.status === "closed") throw new Fail(`${a.name} is closed`, 2);
+  startLead(p);
+  out(p.lead);
+}
+
+function cmdProjectClose(a) {
+  need("you", "cos");
+  const p = project(a.name);
+  for (const w of workers(p)) stopTerminal(w.name);
+  forgetLead(p.lead);
+  stopTerminal(p.lead);
+  Object.assign(p, { status: "closed", closed: now() });
+  saveProject(p);
+  appendDecision(a.name, `Project closed. Decided by: ${ROLE === "you" ? "CEO" : "CoS"}.`);
+  log(`Closed ${a.name}: stopped ${p.lead} and its workers; its files stay in ${projDir(a.name)}.`);
+  out(p.status);
 }
 
 function cmdProjectLs(a) {
   const ps = projects();
-  for (const p of ps) {
-    const t = live(p.lead);
-    p.lead_status = word(t);
-    p.lead_address = t ? t.address ?? null : null;
-  }
+  for (const p of ps) p.lead_status = word(live(p.lead));
   if (a.json) return out(JSON.stringify(ps, null, 2));
-  for (const p of ps) out(`${pad(p.name, 16)} ${pad(p.lead_status, 8)} ${p.repo}`);
+  for (const p of ps) out(`${pad(p.name, 26)} ${pad(p.status, 9)} lead ${p.lead_status}`);
 }
 
-function cmdLeadStart(a) {
-  const d = projectDir(a.name);
-  const p = readJson(path.join(d, "project.json"));
-  if (live(p.lead)) {
-    log(`${p.lead} is already running.`);
-    return out(p.lead);
-  }
-  const task = `You lead project \`${p.name}\`. Repo: ${p.repo}. Your notes: ${d}/plan.md and ${d}/decisions.md. ` +
-    (a.goal ? `First goal from the CoS: ${a.goal}` : "Read your notes, then report to the CoS that you are up and what you will do first.");
-  launch({ role: "lead", name: p.lead, cwd: p.repo, task, space: p.space, labels: [`cos.project=${p.name}`],
-    parent: "outlive", keep: true });
-  app(["do", "space.rename", "--id", p.space, "--name", p.name], false);
-  log(`Started ${p.lead} in space ${p.name}.`);
-  out(p.lead);
+// A lead starts a worker: `fleet run implementer ui --cwd <worktree> "<brief>"`.
+function cmdRun(a) {
+  need("lead");
+  const p = myProject();
+  if (LEADERS.includes(a.role)) throw new Fail(`${a.role} is not a worker role`, 2);
+  role(a.role);
+  if (p.status !== "active") throw new Fail(`${p.name} is ${p.status}; get the PRD approved first`, 2);
+  if (sha(readPrd(p.name).text) !== p.prd_hash)
+    throw new Fail("the PRD changed since it was approved; ask the CoS to approve it again (`fleet report --kind prd`)", 2);
+  const name = `${p.name}-${a.role}-${a.slug}`;
+  if (name.length > 32) throw new Fail(`${name} is over hc's 32 characters; use a shorter slug`, 2);
+  if (live(name)) throw new Fail(`${name} is already running`, 2);
+  const brief = path.join(projDir(p.name), "briefs", `${name}.md`);
+  fs.mkdirSync(path.dirname(brief), { recursive: true });
+  fs.writeFileSync(brief, a.task + "\n");
+  launch({ role: a.role, name, cwd: path.resolve(expand(a.cwd || ".")), task: a.task,
+    labels: [`fleet.project=${p.name}`], parent: "outlive" });
+  out(name);
 }
 
-function cmdLeadStop(a) {
-  const p = readJson(path.join(projectDir(a.name), "project.json"));
-  if (!live(p.lead)) return log(`${p.lead} is not running.`);
+function cmdLs(a) {
+  need("lead");
+  const ws = workers(myProject()).map((t) => ({ name: t.name, status: word(t), where: t.where ?? null }));
+  if (a.json) return out(JSON.stringify(ws, null, 2));
+  if (!ws.length) log("No workers running.");
+  for (const w of ws) out(`${pad(w.name, 33)} ${w.status}`);
+}
+
+function cmdStop(a) {
+  need("lead");
+  const p = myProject();
+  if (!a.name.startsWith(`${p.name}-`)) throw new Fail(`${a.name} is not one of ${p.name}'s workers`, 2);
+  stopTerminal(a.name);
+  log(`Stopped ${a.name}.`);
+}
+
+// A lead whose context is filling up restarts itself; its workers keep running.
+function cmdHandoff() {
+  need("lead");
+  const p = myProject();
+  const md = path.join(projDir(p.name), "project.md");
+  if (Date.now() - fs.statSync(md).mtimeMs > 10 * 60 * 1000)
+    throw new Fail("update Now in project.md first (it is the new lead's resume point), then run this again", 2);
+  deliver("fyi", p.lead, p.name, `${p.lead} handed off: it restarts with a fresh context and resumes from project.md.`);
   forgetLead(p.lead);
-  hc(["kill", p.lead]);
-  hc(["rm", p.lead], false);
-  log(`Stopped ${p.lead} and its workers.`);
+  // In a terminal of its own with no parent, so killing this lead does not take the restart with it.
+  const restart = `sleep 3; hc kill ${p.lead}; hc rm ${p.lead}; ` +
+    `env -u FLEET_ROLE -u FLEET_PROJECT_DIR FLEET_HOME="${HOME}" "${SELF}" project start ${p.name}`;
+  hc(["run", "--bg", "--no-parent", "--no-notify", "--name", `handoff-${p.name}`.slice(0, 32), "--", "sh", "-c", restart]);
+  log(`Restarting ${p.lead} in a few seconds. Stop working now.`);
 }
 
 function cmdAsk(a) {
+  need("you", "cos", "lead");
   ensureHome();
-  if (a.project !== "hq") projectDir(a.project);
+  if (a.project !== "hq") project(a.project);
   const id = stamp("%m%d-%H%M") + "-" + hex2();
   const attDir = path.join(HOME, "queue", id);
   const atts = [];
@@ -558,18 +687,33 @@ function cmdAsk(a) {
       : [".mp4", ".mov", ".webm"].includes(ext) ? "video" : "file";
     atts.push({ kind, path: dest });
   }
+  // A lead's item is a draft until the CoS forwards it.
+  const status = ROLE === "lead" ? "draft" : "open";
   const item = {
     id, project: a.project, from: a.sender || process.env.HC_TERMINAL_ID || "cos",
     kind: a.kind, priority: a.priority, title: a.title, body: a.body || "",
     recommendation: a.recommend || "", options: a.option, attachments: atts,
-    status: "open", answer: null, history: [], created: now(), updated: now(),
+    status, answer: null, history: [], created: now(), updated: now(),
   };
   writeJson(path.join(HOME, "queue", `${id}.json`), item);
+  if (status === "draft")
+    deliver("draft", item.from, a.project, `Draft queue item ${id} (${a.priority}, ${a.kind}): "${a.title}". ` +
+      `Recommend: ${item.recommendation || "(none)"}. Forward it with \`fleet forward ${id}\`, or answer the lead yourself ` +
+      `when playbook.md settles it and \`fleet close ${id}\`.`, { item: id });
   out(id);
 }
 
+function cmdForward(a) {
+  need("cos");
+  const p = itemPath(a.id), it = readJson(p);
+  if (it.status !== "draft") throw new Fail(`${a.id} is ${it.status}, not a draft`, 2);
+  Object.assign(it, { status: "open", updated: now() });
+  writeJson(p, it);
+  out(it.id);
+}
+
 function cmdQueue(a) {
-  let its = items(a.all);
+  let its = items({ closed: a.all, drafts: a.all || a.drafts });
   if (a.project) its = its.filter((i) => i.project === a.project);
   if (a.json) return out(JSON.stringify(its, null, 2));
   for (const i of its) out(`${i.id}  ${pad(i.status, 8)} ${i.priority} ${pad(i.kind, 8)} ${pad(i.project, 12)} ${i.title}`);
@@ -581,6 +725,7 @@ function cmdShow(a) {
 
 // You answered an item in the panel. Record it and hand it to the CoS (only the CoS).
 function cmdAnswer(a) {
+  need("you", "cos");
   const p = itemPath(a.id), it = readJson(p);
   const answer = { verdict: a.verdict, text: a.text || "", choice: a.choice ?? null, at: now() };
   if (it.answer) (it.history ||= []).push(it.answer);
@@ -588,8 +733,8 @@ function cmdAnswer(a) {
   writeJson(p, it);
   const msg = `[queue answer] ${it.id} (${it.project}, ${it.kind}): "${it.title}" -> ${a.verdict}` +
     (a.choice ? ` [${a.choice}]` : "") + (a.text ? `: ${a.text}` : "") +
-    `. Asked by ${it.from}. Pass it on, append any rule that holds across projects to $COS_HOME/brain.md (once approved), ` +
-    `and \`cos close ${it.id}\` once it is addressed.`;
+    `. Asked by ${it.from}. Pass it on word for word, propose a playbook.md rule if it holds across projects, ` +
+    `and \`fleet close ${it.id}\` once it is addressed.`;
   if (!a.no_send) {
     deliver("answer", "ceo", it.project, msg, { item: it.id });
     if (!live(COS)) log("The CoS is not running; the answer is in its inbox for its next shift.");
@@ -621,6 +766,7 @@ const readSeen = () => (exists(SEEN_FILE) ? readJson(SEEN_FILE) : {});
 function watchLeads() {
   const seen = readSeen(), nowSeen = {};
   for (const p of projects()) {
+    if (p.status === "closed") continue;
     const st = word(live(p.lead));
     nowSeen[p.lead] = st;
     const before = seen[p.lead]; // undefined on the first look: nothing to compare with
@@ -628,28 +774,28 @@ function watchLeads() {
     if (st === "blocked")
       deliver("blocked", p.lead, p.name, `${p.lead} is blocked: it needs a person. Read it with \`hc read ${p.lead} --lines 60\`.`);
     else if (st === "stopped")
-      deliver("stopped", p.lead, p.name, `${p.lead} has stopped. Restart it with \`cos lead start ${p.name}\` if its plan has open work.`);
+      deliver("stopped", p.lead, p.name, `${p.lead} has stopped. Restart it with \`fleet project start ${p.name}\` if its plan has open work.`);
   }
   fs.mkdirSync(path.join(HOME, "inbox"), { recursive: true });
   fs.writeFileSync(SEEN_FILE, JSON.stringify({ ...seen, ...nowSeen }));
 }
 
-// A lead the CoS stopped on purpose: no `stopped` message for it.
+// A lead stopped on purpose: no `stopped` message for it.
 function forgetLead(lead) {
   const seen = readSeen();
-  if (lead in seen) {
-    seen[lead] = "stopped";
-    fs.writeFileSync(SEEN_FILE, JSON.stringify(seen));
-  }
+  seen[lead] = "stopped";
+  fs.mkdirSync(path.join(HOME, "inbox"), { recursive: true });
+  fs.writeFileSync(SEEN_FILE, JSON.stringify(seen));
 }
 
-// A lead (or anyone) reports to the CoS without typing into its pane.
+// A lead (or a bridge such as cos-slack) reports to the CoS without typing into its pane.
 function cmdReport(a) {
+  need("you", "lead");
   const me = process.env.HC_TERMINAL_ID;
   const t = me ? hcJson("get", me) : null;
-  const labels = (t && t.labels) || {};
   const sender = a.sender || (t && t.name) || me || "unknown";
-  const project = a.project || labels["cos.project"] || "hq";
+  const dir = process.env.FLEET_PROJECT_DIR;
+  const project = a.project || (dir ? path.basename(dir) : "hq");
   const text = a.file ? fs.readFileSync(a.file, "utf8") : a.text;
   if (!text) throw new Fail("give the report as text or with --file", 2);
   const id = deliver(a.kind, sender, project, text, a.file ? { file: path.resolve(a.file) } : {});
@@ -674,6 +820,7 @@ function inboxHistory(n) {
 }
 
 async function cmdInbox(a) {
+  if (a.done.length || a.wait) need("cos");
   if (a.done.length) {
     const dest = path.join(HOME, "inbox", "done");
     fs.mkdirSync(dest, { recursive: true });
@@ -702,6 +849,7 @@ async function cmdInbox(a) {
 }
 
 function cmdClose(a) {
+  need("you", "cos");
   const p = itemPath(a.id), it = readJson(p);
   Object.assign(it, { status: "closed", closed_note: a.note || "", updated: now() });
   writeJson(p, it);
@@ -709,6 +857,7 @@ function cmdClose(a) {
 }
 
 function cmdReopen(a) {
+  need("you", "cos");
   const p = itemPath(a.id), it = readJson(p);
   Object.assign(it, { status: "open", updated: now() });
   if (a.note) it.body = ((it.body || "") + `\n\nUpdate ${now()}: ${a.note}`).trim();
@@ -718,7 +867,7 @@ function cmdReopen(a) {
 
 // Claude API list prices per model ($/MTok), kept in the skill's prices.json so they
 // can be updated as Anthropic changes them. Seats aren't billed per token, so
-// `cos stats` reports what the same tokens would cost on the API.
+// `fleet stats` reports what the same tokens would cost on the API.
 const PRICES_FILE = path.join(SKILL_DIR, "prices.json");
 
 function prices() {
@@ -757,7 +906,7 @@ function transcriptUsage(file, table) {
   return { model, context, window, cost: cost === null ? null : round4(cost), messages: seen.size };
 }
 
-// One terminal for `cos stats`: hc's status plus, for Claude, its transcript's usage.
+// One terminal for `fleet stats`: hc's status plus, for Claude, its transcript's usage.
 function agentRow(t, role, depth, table) {
   const full = hcJson("get", t.address) || {};
   const labels = full.labels || {};
@@ -768,15 +917,16 @@ function agentRow(t, role, depth, table) {
   return row;
 }
 
+// The PRD's goal, for the panel and `fleet status`.
+function goalOf(name) {
+  const g = readPrd(name).fields.Goal;
+  return g && !/\bTBD\b/.test(g) ? g.split("\n")[0] : "";
+}
+
 // The fleet for the panel's Fleet tab: the CoS, then each project's lead and its workers.
 function cmdStats() {
   const ls = (hcJson("ls") || {}).terminals || [];
   const table = prices();
-  const byParent = {};
-  for (const t of ls) (byParent[t.parent ?? null] ||= []).push(t);
-  const tree = (t, role, depth) =>
-    [agentRow(t, role, depth, table), ...(byParent[t.address] || []).flatMap((k) => tree(k, "worker", depth + 1))];
-
   const byName = Object.fromEntries(ls.filter((t) => t.name).map((t) => [t.name, t]));
   const cosT = byName[COS];
   const res = { cos: cosT ? agentRow(cosT, "cos", 0, table) : { name: COS, status: "stopped", role: "cos" },
@@ -784,11 +934,12 @@ function cmdStats() {
   const its = items();
   for (const i of its) if (i.status in res.queue) res.queue[i.status]++;
   for (const p of projects()) {
-    const plan = path.join(HOME, "projects", p.name, "plan.md");
-    const m = exists(plan) ? fs.readFileSync(plan, "utf8").match(/## Goal\n(.+)/) : null;
+    if (p.status === "closed") continue;
     const lead = byName[p.lead];
-    const agents = lead ? tree(lead, "lead", 0) : [];
-    res.projects.push({ name: p.name, goal: m ? m[1].trim() : "", lead_status: word(lead), agents,
+    // Workers outlive their lead, so they are found by name rather than as its children.
+    const agents = [...(lead ? [agentRow(lead, "lead", 0, table)] : []),
+      ...workers(p).map((w) => agentRow(w, "worker", 1, table))];
+    res.projects.push({ name: p.name, status: p.status, goal: goalOf(p.name), lead_status: word(lead), agents,
       queue_open: its.filter((i) => i.project === p.name && i.status === "open").length,
       cost: round4(agents.reduce((s, r) => s + (r.cost || 0), 0)) });
   }
@@ -799,25 +950,21 @@ function cmdStats() {
 
 function cmdStatus(a) {
   ensureHome();
-  const its = items(true);
-  const rows = projects().map((p) => {
-    const t = live(p.lead);
-    let workers = [];
-    if (t) {
-      const all = (hcJson("ls") || {}).terminals || [];
-      workers = all.filter((x) => x.parent === t.address && x.state === "live");
-    }
-    return { project: p.name, lead: p.lead, lead_status: word(t),
-      workers: workers.map((w) => ({ name: w.name || w.address, status: word(w) })),
-      open_items: its.filter((i) => i.project === p.name && i.status === "open").length, repo: p.repo };
-  });
+  const its = items({ closed: true, drafts: true });
+  const rows = projects().filter((p) => a.all || p.status !== "closed").map((p) => ({
+    project: p.name, status: p.status, lead: p.lead, lead_status: word(live(p.lead)),
+    workers: workers(p).map((w) => ({ name: w.name, status: word(w) })),
+    open_items: its.filter((i) => i.project === p.name && i.status === "open").length,
+    drafts: its.filter((i) => i.project === p.name && i.status === "draft").length,
+  }));
   const res = { cos: word(live(COS)), home: HOME, projects: rows,
-    queue: { open: its.filter((i) => i.status === "open").length, answered: its.filter((i) => i.status === "answered").length } };
+    queue: { open: its.filter((i) => i.status === "open").length, answered: its.filter((i) => i.status === "answered").length,
+      drafts: its.filter((i) => i.status === "draft").length } };
   if (a.json) return out(JSON.stringify(res, null, 2));
-  out(`CoS: ${res.cos}   queue: ${res.queue.open} open, ${res.queue.answered} answered   state: ${HOME}`);
+  out(`CoS: ${res.cos}   queue: ${res.queue.open} open, ${res.queue.answered} answered, ${res.queue.drafts} drafts   state: ${HOME}`);
   for (const r of rows) {
     const ws = r.workers.map((w) => `${w.name} ${w.status}`).join(", ") || "no workers";
-    out(`  ${pad(r.project, 14)} lead ${pad(r.lead_status, 8)} ${r.open_items} open  [${ws}]`);
+    out(`  ${pad(r.project, 26)} ${pad(r.status, 9)} lead ${pad(r.lead_status, 8)} ${r.open_items} open  [${ws}]`);
   }
 }
 
@@ -825,26 +972,37 @@ function cmdStatus(a) {
 
 // Each command: its positionals ("name", "name?" optional, "name..." the rest verbatim) and
 // options (flag -> {key, help, bool, many: repeatable, list: one or more values, choices, required, def}).
+// `who` lists the roles that may run it, for --help ("you" is a person, the panel or a bridge).
 const json = { "--json": { bool: true } };
 const COMMANDS = {
-  init: { fn: cmdInit, help: "set up this machine: the state folder and settings (asks for missing ones); prints its path",
+  init: { fn: cmdInit, help: "set up this machine: the state folder, settings and playbook.md (asks for missing settings); prints its path",
     opts: { "--reset": { bool: true, help: "ask for every setting again" } } },
-  config: { fn: cmdConfig, help: "print this machine's settings, or set one: cos config COS_WORK_ROOT ~/work", pos: ["name?", "value?"] },
+  config: { fn: cmdConfig, help: "print this machine's settings, or set one: fleet config FLEET_WORK_ROOT ~/work", pos: ["name?", "value?"] },
   exec: { fn: cmdExec, help: "run a role in this terminal: its program, model and system prompt from roles.json, then the rest of the arguments (the last one is its first prompt)",
     pos: ["role", "extra..."] },
   roles: { fn: cmdRoles, help: "each role's program, model and system prompt files (roles.json)", opts: json },
-  run: { fn: cmdRun, help: "a lead starts a worker in its own terminal: cos run <role> <name> --cwd <dir> \"<brief>\"; prints its name",
-    pos: ["role", "name", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
-  up: { fn: cmdUp, help: "open HQ: start the CoS and the Chief of Staff panel (safe to rerun)" },
-  status: { fn: cmdStatus, help: "CoS, leads, their workers and queue counts", opts: json },
-  "project add": { fn: cmdProjectAdd, help: "add a project (or change its repo)", pos: ["name"],
-    opts: { "--repo": { required: true }, "--goal": {} } },
-  "project ls": { fn: cmdProjectLs, help: "list projects with their lead's status", opts: json },
-  "lead start": { fn: cmdLeadStart, help: "start lead-<project> in its own space", pos: ["name"],
-    opts: { "--goal": { help: "the first goal to hand it" } } },
-  "lead stop": { fn: cmdLeadStop, help: "kill lead-<project> and its workers", pos: ["name"] },
-  ask: { fn: cmdAsk, help: "put an item in the CEO's queue; prints its id", opts: {
-    "--project": { required: true, help: "project name, or hq for org-wide items" },
+  up: { fn: cmdUp, who: "you", help: "open HQ: start the CoS and the Fleet panel (safe to rerun)" },
+  status: { fn: cmdStatus, help: "the CoS, projects, leads, their workers and queue counts",
+    opts: { "--all": { bool: true, help: "include closed projects" }, ...json } },
+  "project new": { fn: cmdProjectNew, who: "you, cos", help: "create a project from your words and start its lead to write the PRD (needs `fleet up`)",
+    pos: ["name"], opts: { "--brief": { required: true, help: "the request, word for word" } } },
+  "project approve": { fn: cmdProjectApprove, who: "you, cos", help: "sign the PRD: refuses while a field is empty or TBD; status active", pos: ["name"] },
+  "project goal": { fn: cmdProjectGoal, who: "you, cos", help: "add work to brief.md; status back to aligning", pos: ["name", "text"] },
+  "project start": { fn: cmdProjectStart, who: "you, cos", help: "start a stopped lead; it resumes from its files", pos: ["name"] },
+  "project close": { fn: cmdProjectClose, who: "you, cos", help: "stop the lead and its workers; status closed; files stay", pos: ["name"] },
+  "project ls": { fn: cmdProjectLs, help: "list projects with their status and lead", opts: json },
+  run: { fn: cmdRun, who: "lead", help: "start a worker <project>-<role>-<slug>: fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name",
+    pos: ["role", "slug", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
+  ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
+  stop: { fn: cmdStop, who: "lead", help: "kill one of this project's workers", pos: ["name"] },
+  handoff: { fn: cmdHandoff, who: "lead", help: "restart this lead with a fresh context once Now in project.md is current; workers keep running" },
+  report: { fn: cmdReport, who: "lead, you", help: "a report to the CoS, into its inbox (never `hc send cos`); prints its id", pos: ["text?"], opts: {
+    "--kind": { choices: REPORT_KINDS, def: "fyi" },
+    "--file": { help: "a file holding the report (for anything longer than ten lines)" },
+    "--project": { help: "default: your project" },
+    "--from": { key: "sender", help: "default: your hc name" } } },
+  ask: { fn: cmdAsk, who: "lead (a draft), cos, you", help: "put an item in your queue; a lead's waits as a draft until the CoS forwards it; prints its id", opts: {
+    "--project": { required: true, help: "project name, or hq for fleet-wide items" },
     "--title": { required: true, help: "one line the CEO can decide from" },
     "--kind": { choices: KINDS, def: "decision" },
     "--priority": { choices: PRIORITIES, def: "p2", help: "p0 blocks work now ... p3 whenever" },
@@ -853,24 +1011,21 @@ const COMMANDS = {
     "--option": { many: true, help: "a choice the CEO can pick (repeatable)" },
     "--attach": { many: true, help: "screenshot/video/file path or URL (repeatable)" },
     "--from": { key: "sender", help: "who raised it (default: $HC_TERMINAL_ID)" } } },
-  report: { fn: cmdReport, help: "a lead's report to the CoS, into its inbox (never `hc send cos`); prints its id", pos: ["text?"], opts: {
-    "--kind": { choices: REPORT_KINDS, def: "fyi" },
-    "--file": { help: "a file holding the report (for anything longer than ten lines)" },
-    "--project": { help: "default: your terminal's cos.project label" },
-    "--from": { key: "sender", help: "default: your hc name" } } },
-  inbox: { fn: cmdInbox, help: "the CoS's unread messages: leads' reports, panel answers, stopped leads", opts: {
-    "--wait": { bool: true, help: "block until there is one (run it in the background), then print them" },
-    "--done": { list: true, help: "mark messages handled (one or more ids)" },
+  forward: { fn: cmdForward, who: "cos", help: "put a lead's draft item in front of the CEO", pos: ["id"] },
+  inbox: { fn: cmdInbox, help: "the CoS's unread messages: leads' reports and drafts, your answers, stopped leads", opts: {
+    "--wait": { bool: true, help: "the CoS only: block until there is one (run it in the background), then print them" },
+    "--done": { list: true, help: "the CoS only: mark messages handled (one or more ids)" },
     "--history": { help: "JSON of the unread messages and the last N handled ones, each with a status (the panel's Inbox tab)" }, ...json } },
   queue: { fn: cmdQueue, help: "list queue items, open first by priority",
-    opts: { "--all": { bool: true, help: "include closed items" }, "--project": {}, ...json } },
+    opts: { "--all": { bool: true, help: "include closed items and drafts" }, "--drafts": { bool: true, help: "include drafts" },
+      "--project": {}, ...json } },
   show: { fn: cmdShow, help: "print one item's JSON", pos: ["id"] },
-  answer: { fn: cmdAnswer, help: "record the CEO's answer and put it in the CoS's inbox (the panel runs this)", pos: ["id"], opts: {
+  answer: { fn: cmdAnswer, who: "you", help: "record the CEO's answer and put it in the CoS's inbox (the panel runs this)", pos: ["id"], opts: {
     "--verdict": { choices: VERDICTS, required: true }, "--text": {}, "--choice": {},
     "--no-send": { bool: true, help: "record only, no inbox message" } } },
   stats: { fn: cmdStats, help: "JSON for the Fleet tab: agents' status, context and API-rate cost (prices.json)" },
-  close: { fn: cmdClose, help: "close an item once its answer is acted on", pos: ["id"], opts: { "--note": {} } },
-  reopen: { fn: cmdReopen, help: "put an answered or closed item back in front of the CEO", pos: ["id"], opts: { "--note": {} } },
+  close: { fn: cmdClose, who: "you, cos", help: "close an item once its answer is acted on", pos: ["id"], opts: { "--note": {} } },
+  reopen: { fn: cmdReopen, who: "you, cos", help: "put an answered or closed item back in front of the CEO", pos: ["id"], opts: { "--note": {} } },
 };
 
 const keyOf = (flag, o) => o.key || flag.slice(2).replace(/-/g, "_");
@@ -881,11 +1036,11 @@ function usage(name, c) {
     const v = o.bool ? f : `${f} ${o.choices ? `{${o.choices.join(",")}}` : keyOf(f, o).toUpperCase()}${o.list ? " ..." : ""}`;
     return o.required ? v : `[${v}]`;
   });
-  return ["usage: cos", name, ...opts, ...pos].join(" ");
+  return ["usage: fleet", name, ...opts, ...pos].join(" ");
 }
 
 function help(name, c) {
-  const lines = [usage(name, c), "", c.help];
+  const lines = [usage(name, c), "", c.help + (c.who ? ` (who: ${c.who})` : "")];
   const opts = Object.entries(c.opts || {});
   if (opts.length) {
     lines.push("", "options:");
@@ -898,14 +1053,14 @@ function help(name, c) {
 }
 
 function topHelp() {
-  const lines = ["usage: cos <command> [options]   (cos <command> --help for one)", "", DOC, "", "commands:"];
-  for (const [name, c] of Object.entries(COMMANDS)) lines.push(`  ${pad(name, 13)} ${c.help}`);
+  const lines = ["usage: fleet <command> [options]   (fleet <command> --help for one)", "", DOC, "", "commands (who may run it, when not everyone):"];
+  for (const [name, c] of Object.entries(COMMANDS)) lines.push(`  ${pad(name, 16)} ${c.help}${c.who ? ` [${c.who}]` : ""}`);
   return lines.join("\n");
 }
 
 function parse(argv) {
   const bad = (msg, name, c) => {
-    log(c ? usage(name, c) : "usage: cos <command> [options]   (cos --help lists them)");
+    log(c ? usage(name, c) : "usage: fleet <command> [options]   (fleet --help lists them)");
     throw new Fail(msg, 2);
   };
   if (!argv.length) bad("a command is required");
@@ -914,8 +1069,8 @@ function parse(argv) {
   const group = Object.keys(COMMANDS).filter((k) => k.startsWith(name + " "));
   if (group.length) {
     if (!rest.length || rest[0] === "-h" || rest[0] === "--help") {
-      out(`usage: cos ${name} {${group.map((k) => k.split(" ")[1]).join(",")}} ...\n`);
-      for (const k of group) out(`  ${pad(k, 13)} ${COMMANDS[k].help}`);
+      out(`usage: fleet ${name} {${group.map((k) => k.split(" ")[1]).join(",")}} ...\n`);
+      for (const k of group) out(`  ${pad(k, 16)} ${COMMANDS[k].help}`);
       return rest.length ? null : bad(`${name}: a subcommand is required`);
     }
     name += " " + rest[0];
@@ -979,7 +1134,7 @@ async function main() {
     if (a) await COMMANDS[a.cmd].fn(a);
   } catch (e) {
     if (!(e instanceof Fail)) throw e;
-    log(`cos: ${e.message}`);
+    log(`fleet: ${e.message}`);
     process.exit(e.code);
   }
 }

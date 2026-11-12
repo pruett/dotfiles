@@ -11,8 +11,8 @@ home/.config/cloudflared/token.local
 
 artifacts/
 
-# The Chief of Staff's state used to live here via a ~/.local/state/cos link; it
-# is now a real folder that `cos init` makes. Keeps any leftover copy untracked.
+# The fleet's state is a real folder at ~/.local/state/fleet (`fleet init`), never
+# linked from here. Keeps any leftover copy (the old cos state) untracked.
 home/.local/state/
 
 # Installed at runtime by skill scripts (e.g. pstack watch-pr bootstrap)

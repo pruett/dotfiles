@@ -80,7 +80,7 @@
           "id": "tabs",
           "type": "block",
           "content": {
-            "mod": "chief-of-staff",
+            "mod": "fleet",
             "props": {
               "role": "tabs"
             }
@@ -146,10 +146,10 @@
                       }
                     },
                     {
-                      "id": "cos",
+                      "id": "fleet",
                       "type": "block",
                       "content": {
-                        "mod": "chief-of-staff"
+                        "mod": "fleet"
                       }
                     }
                   ],

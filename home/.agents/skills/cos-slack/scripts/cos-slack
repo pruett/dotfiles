@@ -10,10 +10,10 @@ const DOC = `cos-slack: talk to the Chief of Staff (CoS) from Slack. An add-on: 
 only through the \`cos\` CLI (report, queue, answer), so deleting this skill removes it.
 
   Slack DM to the bot, or an @-mention in a thread ──▶ cos-slack run (Socket Mode)
-      only from SLACK_CEO_USER ──▶ cos report --from slack ──▶ the CoS's inbox
+      only from SLACK_CEO_USER ──▶ fleet report --from slack ──▶ the CoS's inbox
   the CoS answers with: cos-slack reply <inbox id> "<text>" ──▶ same DM or thread
-  open p0/p1 queue items ──▶ a DM with buttons ──▶ cos answer
-      a reply in that item's thread ──▶ cos answer --verdict feedback
+  open p0/p1 queue items ──▶ a DM with buttons ──▶ fleet answer
+      a reply in that item's thread ──▶ fleet answer --verdict feedback
 
 Socket Mode means the bridge opens a websocket out to Slack: no public URL, no server.
 
@@ -29,7 +29,7 @@ Settings, per workspace:
   SLACK_APP_TOKEN   xapp-...: Basic Information > App-Level Tokens, scope connections:write
   SLACK_BOT_TOKEN   xoxb-...: Install App, once the app is installed
   SLACK_CEO_USER    U...: your member ID there (Slack profile > ⋮ > Copy member ID)
-  SLACK_PROJECTS    optional: cos projects whose p0/p1 items it posts, comma-separated (empty: all)
+  SLACK_PROJECTS    optional: fleet projects whose p0/p1 items it posts, comma-separated (empty: all)
 
 Set up one workspace: create the Slack app in it from the skill's slack-manifest.json, then
   cos-slack config -w suppco SLACK_APP_TOKEN xapp-...   (and the other settings)
@@ -111,11 +111,11 @@ const readState = (w) => {
 };
 const saveState = (w, st) => writeAtomic(w.state, JSON.stringify(st, null, 2) + "\n");
 
-// The cos CLI is the only way into the CoS's state.
-function cos(args) {
-  const r = spawnSync("cos", args, { encoding: "utf8" });
-  if (r.error) throw new Fail(`cos is not on PATH: ${r.error.message}`);
-  if (r.status !== 0) throw new Fail(`cos ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
+// The fleet CLI is the only way into the CoS's state.
+function fleet(args) {
+  const r = spawnSync("fleet", args, { encoding: "utf8" });
+  if (r.error) throw new Fail(`fleet is not on PATH: ${r.error.message}`);
+  if (r.status !== 0) throw new Fail(`fleet ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
   return r.stdout.trim();
 }
 
@@ -204,7 +204,7 @@ class Bridge {
     // A reply in the thread of a queue item this bridge posted is feedback on that item.
     const item = ev.thread_ts && Object.entries(st.items).find(([, v]) => v.ts === ev.thread_ts && v.channel === ev.channel);
     if (item) {
-      cos(["answer", item[0], "--verdict", "feedback", "--text", text]);
+      fleet(["answer", item[0], "--verdict", "feedback", "--text", text]);
       await this.react(ev, "white_check_mark");
       return log(`feedback on ${item[0]}`);
     }
@@ -214,7 +214,7 @@ class Bridge {
     let msg = `[slack ${this.w.name}] The CEO ${where}:\n\n${text}\n`;
     if (ev.type === "app_mention" && ev.thread_ts) msg += `\n${await this.thread(ev)}\n`;
     msg += `\nAnswer in Slack: \`cos-slack reply <this message's id> "<text>"\` (the cos-slack skill).`;
-    const id = cos(["report", "--kind", "fyi", "--from", "slack", "--project", "hq", msg]);
+    const id = fleet(["report", "--kind", "fyi", "--from", "slack", "--project", "hq", msg]);
     st.inbox[id] = { channel: ev.channel, ts: ev.ts, thread_ts: ev.thread_ts || null, dm: ev.channel_type === "im" };
     saveState(this.w, st);
     await this.react(ev, "eyes");
@@ -241,12 +241,12 @@ class Bridge {
     try { await slack(this.bot, "reactions.add", { channel: ev.channel, timestamp: ev.ts, name }); } catch {}
   }
 
-  // A button on a queue item's post: record the CEO's answer with `cos answer`.
+  // A button on a queue item's post: record the CEO's answer with `fleet answer`.
   async onAction(p) {
     if (p.type !== "block_actions" || p.user?.id !== this.ceo) return;
     for (const act of p.actions || []) {
       const { id, verdict, choice } = JSON.parse(act.value);
-      cos(["answer", id, "--verdict", verdict, ...(choice ? ["--choice", choice] : [])]);
+      fleet(["answer", id, "--verdict", verdict, ...(choice ? ["--choice", choice] : [])]);
       const st = readState(this.w);
       if (st.items[id]) st.items[id].done = true;
       saveState(this.w, st);
@@ -271,7 +271,7 @@ class Bridge {
 
   // DM each new open p0/p1 item; settle the post of any item answered elsewhere (the panel).
   async syncQueue() {
-    const items = JSON.parse(cos(["queue", "--all", "--json"]) || "[]");
+    const items = JSON.parse(fleet(["queue", "--all", "--json"]) || "[]");
     const st = readState(this.w);
     for (const it of items) {
       const posted = st.items[it.id];
@@ -373,7 +373,7 @@ function cmdInstall(args, ws) {
   const w = pick(ws);
   requireConfig(w);
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const env = { PATH: process.env.PATH, ...(process.env.COS_HOME ? { COS_HOME: process.env.COS_HOME } : {}),
+  const env = { PATH: process.env.PATH, ...(process.env.FLEET_HOME ? { FLEET_HOME: process.env.FLEET_HOME } : {}),
     ...(process.env.COS_SLACK_HOME ? { COS_SLACK_HOME: process.env.COS_SLACK_HOME } : {}) };
   writeAtomic(w.plist, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

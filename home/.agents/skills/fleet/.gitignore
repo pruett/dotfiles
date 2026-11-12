@@ -1,0 +1,4 @@
+# Machine state lives in $FLEET_HOME (playbook.md); keep stray copies out of git.
+SKILL.local.md
+brain.md
+playbook.md

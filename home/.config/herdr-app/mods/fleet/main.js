@@ -1,19 +1,19 @@
-// chief-of-staff: the CEO's panel in the Chief of Staff org, shown only in HQ. Three tabs:
+// fleet: the CEO's panel in the Chief of Staff org, shown only in HQ. Three tabs:
 // Queue (decisions waiting on the CEO), Fleet (each project's lead and workers, with
-// status, context in use and an API-rate cost estimate from `cos stats` and the
+// status, context in use and an API-rate cost estimate from `fleet stats` and the
 // skill's prices.json) and Inbox (what leads and the Queue tab sent up to the CoS, read-only:
-// `cos inbox --history`, waiting first, then the last 30 the CoS handled).
+// `fleet inbox --history`, waiting first, then the last 30 the CoS handled).
 //
 // The Queue tab is the CEO's one queue.
 //
 // Every item is a decision, review or approval a lead raised through the CoS
-// (`cos ask`, stored as ~/.local/state/cos/queue/<id>.json). This panel lists the
+// (`fleet ask`, stored as ~/.local/state/fleet/queue/<id>.json). This panel lists the
 // open ones by priority, shows the selected one with its recommendation,
-// options and screenshots, and records the answer with `cos answer`, which
+// options and screenshots, and records the answer with `fleet answer`, which
 // sends it to the CoS only. The CoS passes it on and closes the item once the
 // lead reports it addressed.
 //
-// Two roles (layouts/cos.json):
+// Two roles (layouts/fleet.json):
 // - panel (no props): the panel itself, a child of the side panel's stack next to
 //   Files and Changes.
 // - tabs (props.role "tabs"): Herdr's `tabs` bar, copied from mods/tabs/main.js
@@ -31,11 +31,11 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextView } from "gpui-base";
 import { exec, home, appHome, theme, nextCommand, watchFolder, notify, props, spaces, panes, terminals, run, openOverlay, window, shared, layout, settings, focused } from "herdr";
 
-const STATE = () => `${home()}/.local/state/cos`;
-const COS = () => `${home()}/.local/bin/cos`;
-const IMG_DIR = "mods/chief-of-staff/.shots"; // image() reads from the app folder, so screenshots are copied here
-const PANEL = "panel", STACK = "panel-body", CHILD = "cos"; // layout node ids
-const HQ = "cos-hq"; // the CoS's space id (`cos up`); the queue shows only there
+const STATE = () => `${home()}/.local/state/fleet`;
+const FLEET = () => `${home()}/.local/bin/fleet`;
+const IMG_DIR = "mods/fleet/.shots"; // image() reads from the app folder, so screenshots are copied here
+const PANEL = "panel", STACK = "panel-body", CHILD = "fleet"; // layout node ids
+const HQ = "fleet-hq"; // the CoS's space id (`fleet up`); the queue shows only there
 const inHQ = () => spaces().find((p) => p.active)?.id === HQ;
 const KIND_LABEL = { decision: "Decision", review: "Review", approval: "Approval", idea: "Idea", fyi: "FYI" };
 const MODEL = { "claude-fable-5-1": "Fable 5.1", "claude-opus-5-5": "Opus 5.5", "claude-sonnet-5-5": "Sonnet 5.5", "claude-haiku-5-5": "Haiku 5.5" };
@@ -62,7 +62,7 @@ function findNode(n, id) {
   return null;
 }
 
-// A side panel's shortcut (keys.json, layout:cos) opens it, or closes it if it's already
+// A side panel's shortcut (keys.json, layout:fleet) opens it, or closes it if it's already
 // showing; closing hands the keyboard back to the pane.
 function togglePanelChild(child) {
   const root = layout(), panel = findNode(root, PANEL), body = findNode(root, STACK);
@@ -111,8 +111,8 @@ export default class Queue extends View {
 
     watchQueue(cx, (cx) => this.reload(cx));
     this.page = "queue"; // or "fleet", "inbox"
-    this.fleet = null; // `cos stats`, loaded while the Fleet tab shows
-    this.inbox = []; // `cos inbox --history`: unread first, then handled, newest first
+    this.fleet = null; // `fleet stats`, loaded while the Fleet tab shows
+    this.inbox = []; // `fleet inbox --history`: unread first, then handled, newest first
     this.inboxOpen = null; // id of the message shown in full
     cx.spawn(async (cx) => {
       await exec("mkdir", ["-p", `${STATE()}/inbox`]);
@@ -128,7 +128,7 @@ export default class Queue extends View {
       for (;;) {
         const c = await nextCommand();
         if (c === "focus") this.handle.focus();
-        if (PAGES.includes(c)) this.setPage(c, cx); // herdr-app do chief-of-staff.<page>
+        if (PAGES.includes(c)) this.setPage(c, cx); // herdr-app do fleet.<page>
         cx.notify();
       }
     });
@@ -137,9 +137,9 @@ export default class Queue extends View {
   reload(cx) {
     cx.spawn(async (cx) => {
       let r;
-      try { r = await exec(COS(), ["queue", "--json"]); } catch (e) { this.error = `cos is not installed: ${e}`; cx.notify(); return; }
-      if (r.code !== 0) { this.error = r.stderr.trim() || "cos queue failed"; cx.notify(); return; }
-      try { this.items = JSON.parse(r.stdout); this.error = null; } catch { this.error = "cos queue printed something unexpected"; }
+      try { r = await exec(FLEET(), ["queue", "--json"]); } catch (e) { this.error = `fleet is not installed: ${e}`; cx.notify(); return; }
+      if (r.code !== 0) { this.error = r.stderr.trim() || "fleet queue failed"; cx.notify(); return; }
+      try { this.items = JSON.parse(r.stdout); this.error = null; } catch { this.error = "fleet queue printed something unexpected"; }
       await this.copyImages();
       this.clampSel();
       cx.notify();
@@ -154,7 +154,7 @@ export default class Queue extends View {
     this.seen = null;
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
     watchQueue(cx, (cx) => cx.spawn(async (cx) => {
-      const r = await exec(COS(), ["queue", "--json"]).catch(() => null);
+      const r = await exec(FLEET(), ["queue", "--json"]).catch(() => null);
       if (!r || r.code !== 0) return;
       try { this.items = JSON.parse(r.stdout); } catch { return; }
       this.announce();
@@ -163,7 +163,7 @@ export default class Queue extends View {
     const actions = {
       "panel-files": () => togglePanelChild("files"),
       "panel-changes": () => togglePanelChild("changes"),
-      "panel-cos": () => { if (inHQ()) togglePanelChild(CHILD); },
+      "panel-fleet": () => { if (inHQ()) togglePanelChild(CHILD); },
     };
     cx.spawn(async (cx) => {
       for (;;) { const a = actions[await nextCommand()]; if (a) { a(); cx.notify(); } }
@@ -270,18 +270,18 @@ export default class Queue extends View {
 
   loadFleet(cx) {
     cx.spawn(async (cx) => {
-      const r = await exec(COS(), ["stats"]).catch((e) => ({ code: 1, stderr: String(e) }));
-      if (r.code !== 0) { this.fleetError = r.stderr.trim() || "cos stats failed"; cx.notify(); return; }
-      try { this.fleet = JSON.parse(r.stdout); this.fleetError = null; } catch { this.fleetError = "cos stats printed something unexpected"; }
+      const r = await exec(FLEET(), ["stats"]).catch((e) => ({ code: 1, stderr: String(e) }));
+      if (r.code !== 0) { this.fleetError = r.stderr.trim() || "fleet stats failed"; cx.notify(); return; }
+      try { this.fleet = JSON.parse(r.stdout); this.fleetError = null; } catch { this.fleetError = "fleet stats printed something unexpected"; }
       cx.notify();
     });
   }
 
   loadInbox(cx) {
     cx.spawn(async (cx) => {
-      const r = await exec(COS(), ["inbox", "--history", "30"]).catch((e) => ({ code: 1, stderr: String(e) }));
-      if (r.code !== 0) { this.inboxError = r.stderr.trim() || "cos inbox failed"; cx.notify(); return; }
-      try { this.inbox = JSON.parse(r.stdout); this.inboxError = null; } catch { this.inboxError = "cos inbox printed something unexpected"; }
+      const r = await exec(FLEET(), ["inbox", "--history", "30"]).catch((e) => ({ code: 1, stderr: String(e) }));
+      if (r.code !== 0) { this.inboxError = r.stderr.trim() || "fleet inbox failed"; cx.notify(); return; }
+      try { this.inbox = JSON.parse(r.stdout); this.inboxError = null; } catch { this.inboxError = "fleet inbox printed something unexpected"; }
       cx.notify();
     });
   }
@@ -341,9 +341,9 @@ export default class Queue extends View {
     if (extra.choice) args.push("--choice", extra.choice);
     this.busy = true;
     cx.spawn(async (cx) => {
-      const r = await exec(COS(), args);
+      const r = await exec(FLEET(), args);
       this.busy = false;
-      if (r.code !== 0) { this.error = r.stderr.trim() || "cos answer failed"; cx.notify(); return; }
+      if (r.code !== 0) { this.error = r.stderr.trim() || "fleet answer failed"; cx.notify(); return; }
       this.error = r.stderr.trim() || null; // e.g. "CoS is not running; saved"
       this.input.set_value(""); this.mode = null; this.handle.focus();
       this.reload(cx);
@@ -359,7 +359,7 @@ export default class Queue extends View {
     const it = this.current();
     if (!it) return;
     cx.spawn(async (cx) => {
-      const r = await exec(COS(), ["reopen", it.id, "--note", "Reopened by the CEO."]);
+      const r = await exec(FLEET(), ["reopen", it.id, "--note", "Reopened by the CEO."]);
       if (r.code !== 0) this.error = r.stderr.trim();
       this.reload(cx);
     });
@@ -441,7 +441,7 @@ export default class Queue extends View {
     const empty = v_flex().p(16).gap(4)
       .child(div().text_size(12.5).text_color(t.muted).child(this.view === "open" ? "Nothing needs you." : "No answers waiting on a lead."))
       .child(div().text_size(11.5).text_color(t.dim).child(this.view === "open"
-        ? "Leads raise items through the Chief of Staff with `cos ask`. New urgent ones also pop up as a notification."
+        ? "Leads raise items through the Chief of Staff with `fleet ask`. New urgent ones also pop up as a notification."
         : "Answered items stay here until the lead reports them addressed and the CoS closes them."));
 
     const list = v_flex().id("list").flex_1().min_h(0).overflow_y_scrollbar()
@@ -543,7 +543,7 @@ export default class Queue extends View {
     };
     const oldest = waiting.length ? Date.now() - Math.min(...waiting.map((m) => Date.parse(m.at))) : 0;
     return v_flex().id("inbox").flex_1().min_h(0).overflow_y_scrollbar().p(8).gap(1)
-      .child(note("Leads report with `cos report` and your Queue answers land here too. The CoS waits on it with `cos inbox --wait`, acts on each message, then marks it handled."))
+      .child(note("Leads report with `fleet report` and your Queue answers land here too. The CoS waits on it with `fleet inbox --wait`, acts on each message, then marks it handled."))
       .child(section(`Waiting for the CoS · ${waiting.length}`))
       .when(oldest > 5 * 60000, (el) => el.child(note(`The oldest has waited ${span(oldest)}. Check the CoS is running (Fleet tab).`, t.blocked)))
       .children(waiting.length ? waiting.map(row) : [note("Nothing waiting: the CoS has handled everything.")])
