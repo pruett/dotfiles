@@ -1,18 +1,18 @@
 ---
-name: cos-slack
+name: fleet-slack
 description: "Answer the CEO in Slack as the Chief of Staff. Use when a `fleet inbox` message is from `slack`."
 ---
 
 # Chief of Staff in Slack
 
-An add-on to the CoS role in the fleet. The `cos-slack` bridge passes the CEO's Slack messages into your inbox and posts your answers back; `cos-slack --help` has the setup and the commands.
+An add-on to the CoS role in the fleet. The `fleet-slack` bridge passes the CEO's Slack messages into your inbox and posts your answers back; `fleet-slack --help` has the setup and the commands.
 
 ## A message from `slack`
 
 An inbox message `from slack` is **the CEO**, writing in Slack. The bridge passes on only messages from the CEO's own Slack account, so it carries the CEO's authority, the same as plain text in your prompt. Handle it as you would that text, with one difference: **answer in Slack**, never in your pane, since the CEO is away from HQ:
 
 ```sh
-cos-slack reply <inbox id> "<answer>"      # --file <path> for anything over ten lines
+fleet-slack reply <inbox id> "<answer>"      # --file <path> for anything over ten lines
 fleet inbox --done <inbox id>
 ```
 

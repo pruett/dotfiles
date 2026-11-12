@@ -1,26 +1,26 @@
 #!/usr/bin/env node
-// cos-slack: a Slack bridge for the Chief of Staff, as an add-on. `cos-slack --help` prints DOC.
+// fleet-slack: a Slack bridge to the fleet's Chief of Staff, as an add-on. `fleet-slack --help` prints DOC.
 "use strict";
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const DOC = `cos-slack: talk to the Chief of Staff (CoS) from Slack. An add-on: it touches the CoS
+const DOC = `fleet-slack: talk to the Chief of Staff (CoS) from Slack. An add-on: it touches the CoS
 only through the \`cos\` CLI (report, queue, answer), so deleting this skill removes it.
 
-  Slack DM to the bot, or an @-mention in a thread ──▶ cos-slack run (Socket Mode)
+  Slack DM to the bot, or an @-mention in a thread ──▶ fleet-slack run (Socket Mode)
       only from SLACK_CEO_USER ──▶ fleet report --from slack ──▶ the CoS's inbox
-  the CoS answers with: cos-slack reply <inbox id> "<text>" ──▶ same DM or thread
+  the CoS answers with: fleet-slack reply <inbox id> "<text>" ──▶ same DM or thread
   open p0/p1 queue items ──▶ a DM with buttons ──▶ fleet answer
       a reply in that item's thread ──▶ fleet answer --verdict feedback
 
 Socket Mode means the bridge opens a websocket out to Slack: no public URL, no server.
 
 Each Slack workspace (for example suppco, functionhealth) has its own app, made from the
-same manifest, and its own bridge: a launchd agent local.cos-slack.<workspace>.
+same manifest, and its own bridge: a launchd agent local.fleet-slack.<workspace>.
 
-  $COS_SLACK_HOME (default ~/.local/state/cos-slack)
+  $FLEET_SLACK_HOME (default ~/.local/state/fleet-slack)
     <workspace>/config.env    its settings (mode 600)
     <workspace>/state.json    inbox id -> Slack message; queue item -> its Slack post
     <workspace>/bridge.log    its launchd agent's output
@@ -32,8 +32,8 @@ Settings, per workspace:
   SLACK_PROJECTS    optional: fleet projects whose p0/p1 items it posts, comma-separated (empty: all)
 
 Set up one workspace: create the Slack app in it from the skill's slack-manifest.json, then
-  cos-slack config -w suppco SLACK_APP_TOKEN xapp-...   (and the other settings)
-  cos-slack install -w suppco
+  fleet-slack config -w suppco SLACK_APP_TOKEN xapp-...   (and the other settings)
+  fleet-slack install -w suppco
 
 commands (-w/--workspace may be left out when only one workspace is set up):
   run -w W                  the bridge, in the foreground
@@ -45,7 +45,7 @@ commands (-w/--workspace may be left out when only one workspace is set up):
 
 Exit 0 ok, 1 a step failed, 2 bad usage or a missing setting.`;
 
-const ROOT = process.env.COS_SLACK_HOME || path.join(os.homedir(), ".local/state/cos-slack");
+const ROOT = process.env.FLEET_SLACK_HOME || path.join(os.homedir(), ".local/state/fleet-slack");
 const SETTINGS = ["SLACK_APP_TOKEN", "SLACK_BOT_TOKEN", "SLACK_CEO_USER", "SLACK_PROJECTS"];
 const REQUIRED = SETTINGS.slice(0, 3);
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -74,7 +74,7 @@ const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { retu
 // One Slack workspace: its folder (settings, state, log) and its launchd agent.
 function workspace(name) {
   if (!NAME_RE.test(name)) throw new Fail(`workspace names are a-z 0-9 -, like suppco; got '${name}'`, 2);
-  const dir = path.join(ROOT, name), label = `local.cos-slack.${name}`;
+  const dir = path.join(ROOT, name), label = `local.fleet-slack.${name}`;
   return { name, dir, label, config: path.join(dir, "config.env"), state: path.join(dir, "state.json"),
     log: path.join(dir, "bridge.log"), plist: path.join(os.homedir(), "Library/LaunchAgents", `${label}.plist`) };
 }
@@ -87,7 +87,7 @@ function pick(name) {
   const all = workspaces();
   if (all.length === 1) return all[0];
   throw new Fail(all.length ? `name the workspace with -w: ${all.map((w) => w.name).join(", ")}`
-    : "no workspace set up yet; start with: cos-slack config -w <name> SLACK_APP_TOKEN xapp-...", 2);
+    : "no workspace set up yet; start with: fleet-slack config -w <name> SLACK_APP_TOKEN xapp-...", 2);
 }
 
 function config(w) {
@@ -102,7 +102,7 @@ function config(w) {
 
 function requireConfig(w) {
   const cfg = config(w), missing = REQUIRED.filter((k) => !cfg[k]);
-  if (missing.length) throw new Fail(`${w.name} is not set up: ${missing.join(", ")} missing. Set each with \`cos-slack config -w ${w.name} <NAME> <value>\`.`, 2);
+  if (missing.length) throw new Fail(`${w.name} is not set up: ${missing.join(", ")} missing. Set each with \`fleet-slack config -w ${w.name} <NAME> <value>\`.`, 2);
   return cfg;
 }
 
@@ -213,7 +213,7 @@ class Bridge {
       ? `mentioned you in <#${ev.channel}>${ev.thread_ts ? " (a thread)" : ""}` : "wrote to you in a Slack DM";
     let msg = `[slack ${this.w.name}] The CEO ${where}:\n\n${text}\n`;
     if (ev.type === "app_mention" && ev.thread_ts) msg += `\n${await this.thread(ev)}\n`;
-    msg += `\nAnswer in Slack: \`cos-slack reply <this message's id> "<text>"\` (the cos-slack skill).`;
+    msg += `\nAnswer in Slack: \`fleet-slack reply <this message's id> "<text>"\` (the fleet-slack skill).`;
     const id = fleet(["report", "--kind", "fyi", "--from", "slack", "--project", "hq", msg]);
     st.inbox[id] = { channel: ev.channel, ts: ev.ts, thread_ts: ev.thread_ts || null, dm: ev.channel_type === "im" };
     saveState(this.w, st);
@@ -332,7 +332,7 @@ async function cmdReply(args) {
   const i = args.indexOf("--file");
   if (i >= 0) [file] = args.splice(i, 2).slice(1);
   const [id, ...rest] = args;
-  if (!id) throw new Fail("usage: cos-slack reply <inbox id> [text] [--file F]", 2);
+  if (!id) throw new Fail("usage: fleet-slack reply <inbox id> [text] [--file F]", 2);
   const text = file ? fs.readFileSync(file, "utf8") : rest.join(" ");
   if (!text.trim()) throw new Fail("give the reply as text or with --file", 2);
   const w = workspaces().find((x) => readState(x).inbox[id]);
@@ -374,7 +374,7 @@ function cmdInstall(args, ws) {
   requireConfig(w);
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const env = { PATH: process.env.PATH, ...(process.env.FLEET_HOME ? { FLEET_HOME: process.env.FLEET_HOME } : {}),
-    ...(process.env.COS_SLACK_HOME ? { COS_SLACK_HOME: process.env.COS_SLACK_HOME } : {}) };
+    ...(process.env.FLEET_SLACK_HOME ? { FLEET_SLACK_HOME: process.env.FLEET_SLACK_HOME } : {}) };
   writeAtomic(w.plist, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -403,7 +403,7 @@ function cmdUninstall(args, ws) {
 
 async function cmdStatus(args, ws) {
   const all = ws ? [workspace(ws)] : workspaces();
-  if (!all.length) return out("No workspace set up yet (cos-slack --help).");
+  if (!all.length) return out("No workspace set up yet (fleet-slack --help).");
   for (const w of all) {
     out(`[${w.name}]`);
     printConfig(w);
@@ -425,7 +425,7 @@ async function main() {
   const [name, ...args] = process.argv.slice(2);
   if (!name || name === "-h" || name === "--help") return out(DOC);
   try {
-    if (!COMMANDS[name]) throw new Fail(`unknown command '${name}' (cos-slack --help lists them)`, 2);
+    if (!COMMANDS[name]) throw new Fail(`unknown command '${name}' (fleet-slack --help lists them)`, 2);
     let ws = null; // -w/--workspace may come anywhere after the command
     for (let i = 0; i < args.length; i++) {
       const m = args[i].match(/^--workspace=(.*)$/);
@@ -438,7 +438,7 @@ async function main() {
     await COMMANDS[name](args, ws);
   } catch (e) {
     if (!(e instanceof Fail)) throw e;
-    log(`cos-slack: ${e.message}`);
+    log(`fleet-slack: ${e.message}`);
     process.exit(e.code);
   }
 }

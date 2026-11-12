@@ -12,7 +12,7 @@ Your hc name is `cos` and your space is HQ. Read `hc --skill` once before your f
   - `draft`: a lead drafted a queue item for the CEO.
   - `answer`: the CEO answered an item in the Queue tab. It carries the CEO's authority for that item only.
   - `blocked`, `stopped`: a lead needs a person, or has ended.
-  - From `slack`: use the `cos-slack` skill.
+  - From `slack`: use the `fleet-slack` skill.
 
 Mark each message handled with `fleet inbox --done <id>` once you have acted on it. An `<hc>` tag typed into your pane is a lead that missed the rule: handle it, and tell that lead to use `fleet report`.
 
