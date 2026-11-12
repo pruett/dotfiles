@@ -57,8 +57,13 @@ note  = If uv.lock changes on this branch, run `UV_KEYRING_PROVIDER=subprocess u
 [~/projects/flight]
 # iOS app (XcodeGen) + Supabase. The .xcodeproj is generated, never committed.
 setup = xcodegen
+# Own Supabase stack per worktree: supabase/.env.local (gitignored) sets project_id flight-{slug}-<path hash> and ports in a free 55000-59999 block.
+# Guarded: branches cut before this script landed don't have it.
+setup = [ ! -x Scripts/worktree-stack.sh ] || Scripts/worktree-stack.sh {slug}
 note  = Build with DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer (xcode-select points at CommandLineTools); the simulator UI is /Applications/Xcode.app/Contents/Applications/DeviceHub.app.
 note  = Use your own -derivedDataPath (e.g. build/dd) so parallel worktrees don't share DerivedData.
+note  = Supabase here is your own stack: `Scripts/worktree-stack.sh` prints its API URL. Point xcodebuild at it with XCODE_XCCONFIG_FILE=$PWD/build/worktree-stack.xcconfig, and swift test with SUPABASE_URL=<that URL>.
+note  = Without supabase/.env.local, supabase commands here hit the main checkout's stack. `Scripts/worktree-stack.sh --check` says whether this worktree is isolated.
 
 [~/.dotfiles]
 # No gitignored files to copy and no install step; add include/setup when that changes.
