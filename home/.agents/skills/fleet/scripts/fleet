@@ -12,7 +12,7 @@ const DOC = `fleet: the CEO's agent fleet on Herdr — its shared state and laun
 
 Roles (roles.json beside this script): the Chief of Staff (\`cos\`) passes messages
 between you and the leads; a \`lead\` runs one project; workers (implementer, researcher,
-tester, reviewer, devin) each do one chunk for a lead. You talk only to the CoS. Anything
+tester, reviewer, cloud-agent) each do one chunk for a lead. You talk only to the CoS. Anything
 that needs your judgment is a queue item, answered in the Fleet panel's Queue tab in HQ.
 
 A project's life:

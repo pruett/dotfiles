@@ -7,6 +7,6 @@
     "researcher":  { "run": "claude", "args": ["--model", "claude-haiku-5-5", "--permission-mode", "auto"], "prompt": ["roles/worker.md"], "why": "read-only questions" },
     "tester":      { "run": "claude", "args": ["--model", "claude-sonnet-5-5", "--permission-mode", "auto"], "prompt": ["roles/worker.md"], "why": "runs the app and captures screenshots" },
     "reviewer":    { "run": "codex",  "args": ["--no-daemon", "-m", "gpt-6.1-sol", "-s", "workspace-write", "-a", "on-request"], "prompt": ["roles/worker.md"], "why": "a second model family reviews Claude's code" },
-    "devin":       { "run": "devin-as", "args": ["{company}"], "prompt": ["roles/worker.md"], "why": "long jobs that must survive the Mac going offline (it can hand off to Devin cloud); shepherding a PR until it lands" }
+    "cloud-agent": { "run": "devin-as", "args": ["{company}"], "prompt": ["roles/worker.md"], "why": "long jobs that must survive the Mac going offline (it can hand off to Devin cloud); shepherding a PR until it lands" }
   }
 }

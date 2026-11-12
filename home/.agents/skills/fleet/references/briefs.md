@@ -9,8 +9,8 @@ dir=$(wt new <repo>/<project>-<slug>)        # code-writing chunks only; prints 
 fleet run implementer ratelimit --cwd "$dir" "<brief>"
 ```
 
-- Code-writing chunks (`implementer`, and `devin` when it writes code) each get their own worktree from `wt new` (the worktrees skill); `researcher`, `reviewer` and `tester` run in the repo or in the worktree they look at.
-- `devin` must start under `$FLEET_WORK_ROOT/<company>/`: its Devin account is the company folder.
+- Code-writing chunks (`implementer`, and `cloud-agent` when it writes code) each get their own worktree from `wt new` (the worktrees skill); `researcher`, `reviewer` and `tester` run in the repo or in the worktree they look at.
+- `cloud-agent` (Devin) must start under `$FLEET_WORK_ROOT/<company>/`: its Devin account is the company folder.
 - The brief is the worker's first prompt and its role's rules (`roles/worker.md`) are its system prompt, so the brief holds only the work. `fleet run` accepts Claude's folder-trust prompt itself; when it warns the worker reported no status, `hc read <name>` before anything else.
 
 ## Brief
