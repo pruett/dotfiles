@@ -66,7 +66,7 @@ const SETTINGS = {
   FLEET_WORK_ROOT: ["the folder your repos live under (one folder per company or group)", "~/work"],
   FLEET_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR); " +
     "\"default\" leaves it unset, so Claude uses ~/.claude and ~/.claude.json. Name a folder only for " +
-    "a second profile such as ~/.claude-work", "default"],
+    "a second profile", "default"],
 };
 
 class Fail extends Error {

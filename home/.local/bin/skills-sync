@@ -13,7 +13,7 @@
 # (--autostash). Boxes also run this every 10 minutes from a systemd timer that
 # exe-bootstrap installs, so a push from the Mac reaches them on its own.
 #
-# Linking: on the Mac, `skills sync claude-code claude-work` (dot already links
+# Linking: on the Mac, `skills sync` (dot already links
 # ~/.agents/skills). On Linux boxes, which get only the skills from the repo:
 # ~/.agents/{skills,docs}, one link per skill in ~/.claude/skills, ~/.claude/docs,
 # and the CLIs that ship inside skills (plus this command) in ~/.local/bin.
@@ -48,7 +48,7 @@ sync_repo() {
 
 link_mac() {
   if [[ -x "$repo/home/.local/bin/skills" ]]; then
-    "$repo/home/.local/bin/skills" sync claude-code claude-work >/dev/null
+    "$repo/home/.local/bin/skills" sync >/dev/null
   fi
 }
 
@@ -60,7 +60,7 @@ link_linux() {
   ln -sfn "$repo/home/.agents/docs" .agents/docs
   ln -sfn ../.agents/docs .claude/docs  # pstack skills link through ~/.claude/docs
 
-  # One link per skill, as `skills sync claude-code` makes on the Mac. Never
+  # One link per skill, as `skills sync` makes on the Mac. Never
   # replace a real folder Claude Code created.
   for s in "$repo"/home/.agents/skills/*/; do
     s="$(basename "$s")"

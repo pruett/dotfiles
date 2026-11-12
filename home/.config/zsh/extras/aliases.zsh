@@ -37,10 +37,7 @@ alias edit="$EDITOR"
 # ---------
 # Claude Code
 # ---------
-# `cc` runs claude as usual; `ccw` runs it against the work config
-# profile (its own MCP servers, auth, and settings).
 alias cc="claude"
-alias ccw="CLAUDE_CONFIG_DIR=$HOME/.claude-work claude"
 
 # ---------
 # Devin

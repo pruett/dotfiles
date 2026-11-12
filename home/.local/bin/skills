@@ -122,24 +122,9 @@ link_plugin_skills() {
   done
 }
 
-sync_agent() {
-  local agent="$1"
-  local target_dir
-
-  case "$agent" in
-    claude|claude-code)
-      agent="claude-code"
-      target_dir="$real_home/.claude/skills"
-      ;;
-    claude-work|work)
-      agent="claude-work"
-      target_dir="$real_home/.claude-work/skills"
-      ;;
-    *)
-      printf 'Unknown agent: %s (expected claude-code or claude-work; Codex and Pi read ~/.agents/skills directly)\n' "$agent" >&2
-      return 2
-      ;;
-  esac
+# Codex and Pi read ~/.agents/skills directly; only Claude Code needs links.
+sync_claude() {
+  local target_dir="$real_home/.claude/skills"
 
   mkdir -p "$target_dir"
 
@@ -177,7 +162,7 @@ sync_agent() {
     fi
   done
 
-  printf 'Synced skills for %s.\n' "$agent"
+  printf 'Synced skills for Claude Code.\n'
 }
 
 usage() {
@@ -188,7 +173,7 @@ Commands:
   add <source> [options] Add skills from a path, URL, or GitHub repository
   list, ls               List centrally managed global skills
   update [skills...]     Update all skills, or only the named skills
-  sync <agent> [...]     Link skills for claude-code or claude-work
+  sync                   Link every skill into ~/.claude/skills
   help                   Show this help
 EOF
 }
@@ -223,13 +208,11 @@ case "${1:-help}" in
     ;;
   sync)
     shift
-    if [[ $# -eq 0 ]]; then
-      printf 'Usage: skills sync <claude-code|claude-work> [...]\n' >&2
+    if [[ $# -ne 0 ]]; then
+      printf 'Usage: skills sync\n' >&2
       exit 2
     fi
-    for agent in "$@"; do
-      sync_agent "$agent"
-    done
+    sync_claude
     ;;
   help|-h|--help)
     usage

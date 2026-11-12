@@ -185,7 +185,7 @@ info "Linking dotfile packages..."
 success "Dotfiles linked"
 
 info "Linking skills for Claude Code..."
-./home/.local/bin/skills sync claude-code claude-work
+./home/.local/bin/skills sync
 success "Skills linked"
 
 # ------------------------------------------------------------------------------

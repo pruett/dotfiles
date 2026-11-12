@@ -6,7 +6,7 @@
     "sessionUrl": false
   },
   "permissions": {
-    "defaultMode": "auto",
+    "defaultMode": "bypassPermissions",
     "additionalDirectories": [
       "~/.dotfiles"
     ]
@@ -57,7 +57,8 @@
     "code-simplifier@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
+    "html-plan@claude-community": true,
+    "ruby-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -65,16 +66,24 @@
         "source": "github",
         "repo": "anthropics/claude-plugins-official"
       }
+    },
+    "claude-community": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-community"
+      }
     }
   },
+  "outputStyle": "Concise",
   "sandbox": {
     "enabled": false
   },
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "theme": "dark",
   "editorMode": "vim",
-  "agentPushNotifEnabled": true,
-  "switchModelsOnFlag": true
+  "autoCompactEnabled": false,
+  "agentPushNotifEnabled": true
 }
