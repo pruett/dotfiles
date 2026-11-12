@@ -13,6 +13,7 @@ target="$HOME"
 folded_dirs=(
   .agents/skills
   .config/zsh
+  .local/state/fleet  # the fleet writes here on purpose: its state lives in the repo, gitignored
 )
 
 # Paths in the home package that stay in the repo and never get a link in ~.

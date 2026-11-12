@@ -11,8 +11,8 @@ home/.config/cloudflared/token.local
 
 artifacts/
 
-# The fleet's state is a real folder at ~/.local/state/fleet (`fleet init`), never
-# linked from here. Keeps any leftover copy (the old cos state) untracked.
+# Machine state (the fleet's in state/fleet, linked whole to ~/.local/state/fleet by
+# dot) lives here but is never committed.
 home/.local/state/
 
 # Installed at runtime by skill scripts (e.g. pstack watch-pr bootstrap)
