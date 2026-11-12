@@ -16,8 +16,8 @@ artifacts/
 home/.local/state/*
 !home/.local/state/fleet/
 home/.local/state/fleet/*
-!home/.local/state/fleet/config.env.local
-!home/.local/state/fleet/playbook.md.local
+!home/.local/state/fleet/config.env.example
+!home/.local/state/fleet/playbook.md.example
 
 # Installed at runtime by skill scripts (e.g. pstack watch-pr bootstrap)
 home/.agents/skills/*/scripts/node_modules/
