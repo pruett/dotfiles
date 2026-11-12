@@ -13,7 +13,7 @@ Run `fleet status`, then ask the user what to do with AskUserQuestion, offering 
 
 - **Start HQ** (`fleet up`) when the CoS is stopped.
 - **New project**: a name (1-27 of `a-z 0-9 -`) and the request in the user's own words.
-- **A project's state**: read its `project.md` (PRD, Now, Stuck) under `$FLEET_HOME/projects/<p>/` (`fleet status` prints the folder).
+- **A project's state**: read its `prd.md` (PRD, Now, Stuck) under `$FLEET_HOME/projects/<p>/` (`fleet status` prints the folder).
 - **The queue**: `fleet queue`; the user answers items in the Fleet panel's Queue tab in HQ.
 - **Close a project**: `fleet project close <p>`.
 

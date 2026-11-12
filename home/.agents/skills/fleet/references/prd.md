@@ -1,6 +1,6 @@
 # The PRD
 
-The PRD is the `## PRD` section of `project.md`: six fields the lead fills from the brief, the playbook and a light look at the repo, and the CoS signs with `fleet project approve`. Once signed it stays fixed; `fleet run` refuses if it changes, until new work (`fleet project goal`) sends it back for another round.
+The PRD is the `## PRD` section of `prd.md`: six fields the lead fills from the brief, the playbook and a light look at the repo, and the CoS signs with `fleet project approve`. Once signed it stays fixed; `fleet run` refuses if it changes, until new work (`fleet project goal`) sends it back for another round.
 
 Each field ends with its source in brackets: `(brief)`, `(playbook)`, `(repo)`, `(CoS)`, or `(lead)` for your own call. A field you cannot settle stays as `TBD: <question> — rec: <your answer>`; the CoS answers it. `approve` refuses while any field is empty or holds `TBD`.
 

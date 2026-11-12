@@ -27,7 +27,7 @@ A project's life:
     config.env                   this machine's settings (\`fleet init\` asks for them)
     playbook.md                  your rules, accounts and machine notes; in every CoS and lead prompt
     projects/<p>/brief.md        your words, dated; only added to
-    projects/<p>/project.md      the lead's spec: PRD, Standing orders, Now, Plan, Stuck, Done
+    projects/<p>/prd.md      the lead's spec: PRD, Standing orders, Now, Plan, Stuck, Done
     projects/<p>/decisions.md    dated decisions, newest last
     projects/<p>/project.json    name, lead, status (aligning|active|parked|closed), the approved PRD's hash
     inbox/<id>.json              a message for the CoS; inbox/done/ once handled
@@ -215,9 +215,9 @@ function myProject() {
   return project(path.basename(d));
 }
 
-// The PRD section of project.md: its text, and each field's body (or null when missing).
+// The PRD section of prd.md: its text, and each field's body (or null when missing).
 function readPrd(name) {
-  const f = path.join(projDir(name), "project.md");
+  const f = path.join(projDir(name), "prd.md");
   const md = exists(f) ? fs.readFileSync(f, "utf8") : "";
   const m = md.match(/^## PRD[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   const text = m ? m[1].trim() : "";
@@ -233,7 +233,7 @@ function appendDecision(name, line) {
   fs.appendFileSync(path.join(projDir(name), "decisions.md"), `- ${stamp("%Y-%m-%d")}: ${line}\n`);
 }
 
-const PROJECT_MD = (name) => `# ${name}
+const PRD_MD = (name) => `# ${name}
 
 ## PRD
 The lead fills each field (~/.agents/skills/fleet/references/prd.md), noting where each answer came from;
@@ -260,8 +260,8 @@ function startLead(p) {
   if (live(p.lead)) return log(`${p.lead} is already running.`);
   const d = projDir(p.name);
   const task = `You lead project \`${p.name}\`. Folder: ${d}. Status: ${p.status}. ` + (p.status === "aligning"
-    ? "Read brief.md, fill the PRD in project.md per ~/.agents/skills/fleet/references/prd.md, then send `fleet report --kind prd`."
-    : "Read brief.md, project.md (Now first) and decisions.md, then carry on. `fleet ls` lists workers still running.");
+    ? "Read brief.md, fill the PRD in prd.md per ~/.agents/skills/fleet/references/prd.md, then send `fleet report --kind prd`."
+    : "Read brief.md, prd.md (Now first) and decisions.md, then carry on. `fleet ls` lists workers still running.");
   launch({ role: "lead", name: p.lead, cwd: d, task, space: p.space, labels: [`fleet.project=${p.name}`],
     parent: "outlive", keep: true });
   app(["do", "space.rename", "--id", p.space, "--name", p.name], false);
@@ -547,7 +547,7 @@ function cmdProjectNew(a) {
   if (exists(path.join(d, "project.json"))) throw new Fail(`project '${a.name}' exists; add work with \`fleet project goal\``, 2);
   for (const sub of ["briefs", "reports", "evidence", "drafts"]) fs.mkdirSync(path.join(d, sub), { recursive: true });
   fs.writeFileSync(path.join(d, "brief.md"), `# ${a.name} brief\n\nYour words, word for word. Only added to.\n\n## ${stamp("%Y-%m-%d")}\n${a.brief.trim()}\n`);
-  fs.writeFileSync(path.join(d, "project.md"), PROJECT_MD(a.name));
+  fs.writeFileSync(path.join(d, "prd.md"), PRD_MD(a.name));
   fs.writeFileSync(path.join(d, "decisions.md"), `# ${a.name} decisions\n\nOne line each: date, decision, who decided, why. Newest last.\n\n`);
   const p = { name: a.name, lead: `lead-${a.name}`, space: `fleet-${a.name}`, status: "aligning", prd_hash: null, created: now() };
   saveProject(p);
@@ -577,7 +577,7 @@ function cmdProjectGoal(a) {
   fs.appendFileSync(path.join(projDir(a.name), "brief.md"), `\n## ${stamp("%Y-%m-%d")}\n${a.text.trim()}\n`);
   Object.assign(p, { status: "aligning", prd_hash: null });
   saveProject(p);
-  const msg = "New work was added to brief.md. Status: aligning. Update the PRD in project.md, then `fleet report --kind prd`. " +
+  const msg = "New work was added to brief.md. Status: aligning. Update the PRD in prd.md, then `fleet report --kind prd`. " +
     "Workers already running may finish; start no new ones until the PRD is approved.";
   if (live(p.lead)) hc(["send", p.lead, msg], false);
   else startLead(p);
@@ -672,10 +672,10 @@ function cmdStop(a) {
 function cmdHandoff() {
   need("lead");
   const p = myProject();
-  const md = path.join(projDir(p.name), "project.md");
+  const md = path.join(projDir(p.name), "prd.md");
   if (Date.now() - fs.statSync(md).mtimeMs > 10 * 60 * 1000)
-    throw new Fail("update Now in project.md first (it is the new lead's resume point), then run this again", 2);
-  deliver("fyi", p.lead, p.name, `${p.lead} handed off: it restarts with a fresh context and resumes from project.md.`);
+    throw new Fail("update Now in prd.md first (it is the new lead's resume point), then run this again", 2);
+  deliver("fyi", p.lead, p.name, `${p.lead} handed off: it restarts with a fresh context and resumes from prd.md.`);
   forgetLead(p.lead);
   // In a terminal of its own with no parent, so killing this lead does not take the restart with it.
   const restart = `sleep 3; hc kill ${p.lead}; hc rm ${p.lead}; ` +
@@ -1018,7 +1018,7 @@ const COMMANDS = {
     pos: ["role", "slug", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
   stop: { fn: cmdStop, who: "lead", help: "kill one of this project's workers", pos: ["name"] },
-  handoff: { fn: cmdHandoff, who: "lead", help: "restart this lead with a fresh context once Now in project.md is current; workers keep running" },
+  handoff: { fn: cmdHandoff, who: "lead", help: "restart this lead with a fresh context once Now in prd.md is current; workers keep running" },
   report: { fn: cmdReport, who: "lead, you", help: "a report to the CoS, into its inbox (never `hc send cos`); prints its id", pos: ["text?"], opts: {
     "--kind": { choices: REPORT_KINDS, def: "fyi" },
     "--file": { help: "a file holding the report (for anything longer than ten lines)" },

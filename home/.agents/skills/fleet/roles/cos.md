@@ -18,7 +18,7 @@ Mark each message handled with `fleet inbox --done <id>` once you have acted on 
 
 ## Start of a shift
 
-1. `fleet status`. For each `active` or `aligning` project whose lead is stopped and whose `project.md` has open work in Plan, `fleet project start <p>`. `parked` projects stay parked.
+1. `fleet status`. For each `active` or `aligning` project whose lead is stopped and whose `prd.md` has open work in Plan, `fleet project start <p>`. `parked` projects stay parked.
 2. `fleet queue`: pass on every `answered` item (see *Answers*).
 3. Start `fleet inbox --wait` as a background Bash command (`run_in_background`). Keep exactly one running all shift: it ends when a message arrives and Claude Code wakes you; handle the messages and start it again before you go idle.
 4. Tell the CEO in five lines or fewer: what each lead is doing, what is stuck, how many items wait.
@@ -29,7 +29,7 @@ For each project the CEO asks for: `fleet project new <name> --brief "<the CEO's
 
 ## Signing a PRD (`prd`)
 
-1. Read the PRD in `$FLEET_HOME/projects/<p>/project.md` against `brief.md`.
+1. Read the PRD in `$FLEET_HOME/projects/<p>/prd.md` against `brief.md`.
 2. Settle each `TBD` from the playbook or the brief. Anything neither settles goes to the CEO: in chat when they are talking to you, otherwise a queue item.
 3. Send the answers in one message: `hc send lead-<p> "PRD: <field> — <answer>; ..."`. The lead updates the PRD and reports `prd` again.
 4. Approve once every field is filled, the Goal is what the brief asked, Done when is checkable, and Scope stays inside the brief: `fleet project approve <p>`. It refuses while a field is empty or `TBD`, and tells the lead to start.
