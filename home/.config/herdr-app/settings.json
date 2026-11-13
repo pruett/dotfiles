@@ -1,8 +1,9 @@
 {
-  "zoom": 1.3,
+  "zoom": 1.1,
   "sounds": {
     "enabled": true
   },
+  "font": "Geist Mono",
   "font_ligatures": false,
   "minimum_contrast": 1.0,
   "theme": "graphite"
