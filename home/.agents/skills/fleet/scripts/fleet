@@ -90,7 +90,19 @@ const SETTINGS = {
   FLEET_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR); " +
     "\"default\" leaves it unset, so Claude uses ~/.claude and ~/.claude.json. Name a folder only for " +
     "a second profile", "default"],
+  FLEET_EMOJI: ["the emoji that starts this fleet's HQ space title, to tell fleets apart; `fleet init` picks one at random", ""],
 };
+const EMOJIS = ["⛵", "🚤", "🛥️", "🚢", "⚓", "🛶", "🐙", "🐋", "🦈", "🧭", "🌊", "🏝️"];
+
+// This fleet's emoji, picked at random and saved the first time it is asked for.
+function emoji() {
+  const cfg = config();
+  if (!cfg.FLEET_EMOJI) {
+    cfg.FLEET_EMOJI = EMOJIS[crypto.randomInt(EMOJIS.length)];
+    saveConfig(cfg);
+  }
+  return cfg.FLEET_EMOJI;
+}
 
 class Fail extends Error {
   constructor(msg, code = 1) {
@@ -370,6 +382,7 @@ function cmdInit(a) {
     fs.writeFileSync(pb, PLAYBOOK_SEED);
     log(`Wrote ${pb}: your rules for the CoS and leads.`);
   }
+  log(`This fleet's emoji: ${emoji()} (\`fleet config FLEET_EMOJI <emoji>\` changes it).`);
   checkHerdrFiles();
   out(HOME);
 }
@@ -535,7 +548,7 @@ function cmdUp() {
     log("The Herdr window is not open, so HQ is not shown; the CoS runs anyway. Rerun `fleet up` with Herdr open.");
     return out(COS);
   }
-  app(["do", "space.rename", "--id", HQ_SPACE, "--name", `fleet - ${path.basename(workRoot())}`], false); // which work root this HQ serves
+  app(["do", "space.rename", "--id", HQ_SPACE, "--name", `${emoji()} fleet - ${path.basename(workRoot())}`], false); // which work root this HQ serves
   app(["do", "space.select", "--id", HQ_SPACE], false);
   // The Fleet panel (Queue, Fleet, Inbox) is a side-panel child (layouts/fleet.json), next to Files and Changes.
   if (!checkHerdrFiles()) return out(COS);
