@@ -26,4 +26,4 @@ Map the request to one command and run it.
 
 Report the result in one or two lines. Anything the user wants to tell the CoS or a lead goes through the CoS: point them to HQ.
 
-When a command says the machine is not set up, ask the user for each missing setting, offering the suggestion it prints, and save it with `fleet config <NAME> <value>`.
+When a command says there is no fleet here, ask the user which folder is their work root (the folder their repos sit under) and run `fleet init <that folder>`.

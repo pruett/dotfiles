@@ -7,7 +7,7 @@
 // The Queue tab is the CEO's one queue.
 //
 // Every item is a decision, review or approval a lead raised through the CoS
-// (`fleet ask`, stored as ~/.local/state/fleet/queue/<id>.json). This panel lists the
+// (`fleet ask`, stored as <work root>/.fleet/queue/<id>.json). This panel lists the
 // open ones by priority, shows the selected one with its recommendation,
 // options and screenshots, and records the answer with `fleet answer`, which
 // sends it to the CoS only. The CoS passes it on and closes the item once the
@@ -31,7 +31,8 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextView } from "gpui-base";
 import { exec, home, appHome, theme, nextCommand, watchFolder, notify, props, spaces, panes, terminals, run, openOverlay, window, shared, layout, settings, focused } from "herdr";
 
-const STATE = () => `${home()}/.local/state/fleet`;
+// The state folder of the fleet running HQ (`fleet home` reads ~/.local/state/fleet-hq), or null.
+const STATE = async () => { const r = await exec(FLEET(), ["home"]).catch(() => null); return r?.code === 0 ? r.stdout.trim() : null; };
 const FLEET = () => `${home()}/.local/bin/fleet`;
 const IMG_DIR = "mods/fleet/.shots"; // image() reads from the app folder, so screenshots are copied here
 const PANEL = "panel", STACK = "panel-body", CHILD = "fleet"; // layout node ids
@@ -83,7 +84,9 @@ function watchQueue(cx, load) {
   load(cx);
   cx.spawn(async (cx) => {
     for (;;) {
-      try { await watchFolder(`${STATE()}/queue`); } catch { return; }
+      const st = await STATE();
+      if (!st) return;
+      try { await watchFolder(`${st}/queue`); } catch { return; }
       load(cx);
     }
   });
@@ -115,10 +118,12 @@ export default class Queue extends View {
     this.inbox = []; // `fleet inbox --history`: unread first, then handled, newest first
     this.inboxOpen = null; // id of the message shown in full
     cx.spawn(async (cx) => {
-      await exec("mkdir", ["-p", `${STATE()}/inbox`]);
+      const st = await STATE();
       this.loadInbox(cx);
+      if (!st) return;
+      await exec("mkdir", ["-p", `${st}/inbox`]);
       for (;;) {
-        try { await watchFolder(`${STATE()}/inbox`); } catch { return; }
+        try { await watchFolder(`${st}/inbox`); } catch { return; }
         this.loadInbox(cx);
       }
     });

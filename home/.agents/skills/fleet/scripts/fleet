@@ -5,7 +5,6 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const readline = require("node:readline/promises");
 const { spawnSync } = require("node:child_process");
 
 const DOC = `fleet: the CEO's agent fleet on Herdr — its shared state and launcher.
@@ -23,8 +22,14 @@ A project's life:
   fleet project park <p> --reason "..."          status parked: waits on people; \`project start\` resumes
   fleet project close <p>                        status closed: lead and workers stop
 
-  $FLEET_HOME (default ~/.local/state/fleet)
-    config.env                   this machine's settings (\`fleet init\` asks for them)
+A fleet lives in a work root, the folder your repos sit under (one folder per company or
+group): \`fleet init\` there makes <work root>/.fleet. Commands find it from $FLEET_HOME, else the
+nearest .fleet at or above the current folder, else the fleet whose HQ \`fleet up\` last opened
+(~/.local/state/fleet-hq, for the Fleet panel and bridges). Make as many as you like; one runs
+HQ at a time, since the CoS is always \`cos\`.
+
+  <work root>/.fleet ($FLEET_HOME)
+    config.env                   optional settings (\`fleet config\`)
     playbook.md                  your rules; in every CoS and lead prompt
     projects/<p>/brief.md        your words, dated; only added to
     projects/<p>/prd.md      the lead's spec: PRD, Standing orders, Now, Plan, Stuck, Done
@@ -37,7 +42,7 @@ Terminals (hc names): the CoS is \`cos\`; a lead is \`lead-<p>\`; a worker \`<ke
 Nothing types into the CoS's pane, which is yours: leads report with \`fleet report\` and your
 answers go through \`fleet answer\`; both land in the inbox. The CoS talks to leads with \`fleet send\`.
 
-Every agent starts through \`fleet exec <role>\`, which sets FLEET_HOME, FLEET_WORK_ROOT,
+Every agent starts through \`fleet exec <role>\`, which sets FLEET_HOME, FLEET_WORK_ROOT (the work root),
 FLEET_ROLE, FLEET_PROJECT_DIR (leads and workers) and CLAUDE_CONFIG_DIR. Commands check
 FLEET_ROLE: only a lead starts workers, only the CoS forwards drafts.
 
@@ -49,7 +54,26 @@ const expand = (p) => {
   return s.length > 1 ? path.normalize(s).replace(/\/+$/, "") : s;
 };
 
-const HOME = process.env.FLEET_HOME ? expand(process.env.FLEET_HOME) : path.join(os.homedir(), ".local/state/fleet");
+const STATE_DIR = ".fleet"; // a fleet's state folder, inside its work root
+const HQ_FILE = path.join(os.homedir(), ".local/state/fleet-hq"); // the state folder of the fleet whose HQ runs
+
+// This fleet's state folder: $FLEET_HOME, else the nearest .fleet at or above here, else
+// the one running HQ (the panel and bridges start outside any work root). null when none.
+function findHome() {
+  if (process.env.FLEET_HOME) return expand(process.env.FLEET_HOME);
+  for (let d = process.cwd(); ; d = path.dirname(d)) {
+    if (isDir(path.join(d, STATE_DIR))) return path.join(d, STATE_DIR);
+    if (d === path.dirname(d)) break;
+  }
+  try {
+    const h = fs.readFileSync(HQ_FILE, "utf8").trim();
+    if (isDir(h)) return h;
+  } catch {}
+  return null;
+}
+
+let HOME = findHome(); // set by `fleet init`; every other command except `roles` needs one
+const workRoot = () => path.dirname(HOME);
 const COS = "cos"; // the CoS terminal's hc name
 const HQ_SPACE = "fleet-hq"; // herdr.space label for the CoS's space
 const PRIORITIES = ["p0", "p1", "p2", "p3"];
@@ -61,9 +85,8 @@ const PRD_FIELDS = ["Goal", "Done when", "Repos", "Worktrees", "Scope", "Verific
 const ROLE = process.env.FLEET_ROLE || "you"; // who is running this command
 const LEADERS = ["cos", "lead"]; // roles started by `fleet up` and `fleet project`, never `fleet run`
 
-// This machine's settings, kept in $FLEET_HOME/config.env: name -> [what it is, suggested value].
+// This fleet's optional settings, kept in $FLEET_HOME/config.env: name -> [what it is, default].
 const SETTINGS = {
-  FLEET_WORK_ROOT: ["the folder your repos live under (one folder per company or group)", "~/work"],
   FLEET_CLAUDE_CONFIG_DIR: ["the Claude Code config folder agents start with (CLAUDE_CONFIG_DIR); " +
     "\"default\" leaves it unset, so Claude uses ~/.claude and ~/.claude.json. Name a folder only for " +
     "a second profile", "default"],
@@ -142,12 +165,13 @@ function need(...roles) {
 }
 
 function ensureHome() {
-  for (const sub of ["projects", "queue"]) fs.mkdirSync(path.join(HOME, sub), { recursive: true });
+  for (const sub of ["projects", "queue", "inbox"]) fs.mkdirSync(path.join(HOME, sub), { recursive: true });
 }
 
-// This machine's settings from config.env, values with ~ expanded.
+// This fleet's settings: config.env over the defaults, values with ~ expanded.
 function config() {
-  const cfg = {}, f = path.join(HOME, "config.env");
+  const cfg = Object.fromEntries(Object.entries(SETTINGS).map(([k, [, def]]) => [k, def]));
+  const f = path.join(HOME, "config.env");
   for (const line of exists(f) ? fs.readFileSync(f, "utf8").split("\n") : []) {
     const i = line.indexOf("=");
     if (i >= 0 && line.slice(0, i).trim() in SETTINGS) cfg[line.slice(0, i).trim()] = expand(line.slice(i + 1).trim());
@@ -156,33 +180,8 @@ function config() {
 }
 
 function saveConfig(cfg) {
-  const lines = Object.entries(SETTINGS).filter(([k]) => k in cfg).map(([k, [desc]]) => `# ${desc}\n${k}=${cfg[k]}`);
+  const lines = Object.entries(SETTINGS).map(([k, [desc]]) => `# ${desc}\n${k}=${cfg[k]}`);
   fs.writeFileSync(path.join(HOME, "config.env"), lines.join("\n") + "\n");
-}
-
-// Every setting, asking in a terminal for the missing ones (all of them with askAll).
-async function requireConfig(askAll = false) {
-  ensureHome();
-  const cfg = config();
-  const todo = Object.keys(SETTINGS).filter((k) => askAll || !(k in cfg));
-  if (!todo.length) return cfg;
-  if (!process.stdin.isTTY)
-    throw new Fail(`this machine is not set up: ${todo.join(", ")} missing. ` +
-      "Run `fleet init` in a terminal, or `fleet config <NAME> <value>` for each.", 2);
-  log(`Setting up the fleet on this machine (${path.join(HOME, "config.env")}). Press enter to keep the suggestion.`);
-  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    for (const k of todo) {
-      const [desc, def] = SETTINGS[k], current = cfg[k] ?? def;
-      const answer = (await rl.question(`${k}: ${desc} [${current}]: `)).trim();
-      cfg[k] = expand(answer || current);
-      if (cfg[k] && cfg[k] !== "default" && !isDir(cfg[k])) log(`  note: ${cfg[k]} is not a folder yet.`);
-    }
-  } finally {
-    rl.close();
-  }
-  saveConfig(cfg);
-  return cfg;
 }
 
 function isDir(p) {
@@ -358,14 +357,24 @@ function settle(name, cwd) {
 
 // ---- commands ---------------------------------------------------------------
 
-async function cmdInit(a) {
-  await requireConfig(a.reset);
+// Make <dir>/.fleet (dir: here by default), or fill in what an existing one lacks.
+function cmdInit(a) {
+  const home = path.join(path.resolve(expand(a.dir || ".")), STATE_DIR);
+  if (!a.dir && !process.env.FLEET_HOME && HOME && HOME !== home && path.resolve(".").startsWith(workRoot() + path.sep))
+    throw new Fail(`this folder is already in the fleet at ${HOME}; to make a separate one here, run \`fleet init .\``, 2);
+  if (!exists(home)) log(`Made a fleet in ${path.dirname(home)}.`);
+  HOME = home;
+  ensureHome();
   const pb = path.join(HOME, "playbook.md");
   if (!exists(pb)) {
     fs.writeFileSync(pb, PLAYBOOK_SEED);
     log(`Wrote ${pb}: your rules for the CoS and leads.`);
   }
   checkHerdrFiles();
+  out(HOME);
+}
+
+function cmdHome() {
   out(HOME);
 }
 
@@ -402,7 +411,6 @@ function cmdConfig(a) {
   if (a.name && !(a.name in SETTINGS))
     throw new Fail(`unknown setting ${a.name}; settings: ${Object.keys(SETTINGS).join(", ")}`, 2);
   if (a.value != null) {
-    ensureHome();
     cfg[a.name] = expand(a.value);
     saveConfig(cfg);
   }
@@ -419,7 +427,7 @@ const ROLES_FILE = path.join(SKILL_DIR, "roles.json");
 const PLAYBOOK_SEED = `# Playbook
 
 Your rules for the CoS and leads; part of their system prompts (roles.json). Local to this
-machine; never committed. One rule per line, newest last; the CoS appends one only after
+fleet; never committed. One rule per line, newest last; the CoS appends one only after
 you approve it. Which program and login each role uses is in roles.json, not here.
 
 ## Always ask me
@@ -468,13 +476,13 @@ function which(prog) {
   throw new Fail(`${prog} is not on PATH`);
 }
 
-// Start a role's program and model, its system prompt and this machine's settings; the
+// Start a role's program and model, its system prompt and this fleet's settings; the
 // last argument, when it is not a flag, is its first prompt. Claude takes the role's prompt
 // as an appended system prompt; any other program gets it ahead of the first prompt.
-async function cmdExec(a) {
+function cmdExec(a) {
   const r = role(a.role);
-  const cfg = await requireConfig();
-  const env = { ...process.env, FLEET_HOME: HOME, FLEET_WORK_ROOT: cfg.FLEET_WORK_ROOT, FLEET_ROLE: a.role };
+  const cfg = config(), root = workRoot();
+  const env = { ...process.env, FLEET_HOME: HOME, FLEET_WORK_ROOT: root, FLEET_ROLE: a.role };
   delete env.FLEET_PROJECT_DIR;
   const me = process.env.HC_TERMINAL_ID;
   const proj = ((me && hcJson("get", me)) || {}).labels?.["fleet.project"];
@@ -485,10 +493,10 @@ async function cmdExec(a) {
   // ~/.claude itself counts as "default" for the same reason.
   const dir = cfg.FLEET_CLAUDE_CONFIG_DIR;
   if (dir && dir !== "default" && dir !== path.join(os.homedir(), ".claude")) env.CLAUDE_CONFIG_DIR = dir;
-  // {company}: the folder under FLEET_WORK_ROOT this agent works in (devin-as takes it as the account).
+  // {company}: the folder under the work root this agent works in (devin-as takes it as the account).
   const company = () => {
-    const rel = path.relative(fs.realpathSync(cfg.FLEET_WORK_ROOT), fs.realpathSync(process.cwd()));
-    if (!rel || rel.startsWith("..")) throw new Fail(`${a.role} must run under ${cfg.FLEET_WORK_ROOT}/<company>/`, 2);
+    const rel = path.relative(fs.realpathSync(root), fs.realpathSync(process.cwd()));
+    if (!rel || rel.startsWith("..")) throw new Fail(`${a.role} must run under ${root}/<company>/`, 2);
     return rel.split(path.sep)[0];
   };
   const args = (r.args || []).map((x) => (x === "{company}" ? company() : x));
@@ -508,9 +516,15 @@ function cmdRoles(a) {
 }
 
 // Open HQ: start the CoS in its own space with the Fleet panel beside it. Safe to rerun.
-async function cmdUp() {
+function cmdUp() {
   need("you");
-  await requireConfig();
+  ensureHome();
+  let hq = null;
+  try { hq = fs.readFileSync(HQ_FILE, "utf8").trim(); } catch {}
+  if (live(COS) && hq && hq !== HOME)
+    throw new Fail(`the CoS of the fleet at ${hq} is running; one fleet runs HQ at a time (stop it with \`hc kill cos\`)`, 2);
+  fs.mkdirSync(path.dirname(HQ_FILE), { recursive: true });
+  fs.writeFileSync(HQ_FILE, HOME + "\n");
   if (live(COS)) log("The CoS is already running as `cos`.");
   else {
     launch({ role: "cos", name: COS, cwd: fs.realpathSync(HOME), task: "Start your shift.",
@@ -521,7 +535,7 @@ async function cmdUp() {
     log("The Herdr window is not open, so HQ is not shown; the CoS runs anyway. Rerun `fleet up` with Herdr open.");
     return out(COS);
   }
-  app(["do", "space.rename", "--id", HQ_SPACE, "--name", "HQ"], false);
+  app(["do", "space.rename", "--id", HQ_SPACE, "--name", `fleet - ${path.basename(workRoot())}`], false); // which work root this HQ serves
   app(["do", "space.select", "--id", HQ_SPACE], false);
   // The Fleet panel (Queue, Fleet, Inbox) is a side-panel child (layouts/fleet.json), next to Files and Changes.
   if (!checkHerdrFiles()) return out(COS);
@@ -801,8 +815,8 @@ function unread() {
   return fs.readdirSync(d).filter((f) => f.endsWith(".json")).sort().map((f) => readJson(path.join(d, f)));
 }
 
-const SEEN_FILE = path.join(HOME, "inbox", "leads.state");
-const readSeen = () => (exists(SEEN_FILE) ? readJson(SEEN_FILE) : {});
+const seenFile = () => path.join(HOME, "inbox", "leads.state");
+const readSeen = () => (exists(seenFile()) ? readJson(seenFile()) : {});
 
 // Inbox messages for leads that turned blocked or stopped since the last look.
 function watchLeads() {
@@ -819,7 +833,7 @@ function watchLeads() {
       deliver("stopped", p.lead, p.name, `${p.lead} has stopped. Restart it with \`fleet project start ${p.name}\` if its plan has open work.`);
   }
   fs.mkdirSync(path.join(HOME, "inbox"), { recursive: true });
-  fs.writeFileSync(SEEN_FILE, JSON.stringify({ ...seen, ...nowSeen }));
+  fs.writeFileSync(seenFile(), JSON.stringify({ ...seen, ...nowSeen }));
 }
 
 // A lead stopped on purpose: no `stopped` message for it.
@@ -827,7 +841,7 @@ function forgetLead(lead) {
   const seen = readSeen();
   seen[lead] = "stopped";
   fs.mkdirSync(path.join(HOME, "inbox"), { recursive: true });
-  fs.writeFileSync(SEEN_FILE, JSON.stringify(seen));
+  fs.writeFileSync(seenFile(), JSON.stringify(seen));
 }
 
 // A lead (or a bridge such as cos-slack) reports to the CoS without typing into its pane.
@@ -1017,12 +1031,13 @@ function cmdStatus(a) {
 // `who` lists the roles that may run it, for --help ("you" is a person, the panel or a bridge).
 const json = { "--json": { bool: true } };
 const COMMANDS = {
-  init: { fn: cmdInit, help: "set up this machine: the state folder, settings and playbook.md (asks for missing settings); prints its path",
-    opts: { "--reset": { bool: true, help: "ask for every setting again" } } },
-  config: { fn: cmdConfig, help: "print this machine's settings, or set one: fleet config FLEET_WORK_ROOT ~/work", pos: ["name?", "value?"] },
+  init: { fn: cmdInit, home: false, help: "make a fleet in a work root: <dir>/.fleet with playbook.md (dir: here); fills in what an existing one lacks; prints its path",
+    pos: ["dir?"] },
+  home: { fn: cmdHome, help: "print this fleet's state folder" },
+  config: { fn: cmdConfig, help: "print this fleet's settings, or set one: fleet config FLEET_CLAUDE_CONFIG_DIR ~/.claude-alt", pos: ["name?", "value?"] },
   exec: { fn: cmdExec, help: "run a role in this terminal: its program, model and system prompt from roles.json, then the rest of the arguments (the last one is its first prompt)",
     pos: ["role", "extra..."] },
-  roles: { fn: cmdRoles, help: "each role's program, model and system prompt files (roles.json)", opts: json },
+  roles: { fn: cmdRoles, home: false, help: "each role's program, model and system prompt files (roles.json)", opts: json },
   up: { fn: cmdUp, who: "you", help: "open HQ: start the CoS and the Fleet panel (safe to rerun)" },
   status: { fn: cmdStatus, help: "the CoS, projects, leads, their workers and queue counts",
     opts: { "--all": { bool: true, help: "include closed projects" }, ...json } },
@@ -1177,6 +1192,8 @@ function parse(argv) {
 async function main() {
   try {
     const a = parse(process.argv.slice(2));
+    if (a && COMMANDS[a.cmd].home !== false && !HOME)
+      throw new Fail("no fleet here: run `fleet init` in your work root (the folder your repos sit under) to make one", 2);
     if (a) await COMMANDS[a.cmd].fn(a);
   } catch (e) {
     if (!(e instanceof Fail)) throw e;
