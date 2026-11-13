@@ -20,7 +20,8 @@ Socket Mode means the bridge opens a websocket out to Slack: no public URL, no s
 Each Slack workspace (for example suppco, functionhealth) has its own app, made from the
 same manifest, and its own bridge: a launchd agent local.fleet-slack.<workspace>.
 
-  $FLEET_SLACK_HOME (default ~/.local/state/fleet-slack)
+  $FLEET_SLACK_HOME (default <work root>/.fleet/slack: the fleet \`fleet home\` names; each
+  workspace's launchd agent keeps that fleet's FLEET_HOME, so it talks to that fleet only)
     <workspace>/config.env    its settings (mode 600)
     <workspace>/state.json    inbox id -> Slack message; queue item -> its Slack post
     <workspace>/bridge.log    its launchd agent's output
@@ -45,7 +46,10 @@ commands (-w/--workspace may be left out when only one workspace is set up):
 
 Exit 0 ok, 1 a step failed, 2 bad usage or a missing setting.`;
 
-const ROOT = process.env.FLEET_SLACK_HOME || path.join(os.homedir(), ".local/state/fleet-slack");
+// The fleet this bridge serves (`fleet home`), and its Slack workspaces' folder inside it.
+let fleetHome = null;
+const home = () => (fleetHome ??= fleet(["home"]));
+const root = () => process.env.FLEET_SLACK_HOME || path.join(home(), "slack");
 const SETTINGS = ["SLACK_APP_TOKEN", "SLACK_BOT_TOKEN", "SLACK_CEO_USER", "SLACK_PROJECTS"];
 const REQUIRED = SETTINGS.slice(0, 3);
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -74,12 +78,15 @@ const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { retu
 // One Slack workspace: its folder (settings, state, log) and its launchd agent.
 function workspace(name) {
   if (!NAME_RE.test(name)) throw new Fail(`workspace names are a-z 0-9 -, like suppco; got '${name}'`, 2);
-  const dir = path.join(ROOT, name), label = `local.fleet-slack.${name}`;
+  const dir = path.join(root(), name), label = `local.fleet-slack.${name}`;
   return { name, dir, label, config: path.join(dir, "config.env"), state: path.join(dir, "state.json"),
     log: path.join(dir, "bridge.log"), plist: path.join(os.homedir(), "Library/LaunchAgents", `${label}.plist`) };
 }
 
-const workspaces = () => (isDir(ROOT) ? fs.readdirSync(ROOT).filter((n) => NAME_RE.test(n) && isDir(path.join(ROOT, n))).sort().map(workspace) : []);
+const workspaces = () => {
+  const r = root();
+  return isDir(r) ? fs.readdirSync(r).filter((n) => NAME_RE.test(n) && isDir(path.join(r, n))).sort().map(workspace) : [];
+};
 
 // The workspace a command means: the one named, else the only one set up.
 function pick(name) {
@@ -373,7 +380,7 @@ function cmdInstall(args, ws) {
   const w = pick(ws);
   requireConfig(w);
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const env = { PATH: process.env.PATH, ...(process.env.FLEET_HOME ? { FLEET_HOME: process.env.FLEET_HOME } : {}),
+  const env = { PATH: process.env.PATH, FLEET_HOME: home(),
     ...(process.env.FLEET_SLACK_HOME ? { FLEET_SLACK_HOME: process.env.FLEET_SLACK_HOME } : {}) };
   writeAtomic(w.plist, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
