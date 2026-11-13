@@ -44,7 +44,8 @@
         "--no-daemon",
         "-m",
         "gpt-6.1-sol",
-        "--dangerously-bypass-approvals-and-sandbox"
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--dangerously-bypass-hook-trust"
       ],
       "prompt": ["roles/worker.md"],
       "why": "a second model family reviews Claude's code"
