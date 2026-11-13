@@ -6,7 +6,7 @@
     "sessionUrl": false
   },
   "permissions": {
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "auto",
     "additionalDirectories": [
       "~/.dotfiles"
     ]
