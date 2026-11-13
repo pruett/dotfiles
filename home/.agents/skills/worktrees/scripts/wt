@@ -52,7 +52,7 @@ tilde() { printf '%s\n' "${1/#$HOME/~}"; }
 
 # ── config ───────────────────────────────────────────────────────────────────
 
-CFG_KEYS="include env setup teardown note"
+CFG_KEYS="dir include env setup teardown note"
 
 # MAINS: the allowed main checkouts, one per line, in file order.
 # CFG:   one line per entry, in file order: <main checkout> TAB <key> TAB <value>
@@ -131,7 +131,31 @@ resolve() { # resolve <repo>/<slug> | <slug> | "" → E_* plus T_SLUG; a bare sl
   set_entry "$main"
 }
 
-wt_path() { printf '%s\n' "$E_ROOT/$WT_DIR/$E_REPO/$1"; }
+wt_dir_of() { # wt_dir_of <main>: the folder holding that repo's worktrees (the `dir` key, else <parent>/worktrees/<repo>)
+  local d; d=$(cfg_values "$1" dir | tail -1)
+  [ -n "$d" ] || { printf '%s\n' "$(dirname "$1")/$WT_DIR/$(basename "$1")"; return; }
+  d=${d//\{main\}/$1}; d=${d//\{repo\}/$(basename "$1")}; d=${d/#\~/$HOME}
+  case "$d" in /*) ;; *) d="$1/$d" ;; esac
+  printf '%s\n' "${d%/}"
+}
+
+exclude_inside() { # exclude_inside <main>: when its worktrees folder is inside the checkout, keep it out of git status
+  local dir rel ex; dir=$(wt_dir_of "$1")
+  case "$dir/" in "$1/"*) ;; *) return 0 ;; esac
+  rel="/${dir#"$1/"}/"; ex="$(git -C "$1" rev-parse --git-path info/exclude)"
+  case "$ex" in /*) ;; *) ex="$1/$ex" ;; esac
+  grep -qxF "$rel" "$ex" 2>/dev/null && return 0
+  mkdir -p "$(dirname "$ex")" && printf '%s\n' "$rel" >>"$ex" && step exclude "$rel in $(tilde "$ex")"
+}
+
+legacy_dir_of() { printf '%s\n' "$(dirname "$1")/$WT_DIR/$(basename "$1")"; }
+
+# A worktree made before the repo got a `dir` entry stays where it is and keeps working.
+wt_path() {
+  local p old; p="$(wt_dir_of "$E_MAIN")/$1"; old="$(legacy_dir_of "$E_MAIN")/$1"
+  if [ ! -e "$p" ] && [ "$old" != "$p" ] && is_worktree_of "$E_MAIN" "$old"; then p=$old; fi
+  printf '%s\n' "$p"
+}
 
 expand() { # expand <value> <slug>: fill {slug} {slug_id} {repo} {main} {path}
   local v="$1" slug="$2" id
@@ -189,10 +213,12 @@ copy_includes() { # copy_includes <main> <dest>; prints the number of files copi
     if [ -f "$main/$f" ]; then args="$args --exclude-from=$f"; else log "include file missing: $(tilde "$main/$f")"; fi
   done < <(cfg_values "$main" include)
   [ -n "$args" ] || { echo 0; return; }
+  local wdir; wdir=$(wt_dir_of "$main")
+  case "$wdir/" in "$main/"*) args="$args -- . :(exclude)${wdir#"$main/"}" ;; esac
   list=$(mktemp "${TMPDIR:-/tmp}/wt-include.XXXXXX")
   # Files that are untracked, match an include file, AND are gitignored.
   # shellcheck disable=SC2086 # $args is a list of --exclude-from flags
-  (cd "$main" && git ls-files --others --ignored $args -z | git check-ignore -z --stdin) >"$list" 2>/dev/null || true
+  (cd "$main" && git ls-files -z --others --ignored $args | git check-ignore -z --stdin) >"$list" 2>/dev/null || true
   n=$(tr -cd '\0' <"$list" | wc -c | tr -d ' ')
   [ "$n" -gt 0 ] && rsync -a --ignore-existing --from0 --files-from="$list" "$main/" "$dest/"
   rm -f "$list"
@@ -270,6 +296,7 @@ cmd_new() {
   dest=$(wt_path "$slug")
   [ -e "$dest" ] && die 2 "$(tilde "$dest") already exists" "wt path $E_REPO/$slug"
   mkdir -p "$(dirname "$dest")"
+  exclude_inside "$E_MAIN"
 
   if [ "$do_fetch" = 1 ]; then
     step fetch "origin ($E_REPO)"
@@ -389,12 +416,13 @@ records() { # one JSON object per linked worktree of each repo in scope
       ahead=$(git -C "$wt" rev-list --count "$(default_ref "$main")..HEAD" 2>/dev/null || echo -1)
       gitdir=$(git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null)
       age=$(( (now - $(stat -f %B "$gitdir" 2>/dev/null || echo "$now")) / 3600 ))
-      jq -cn --arg ws "$root" --arg repo "$repo" --arg path "$wt" --arg wtroot "$root/$WT_DIR/$repo/" --arg branch "$branch" \
+      jq -cn --arg ws "$root" --arg repo "$repo" --arg path "$wt" --arg wtroot "$(wt_dir_of "$main")/" --arg oldroot "$(legacy_dir_of "$main")/" --arg branch "$branch" \
         --argjson dirty "$dirty" --argjson ahead "$ahead" --argjson age "$age" --argjson prs "$prs" '
         ($prs | map(select(.headRefName == $branch and $branch != "")) | first) as $pr
         | { workspace: $ws, repo: $repo,
-            slug: (if ($path | startswith($wtroot)) then ($path | ltrimstr($wtroot)) else null end),
-            path: $path, inside: ($path | startswith($wtroot)),
+            slug: (if ($path | startswith($wtroot)) then ($path | ltrimstr($wtroot))
+                   elif ($path | startswith($oldroot)) then ($path | ltrimstr($oldroot)) else null end),
+            path: $path, inside: (($path | startswith($wtroot)) or ($path | startswith($oldroot))),
             branch: (if $branch == "" then null else $branch end),
             dirty: $dirty, ahead: $ahead, age_hours: $age,
             pr: (if $pr then {number: $pr.number, state: $pr.state} else null end) }'
@@ -480,7 +508,8 @@ cmd_setup() { # re-apply the repo's rules to an existing worktree
   else
     main=$(entry_for_path "$PWD") || die 2 "$(tilde "$PWD") is not inside an allowed repo" "wt setup <repo>/<slug>"
     set_entry "$main"
-    case "$PWD/" in "$E_ROOT/$WT_DIR/$E_REPO/"*) slug="${PWD#"$E_ROOT/$WT_DIR/$E_REPO/"}"; slug="${slug%%/*}" ;; esac
+    case "$PWD/" in "$(wt_dir_of "$E_MAIN")/"*) slug="${PWD#"$(wt_dir_of "$E_MAIN")/"}"; slug="${slug%%/*}" ;;
+      "$(legacy_dir_of "$E_MAIN")/"*) slug="${PWD#"$(legacy_dir_of "$E_MAIN")/"}"; slug="${slug%%/*}" ;; esac
     [ -n "$slug" ] || die 2 "$(tilde "$PWD") is not inside a worktree of $E_REPO" "wt setup $E_REPO/<slug>"
   fi
   wt=$(wt_path "$slug")
@@ -502,8 +531,10 @@ cmd_info() { # the rules wt applies to one repo's worktrees, expanded for the cu
     case "$1" in */*) slug="${1#*/}" ;; esac
   else
     main=$(entry_for_path "$PWD") || { info_all; return; }
-    case "$PWD/" in "$(dirname "$main")/$WT_DIR/$(basename "$main")/"*)
-      slug="${PWD#"$(dirname "$main")/$WT_DIR/$(basename "$main")/"}"; slug="${slug%%/*}" ;;
+    case "$PWD/" in "$(wt_dir_of "$main")/"*)
+      slug="${PWD#"$(wt_dir_of "$main")/"}"; slug="${slug%%/*}" ;;
+      "$(legacy_dir_of "$main")/"*)
+      slug="${PWD#"$(legacy_dir_of "$main")/"}"; slug="${slug%%/*}" ;;
     esac
   fi
   set_entry "$main"
@@ -523,7 +554,7 @@ info_block() { # info_block <main> <slug>
   E_MAIN="$1"; E_REPO=$(basename "$1"); E_ROOT=$(dirname "$1")
   printf 'repo       %s%s\n' "$(tilde "$E_MAIN")" "$([ -e "$E_MAIN/.git" ] || echo ' (not cloned)')"
   printf 'new        wt new %s/%s\n' "$E_REPO" "$2"
-  printf 'worktree   %s\n' "$(tilde "$E_ROOT/$WT_DIR/$E_REPO")/$2"
+  printf 'worktree   %s\n' "$(tilde "$(wt_path "$2")")"
   printf 'branch     %s%s\n' "$BRANCH_PREFIX" "$2"
   for k in include env setup teardown note; do
     while IFS= read -r v; do [ -n "$v" ] && printf '%-10s %s\n' "$k" "$(expand "$v" "$2")"; done < <(cfg_values "$E_MAIN" "$k")
@@ -733,11 +764,14 @@ $(tilde "$WT_CONFIG")
 
 Only the repos listed here get worktrees beside them, ls, prune and info.
 A [section] is the path of a main checkout; its worktrees go to
-<parent>/$WT_DIR/<repo>/<slug>. Each key may repeat; entries apply in file order.
+<parent>/$WT_DIR/<repo>/<slug> unless dir says otherwise. Each key may repeat;
+entries apply in file order (for dir, the last one wins).
 
   branch_prefix = kevinpruett/        global keys go above the first section
 
   [~/work/suppco/web]
+  dir      = {main}/.worktrees        where its worktrees go; one inside the checkout is
+                                      added to .git/info/exclude
   include  = .worktreeinclude         gitignored files to copy (a pattern file in the repo)
   env      = WEB_PORT=3101            written to the worktree's mise.local.toml
   setup    = pnpm install --frozen-lockfile
@@ -745,7 +779,7 @@ A [section] is the path of a main checkout; its worktrees go to
   note     = Run the dev server on 3001 only.
 
 setup and teardown run with sh -c in the worktree, under mise when it is
-installed (tools mise lacks are not installed; run `mise install` in the main
+installed (tools mise lacks are not installed; run \`mise install\` in the main
 checkout), with the env entries exported. setup stops at the first failure.
 Values expand {slug}, {slug_id} (slug with _ for -), {repo}, {main}, {path}.
 A note prints after wt new and in wt info.

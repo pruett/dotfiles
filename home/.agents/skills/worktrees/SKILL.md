@@ -5,7 +5,7 @@ description: "Make, find, remove and prune git worktrees with the `wt` CLI. Use 
 
 # Worktrees
 
-`wt` (on `PATH`; its source is [`scripts/wt`](scripts/wt), run that when `wt` is missing) manages worktrees for the repos its config allows. Worktrees live **beside** the repos, never inside them, and `wt new` makes each one ready to run: it copies the repo's gitignored essentials, trusts mise and runs the repo's setup command. A bare `git worktree add` skips all of that.
+`wt` (on `PATH`; its source is [`scripts/wt`](scripts/wt), run that when `wt` is missing) manages worktrees for the repos its config allows. Worktrees live **beside** the repos (or where the repo's `dir` entry says, such as `<repo>/.worktrees`), and `wt new` makes each one ready to run: it copies the repo's gitignored essentials, trusts mise and runs the repo's setup command. A bare `git worktree add` skips all of that.
 
 ## Map
 
