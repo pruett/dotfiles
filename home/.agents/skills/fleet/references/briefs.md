@@ -2,7 +2,7 @@
 
 ## Launch
 
-One worker per chunk, started in the background with `fleet run`, which names it `<project>-<role>-<slug>` (32 characters at most), saves the brief to `briefs/`, and starts it so it outlives your restarts:
+One worker per chunk, started in the background with `fleet run`, which names it `<key>-<role>-<slug>` (32 characters at most; `<key>` is the project name, or its initials when the name is over 12 characters), saves the brief to `briefs/`, and starts it so it outlives your restarts:
 
 ```sh
 dir=$(wt new <repo>/<project>-<slug>)        # code-writing chunks only; prints the worktree path

@@ -33,7 +33,7 @@ A project's life:
     inbox/<id>.json              a message for the CoS; inbox/done/ once handled
     queue/<id>.json, queue/<id>/ one item for you, and its attachments
 
-Terminals (hc names): the CoS is \`cos\`; a lead is \`lead-<p>\`; a worker \`<p>-<role>-<slug>\`.
+Terminals (hc names): the CoS is \`cos\`; a lead is \`lead-<p>\`; a worker \`<key>-<role>-<slug>\`, where <key> is <p>, or its initials when <p> is over 12 characters.
 Nothing types into the CoS's pane, which is yours: leads report with \`fleet report\` and your
 answers go through \`fleet answer\`; both land in the inbox. The CoS talks to leads with \`fleet send\`.
 
@@ -273,11 +273,19 @@ function stopTerminal(name) {
   hc(["rm", name], false);
 }
 
-// A project's workers: live terminals named <project>-<role>-<slug>.
+// The prefix of a project's worker names: the name itself when short, else its initials
+// (automate-product-listings: apl), so <key>-<role>-<slug> fits hc's 32 characters.
+function workerKey(name) {
+  if (name.length <= 12) return name;
+  const initials = name.split("-").map((w) => w[0]).join("");
+  return initials.length > 1 ? initials : name.slice(0, 6);
+}
+
+// A project's workers: live terminals named <key>-<role>-<slug>.
 function workers(p) {
   const rs = Object.keys(roles()).filter((r) => !LEADERS.includes(r));
   return ((hcJson("ls") || {}).terminals || [])
-    .filter((t) => t.name && rs.some((r) => t.name.startsWith(`${p.name}-${r}-`)));
+    .filter((t) => t.name && rs.some((r) => t.name.startsWith(`${workerKey(p.name)}-${r}-`)));
 }
 
 // ---- queue --------------------------------------------------------------------
@@ -536,6 +544,8 @@ function cmdProjectNew(a) {
   if (!live(COS)) throw new Fail("the CoS is not running, so nobody would read the lead's PRD; run `fleet up` first", 2);
   const d = projDir(a.name);
   if (exists(path.join(d, "project.json"))) throw new Fail(`project '${a.name}' exists; add work with \`fleet project goal\``, 2);
+  const twin = projects().find((o) => o.status !== "closed" && workerKey(o.name) === workerKey(a.name));
+  if (twin) throw new Fail(`'${a.name}' would share worker names with ${twin.name} (both '${workerKey(a.name)}-…'); pick another name`, 2);
   for (const sub of ["briefs", "reports", "evidence", "drafts"]) fs.mkdirSync(path.join(d, sub), { recursive: true });
   fs.writeFileSync(path.join(d, "brief.md"), `# ${a.name} brief\n\nYour words, word for word. Only added to.\n\n## ${stamp("%Y-%m-%d")}\n${a.brief.trim()}\n`);
   fs.writeFileSync(path.join(d, "prd.md"), PRD_MD(a.name));
@@ -632,8 +642,8 @@ function cmdRun(a) {
   if (p.status !== "active") throw new Fail(`${p.name} is ${p.status}; get the PRD approved first`, 2);
   if (sha(readPrd(p.name).text) !== p.prd_hash)
     throw new Fail("the PRD changed since it was approved; ask the CoS to approve it again (`fleet report --kind prd`)", 2);
-  const name = `${p.name}-${a.role}-${a.slug}`;
-  if (name.length > 32) throw new Fail(`${name} is over hc's 32 characters; use a shorter slug`, 2);
+  const name = `${workerKey(p.name)}-${a.role}-${a.slug}`;
+  if (name.length > 32) throw new Fail(`${name} is over hc's 32 characters; use a slug of ${32 - name.length + a.slug.length} or fewer`, 2);
   if (live(name)) throw new Fail(`${name} is already running`, 2);
   const brief = path.join(projDir(p.name), "briefs", `${name}.md`);
   fs.mkdirSync(path.dirname(brief), { recursive: true });
@@ -654,7 +664,7 @@ function cmdLs(a) {
 function cmdStop(a) {
   need("lead");
   const p = myProject();
-  if (!a.name.startsWith(`${p.name}-`)) throw new Fail(`${a.name} is not one of ${p.name}'s workers`, 2);
+  if (!workers(p).some((w) => w.name === a.name)) throw new Fail(`${a.name} is not one of ${p.name}'s running workers`, 2);
   stopTerminal(a.name);
   log(`Stopped ${a.name}.`);
 }
@@ -666,7 +676,7 @@ function cmdSend(a) {
   need("you", "cos", "lead");
   if (ROLE === "lead") {
     const p = myProject();
-    if (!a.name.startsWith(`${p.name}-`)) throw new Fail(`${a.name} is not one of ${p.name}'s workers`, 2);
+    if (!workers(p).some((w) => w.name === a.name)) throw new Fail(`${a.name} is not one of ${p.name}'s running workers`, 2);
     if (!live(a.name)) throw new Fail(`${a.name} is not running; \`fleet ls\` lists your workers`, 2);
   } else {
     if (!/^lead-/.test(a.name)) throw new Fail(`${a.name} is not a lead (lead-<p>)`, 2);
@@ -1025,7 +1035,7 @@ const COMMANDS = {
     pos: ["name"], opts: { "--reason": { required: true, help: "what it waits on" } } },
   "project close": { fn: cmdProjectClose, who: "you, cos", help: "stop the lead and its workers; status closed; files stay", pos: ["name"] },
   "project ls": { fn: cmdProjectLs, help: "list projects with their status and lead", opts: json },
-  run: { fn: cmdRun, who: "lead", help: "start a worker <project>-<role>-<slug>: fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name",
+  run: { fn: cmdRun, who: "lead", help: "start a worker <key>-<role>-<slug> (<key>: the project name, or its initials past 12 characters): fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name",
     pos: ["role", "slug", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
   send: { fn: cmdSend, who: "you, cos (to a lead), lead (to its own workers)", help: "a message to a lead, or a lead's to its worker; one that starts with \"/\" goes untagged, so its /command runs",
