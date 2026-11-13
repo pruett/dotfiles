@@ -44,10 +44,7 @@
         "--no-daemon",
         "-m",
         "gpt-6.1-sol",
-        "-s",
-        "danger-full-access",
-        "-a",
-        "never"
+        "--dangerously-bypass-approvals-and-sandbox"
       ],
       "prompt": ["roles/worker.md"],
       "why": "a second model family reviews Claude's code"
