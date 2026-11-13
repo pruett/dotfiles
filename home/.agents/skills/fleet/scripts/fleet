@@ -666,8 +666,11 @@ function cmdRun(a) {
   const p = myProject();
   if (LEADERS.includes(a.role)) throw new Fail(`${a.role} is not a worker role`, 2);
   role(a.role);
-  if (p.status !== "active") throw new Fail(`${p.name} is ${p.status}; get the PRD approved first`, 2);
-  if (sha(readPrd(p.name).text) !== p.prd_hash)
+  // A researcher may scout while the PRD is being written; every other role waits for its approval.
+  const scouting = p.status === "aligning" && a.role === "researcher";
+  if (p.status !== "active" && !scouting)
+    throw new Fail(`${p.name} is ${p.status}; get the PRD approved first${p.status === "aligning" ? " (only a researcher may run now)" : ""}`, 2);
+  if (!scouting && sha(readPrd(p.name).text) !== p.prd_hash)
     throw new Fail("the PRD changed since it was approved; ask the CoS to approve it again (`fleet report --kind prd`)", 2);
   const name = `${workerKey(p.name)}-${a.role}-${a.slug}`;
   if (name.length > 32) throw new Fail(`${name} is over hc's 32 characters; use a slug of ${32 - name.length + a.slug.length} or fewer`, 2);
@@ -1063,7 +1066,7 @@ const COMMANDS = {
     pos: ["name"], opts: { "--reason": { required: true, help: "what it waits on" } } },
   "project close": { fn: cmdProjectClose, who: "you, cos", help: "stop the lead and its workers; status closed; files stay", pos: ["name"] },
   "project ls": { fn: cmdProjectLs, help: "list projects with their status and lead", opts: json },
-  run: { fn: cmdRun, who: "lead", help: "start a worker <key>-<role>-<slug> (<key>: the project name, or its initials past 12 characters): fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name",
+  run: { fn: cmdRun, who: "lead", help: "start a worker <key>-<role>-<slug> (<key>: the project name, or its initials past 12 characters): fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name; while aligning, only a researcher",
     pos: ["role", "slug", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
   send: { fn: cmdSend, who: "you, cos (to a lead), lead (to its own workers)", help: "a message to a lead, or a lead's to its worker; one that starts with \"/\" goes untagged, so its /command runs",
