@@ -45,9 +45,9 @@
         "-m",
         "gpt-6.1-sol",
         "-s",
-        "workspace-write",
+        "danger-full-access",
         "-a",
-        "on-request"
+        "never"
       ],
       "prompt": ["roles/worker.md"],
       "why": "a second model family reviews Claude's code"
