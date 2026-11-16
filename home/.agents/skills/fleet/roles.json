@@ -1,7 +1,7 @@
 {
   "_doc": "Each fleet role: the program and model it starts with, and the files that become its system prompt (paths under this skill, or under the state folder when they start with $FLEET_HOME/; a missing file is skipped). `fleet exec <role>` reads this; `fleet roles` prints it. Change a role here, nowhere else. `{company}` in args is the folder under the work root (FLEET_WORK_ROOT, the folder holding .fleet) the agent works in. Logins live here too: Claude roles use the CLAUDE_CONFIG_DIR from config.env, the reviewer the default Codex login (~/.codex), and cloud-agent the Devin account named by {company} (`devin-as`, the devin skill). Models: Opus for judgment and code, Haiku for read-only research, Sonnet for mechanical checks, and the reviewer from a different model family than the code's author.",
   "roles": {
-    "cos": {
+    "captain": {
       "run": "claude",
       "args": [
         "--model",
@@ -11,7 +11,7 @@
         "--permission-mode",
         "auto"
       ],
-      "prompt": ["roles/cos.md", "$FLEET_HOME/playbook.md"],
+      "prompt": ["roles/captain.md", "$FLEET_HOME/playbook.md"],
       "why": "passes messages; low effort keeps the always-on agent cheap"
     },
     "lead": {

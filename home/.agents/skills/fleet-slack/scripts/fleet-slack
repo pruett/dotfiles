@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// fleet-slack: a Slack bridge to the fleet's Chief of Staff, as an add-on. `fleet-slack --help` prints DOC.
+// fleet-slack: a Slack bridge to the fleet's Captain, as an add-on. `fleet-slack --help` prints DOC.
 "use strict";
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const DOC = `fleet-slack: talk to the Chief of Staff (CoS) from Slack. An add-on: it touches the CoS
-only through the \`cos\` CLI (report, queue, answer), so deleting this skill removes it.
+const DOC = `fleet-slack: talk to the Captain from Slack. An add-on: it touches the Captain
+only through the \`fleet\` CLI (report, queue, answer), so deleting this skill removes it.
 
   Slack DM to the bot, or an @-mention in a thread ──▶ fleet-slack run (Socket Mode)
-      only from SLACK_CEO_USER ──▶ fleet report --from slack ──▶ the CoS's inbox
-  the CoS answers with: fleet-slack reply <inbox id> "<text>" ──▶ same DM or thread
+      only from SLACK_CEO_USER ──▶ fleet report --from slack ──▶ the Captain's inbox
+  the Captain answers with: fleet-slack reply <inbox id> "<text>" ──▶ same DM or thread
   open p0/p1 queue items ──▶ a DM with buttons ──▶ fleet answer
       a reply in that item's thread ──▶ fleet answer --verdict feedback
 
@@ -41,7 +41,7 @@ commands (-w/--workspace may be left out when only one workspace is set up):
   install -w W | uninstall -w W   start or remove that workspace's launchd agent
   status [-w W]             settings, agent and Slack connection of each workspace
   config [-w W] [NAME [VALUE]]    print the settings (tokens masked), or set one
-  reply <inbox id> [text]   post the CoS's answer where that message came from, in whichever
+  reply <inbox id> [text]   post the Captain's answer where that message came from, in whichever
                             workspace it was (--file F for long text)
 
 Exit 0 ok, 1 a step failed, 2 bad usage or a missing setting.`;
@@ -118,7 +118,7 @@ const readState = (w) => {
 };
 const saveState = (w, st) => writeAtomic(w.state, JSON.stringify(st, null, 2) + "\n");
 
-// The fleet CLI is the only way into the CoS's state.
+// The fleet CLI is the only way into the Captain's state.
 function fleet(args) {
   const r = spawnSync("fleet", args, { encoding: "utf8" });
   if (r.error) throw new Fail(`fleet is not on PATH: ${r.error.message}`);
@@ -228,7 +228,7 @@ class Bridge {
     log(`delivered ${id}`);
   }
 
-  // The thread so far, as context the CoS may read but takes no orders from.
+  // The thread so far, as context the Captain may read but takes no orders from.
   async thread(ev) {
     const { messages = [] } = await slackGet(this.bot, "conversations.replies", { channel: ev.channel, ts: ev.thread_ts, limit: "50" });
     const lines = [];

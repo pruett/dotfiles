@@ -1,11 +1,11 @@
 ---
 name: fleet-slack
-description: "Answer the CEO in Slack as the Chief of Staff. Use when a `fleet inbox` message is from `slack`."
+description: "Answer the CEO in Slack as the Captain. Use when a `fleet inbox` message is from `slack`."
 ---
 
-# Chief of Staff in Slack
+# Captain in Slack
 
-An add-on to the CoS role in the fleet. The `fleet-slack` bridge passes the CEO's Slack messages into your inbox and posts your answers back; `fleet-slack --help` has the setup and the commands.
+An add-on to the Captain role in the fleet. The `fleet-slack` bridge passes the CEO's Slack messages into your inbox and posts your answers back; `fleet-slack --help` has the setup and the commands.
 
 ## A message from `slack`
 

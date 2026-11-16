@@ -5,9 +5,9 @@
   },
   "display_information": {
     "name": "k2",
-    "description": "A private line to my local Chief of Staff agent. Socket Mode: no public URL.",
+    "description": "A private line to my local Captain agent. Socket Mode: no public URL.",
     "background_color": "#1f2933",
-    "long_description": "k2 is a private line between Kevin and the AI chief-of-staff agent that runs on his laptop. DM k2, or @-mention it in a thread it has been invited to, and the message goes to that agent; its answer comes back in the same DM or thread.\n\nk2 also posts the decisions the agent needs from Kevin, with buttons to answer them, so work keeps moving while he is away from his desk.\n\nHow it runs: k2 uses Socket Mode, so it has no public URL and nothing is hosted outside Slack; the connection goes out from Kevin's laptop. It reads only DMs sent to it and channels it is explicitly invited to, and it acts only on messages from Kevin; messages from anyone else are ignored."
+    "long_description": "k2 is a private line between Kevin and the AI Captain agent that runs on his laptop. DM k2, or @-mention it in a thread it has been invited to, and the message goes to that agent; its answer comes back in the same DM or thread.\n\nk2 also posts the decisions the agent needs from Kevin, with buttons to answer them, so work keeps moving while he is away from his desk.\n\nHow it runs: k2 uses Socket Mode, so it has no public URL and nothing is hosted outside Slack; the connection goes out from Kevin's laptop. It reads only DMs sent to it and channels it is explicitly invited to, and it acts only on messages from Kevin; messages from anyone else are ignored."
   },
   "features": {
     "app_home": {

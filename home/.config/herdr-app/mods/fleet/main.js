@@ -1,23 +1,23 @@
-// fleet: the CEO's panel in the Chief of Staff org, shown only in HQ. Three tabs:
+// fleet: the CEO's panel in the fleet, shown only in HQ. Three tabs:
 // Queue (decisions waiting on the CEO), Fleet (each project's lead and workers, with
 // status, context in use and an API-rate cost estimate from `fleet stats` and the
-// skill's prices.json) and Inbox (what leads and the Queue tab sent up to the CoS, read-only:
-// `fleet inbox --history`, waiting first, then the last 30 the CoS handled).
+// skill's prices.json) and Inbox (what leads and the Queue tab sent up to the Captain, read-only:
+// `fleet inbox --history`, waiting first, then the last 30 the Captain handled).
 //
 // The Queue tab is the CEO's one queue.
 //
-// Every item is a decision, review or approval a lead raised through the CoS
+// Every item is a decision, review or approval a lead raised through the Captain
 // (`fleet ask`, stored as <work root>/.fleet/queue/<id>.json). This panel lists the
 // open ones by priority, shows the selected one with its recommendation,
 // options and screenshots, and records the answer with `fleet answer`, which
-// sends it to the CoS only. The CoS passes it on and closes the item once the
+// sends it to the Captain only. The Captain passes it on and closes the item once the
 // lead reports it addressed.
 //
 // Two roles (layouts/fleet.json):
 // - panel (no props): the panel itself, a child of the side panel's stack next to
 //   Files and Changes.
 // - tabs (props.role "tabs"): Herdr's `tabs` bar, copied from mods/tabs/main.js
-//   (mods can't import each other), with a Chief of Staff button (in HQ only) right of Files and
+//   (mods can't import each other), with a Captain button (in HQ only) right of Files and
 //   Changes showing the open and answered queue counts. It is always on screen, so it also raises
 //   the toast for new p0/p1 items.
 //
@@ -36,7 +36,7 @@ const STATE = async () => { const r = await exec(FLEET(), ["home"]).catch(() => 
 const FLEET = () => `${home()}/.local/bin/fleet`;
 const IMG_DIR = "mods/fleet/.shots"; // image() reads from the app folder, so screenshots are copied here
 const PANEL = "panel", STACK = "panel-body", CHILD = "fleet"; // layout node ids
-const HQ = "fleet-hq"; // the CoS's space id (`fleet up`); the queue shows only there
+const HQ = "fleet-hq"; // the Captain's space id (`fleet up`); the queue shows only there
 const inHQ = () => spaces().find((p) => p.active)?.id === HQ;
 const KIND_LABEL = { decision: "Decision", review: "Review", approval: "Approval", idea: "Idea", fyi: "FYI" };
 const MODEL = { "claude-fable-5-1": "Fable 5.1", "claude-opus-5-5": "Opus 5.5", "claude-sonnet-5-5": "Sonnet 5.5", "claude-haiku-5-5": "Haiku 5.5" };
@@ -267,7 +267,7 @@ export default class Queue extends View {
       .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
-      .when(hq, el => el.child(panelButton(CHILD, "Chief of Staff", "mods/workspace-chrome/circle-check.svg", counts)))
+      .when(hq, el => el.child(panelButton(CHILD, "Captain", "mods/workspace-chrome/circle-check.svg", counts)))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(button("close-window", w.platform === "windows" ? svg("mods/tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
@@ -349,7 +349,7 @@ export default class Queue extends View {
       const r = await exec(FLEET(), args);
       this.busy = false;
       if (r.code !== 0) { this.error = r.stderr.trim() || "fleet answer failed"; cx.notify(); return; }
-      this.error = r.stderr.trim() || null; // e.g. "CoS is not running; saved"
+      this.error = r.stderr.trim() || null; // e.g. "Captain is not running; saved"
       this.input.set_value(""); this.mode = null; this.handle.focus();
       this.reload(cx);
     });
@@ -423,7 +423,7 @@ export default class Queue extends View {
       .child(div().text_size(12).font_medium().child(label))
       .when(count != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(count))));
     const top = h_flex().px(12).pt(10).pb(8).gap(6).items_center().border_b_1().border_color(t.border)
-      .child(div().text_size(13).font_semibold().pr(6).child("Chief of Staff"))
+      .child(div().text_size(13).font_semibold().pr(6).child("Captain"))
       .child(pageTab("queue", "Queue", openN))
       .child(pageTab("fleet", "Fleet", null))
       .child(pageTab("inbox", "Inbox", this.inbox.filter((m) => m.status === "unread").length))
@@ -446,8 +446,8 @@ export default class Queue extends View {
     const empty = v_flex().p(16).gap(4)
       .child(div().text_size(12.5).text_color(t.muted).child(this.view === "open" ? "Nothing needs you." : "No answers waiting on a lead."))
       .child(div().text_size(11.5).text_color(t.dim).child(this.view === "open"
-        ? "Leads raise items through the Chief of Staff with `fleet ask`. New urgent ones also pop up as a notification."
-        : "Answered items stay here until the lead reports them addressed and the CoS closes them."));
+        ? "Leads raise items through the Captain with `fleet ask`. New urgent ones also pop up as a notification."
+        : "Answered items stay here until the lead reports them addressed and the Captain closes them."));
 
     const list = v_flex().id("list").flex_1().min_h(0).overflow_y_scrollbar()
       .children(shown.length ? shown.map(row) : [empty]);
@@ -506,8 +506,8 @@ export default class Queue extends View {
         .child(dot(status)).child(word(status))
         .child(div().text_size(11.5).text_color(t.muted).child(`${money(cost)} est.`)))
       .when(Boolean(note), (el) => el.child(div().px(8).pb(4).text_size(11).text_color(t.dim).truncate().child(note)))
-      .children(rows.length ? rows.map(row) : [div().px(8).py(4).text_size(11.5).text_color(t.dim).child("Lead stopped; the CoS starts it on its next shift.")]);
-    const live = [d.cos, ...d.projects.flatMap((p) => p.agents)].filter((r) => r.status !== "stopped");
+      .children(rows.length ? rows.map(row) : [div().px(8).py(4).text_size(11.5).text_color(t.dim).child("Lead stopped; the Captain starts it on its next shift.")]);
+    const live = [d.captain, ...d.projects.flatMap((p) => p.agents)].filter((r) => r.status !== "stopped");
     return v_flex().id("fleet").flex_1().min_h(0).overflow_y_scrollbar().p(12).gap(10)
       .child(h_flex().gap(8)
         .child(tile("Projects", String(d.projects.length), `${d.projects.filter((p) => p.lead_status !== "stopped").length} running`))
@@ -515,11 +515,11 @@ export default class Queue extends View {
       .child(h_flex().gap(8)
         .child(tile("Est. cost", money(d.cost), "at API rates"))
         .child(tile("Queue", String(d.queue.open), `${d.queue.answered} answered`)))
-      .child(card("Chief of Staff", null, d.cos.status, d.cos.cost, [{ ...d.cos, depth: 0 }]))
+      .child(card("Captain", null, d.captain.status, d.captain.cost, [{ ...d.captain, depth: 0 }]))
       .children(d.projects.map((p) => card(p.name, p.goal, p.lead_status, p.cost, p.agents)));
   }
 
-  // The Inbox tab: how leads (and the Queue tab) reach the CoS. Read-only; the CoS drains it.
+  // The Inbox tab: how leads (and the Queue tab) reach the Captain. Read-only; the Captain drains it.
   renderInbox(t) {
     if (this.inboxError) return v_flex().flex_1().p(16).child(div().text_size(12.5).text_color(t.blocked).child(this.inboxError));
     const waiting = this.inbox.filter((m) => m.status === "unread");
@@ -548,10 +548,10 @@ export default class Queue extends View {
     };
     const oldest = waiting.length ? Date.now() - Math.min(...waiting.map((m) => Date.parse(m.at))) : 0;
     return v_flex().id("inbox").flex_1().min_h(0).overflow_y_scrollbar().p(8).gap(1)
-      .child(note("Leads report with `fleet report` and your Queue answers land here too. The CoS waits on it with `fleet inbox --wait`, acts on each message, then marks it handled."))
-      .child(section(`Waiting for the CoS · ${waiting.length}`))
-      .when(oldest > 5 * 60000, (el) => el.child(note(`The oldest has waited ${span(oldest)}. Check the CoS is running (Fleet tab).`, t.blocked)))
-      .children(waiting.length ? waiting.map(row) : [note("Nothing waiting: the CoS has handled everything.")])
+      .child(note("Leads report with `fleet report` and your Queue answers land here too. The Captain waits on it with `fleet inbox --wait`, acts on each message, then marks it handled."))
+      .child(section(`Waiting for the Captain · ${waiting.length}`))
+      .when(oldest > 5 * 60000, (el) => el.child(note(`The oldest has waited ${span(oldest)}. Check the Captain is running (Fleet tab).`, t.blocked)))
+      .children(waiting.length ? waiting.map(row) : [note("Nothing waiting: the Captain has handled everything.")])
       .child(section(`Handled · last ${handled.length}`))
       .children(handled.length ? handled.map(row) : [note("Nothing handled yet.")]);
   }

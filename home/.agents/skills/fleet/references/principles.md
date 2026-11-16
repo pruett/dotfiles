@@ -13,7 +13,7 @@ These are pstack's engineering principles. Each one's full text is `~/.agents/sk
 - **laziness-protocol** and **subtract-before-you-add**: prefer the smallest diff that meets the goal; a cleanup that removes dead weight goes before the feature that builds on it.
 - **experience-first**: in a recommendation, choose what the user would notice over what is convenient to build.
 - **explain-the-number**: a measured number (speedup, regression, eval score) goes up only with what limits it and why it measures what you claim.
-- **never-block-on-the-human**: reversible work proceeds; the CoS gets real decisions, each with your recommendation.
+- **never-block-on-the-human**: reversible work proceeds; the Captain gets real decisions, each with your recommendation.
 - **guard-the-context-window**: workers read the bulk and report summaries or file paths; your context holds the plan.
 - **encode-lessons-in-structure**: a correction you give workers twice becomes a check, lint or script a chunk builds, not a longer brief.
 

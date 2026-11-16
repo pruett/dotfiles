@@ -1,5 +1,5 @@
 // my-spaces: Herdr's `spaces` (mod.clone, 0.1.14) plus the fleet as a tree.
-// The space running the CoS (fleet.role=cos) is a root; a lead's space (fleet.role=lead)
+// The space running the Captain (fleet.role=captain) is a root; a lead's space (fleet.role=lead)
 // nests under it; spaces whose agents are a project's workers (fleet.project=<p>) nest
 // under that project's lead. Labels come from `fleet` when it starts each agent.
 //
@@ -31,20 +31,20 @@ function place(s, ps) {
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
 const rowHeight = ({ tree }) => (tree ? 28 : 30);
-const NEST = 16; // px of indent per Chief of Staff level
+const NEST = 16; // px of indent per fleet level
 
-// Each Chief of Staff space's parent space id: HQ for a lead's space, the lead's space
-// for a project's workers. A space is placed by its most senior terminal. `hq`: the CoS's space.
+// Each fleet space's parent space id: HQ for a lead's space, the lead's space
+// for a project's workers. A space is placed by its most senior terminal. `hq`: the Captain's space.
 function cosParents(sp) {
   const ids = new Set(sp.map((w) => w.id));
-  const rank = { cos: 0, lead: 1, worker: 2 };
+  const rank = { captain: 0, lead: 1, worker: 2 };
   const best = {}; // space id -> { role, project }
   for (const k of terminals()) {
-    const l = k.labels ?? {}, space = l["herdr.space"], r = l["fleet.role"], role = r === "cos" || r === "lead" ? r : r && "worker";
+    const l = k.labels ?? {}, space = l["herdr.space"], r = l["fleet.role"], role = r === "captain" || r === "lead" ? r : r && "worker";
     if (k.state !== "live" || !ids.has(space) || !(role in rank)) continue;
     if (!best[space] || rank[role] < rank[best[space].role]) best[space] = { role, project: l["fleet.project"] };
   }
-  const hq = Object.keys(best).find((id) => best[id].role === "cos");
+  const hq = Object.keys(best).find((id) => best[id].role === "captain");
   const leadOf = {};
   for (const [id, b] of Object.entries(best)) if (b.role === "lead" && b.project) leadOf[b.project] ??= id;
   const parent = {};
@@ -326,7 +326,7 @@ export default class Spaces extends View {
     return out.filter(r => this.shown.has(r.w.id));
   }
 
-  // Reorders `out` in place so each Chief of Staff space follows its parent, deeper by
+  // Reorders `out` in place so each fleet space follows its parent, deeper by
   // one level, with HQ's tree first and its rows marked `org` (a line follows them).
   // A space moves with its worktree rows (the tree rows right after it).
   nestCos(out, sp) {
@@ -357,7 +357,7 @@ export default class Spaces extends View {
   grouped(t, collapsed) {
     const rows = this.ordered();
     const one = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
-    // A line between the Chief of Staff org and the other spaces.
+    // A line between the fleet and the other spaces.
     const line = (id) => div().id(`org-line-${id}`).flex_none().h(1).my(5).mx(collapsed ? 6 : 8).bg(t.border);
     const draw = (r, i, list) => [one(r), ...(r.org && list[i + 1] && !list[i + 1].org ? [line(r.w.id)] : [])];
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
