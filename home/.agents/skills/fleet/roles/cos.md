@@ -52,6 +52,10 @@ When the playbook or the project's `decisions.md` settles a draft, and it is not
 
 Pass each instruction to the lead it is for, one message per lead. Never load a `/skill` the CEO names for a project; send it skill first, so it runs in the lead's pane: `fleet send lead-<p> "/<skill> <the rest>"`.
 
+## Staying fresh
+
+Past about 60% context, finish the batch you are on, then run `fleet handoff`: a fresh CoS starts its shift from `.fleet` (inbox, queue, projects, playbook), and the leads keep running. Anything you were holding only in this chat (an `fyi` saved for your next summary, a half-finished talk with the CEO) is lost, so tell the CEO first.
+
 ## Talking to the CEO
 
 The CEO reads your pane, so write to them there: short, in outcomes, decisions and risks; point to the Queue tab rather than pasting an item. Anything only the CEO can settle: ask in chat when they are talking to you, otherwise as a queue item (`fleet ask`).

@@ -719,9 +719,17 @@ function cmdSend(a) {
   log(`Sent to ${a.name}${raw ? " untagged" : ""}.`);
 }
 
-// A lead whose context is filling up restarts itself; its workers keep running.
+// A lead or the CoS whose context is filling up restarts itself; you can restart the CoS too.
+// Everything either needs is on disk under $FLEET_HOME, so the fresh one resumes from there.
 function cmdHandoff() {
-  need("lead");
+  need("lead", "cos", "you");
+  if (ROLE !== "lead") {
+    if (!live(COS)) throw new Fail("the CoS is not running; start it with `fleet up`", 2);
+    // In a terminal of its own with no parent, so killing the CoS does not take the restart with it.
+    const restart = `sleep 3; hc kill ${COS}; hc rm ${COS}; env -u FLEET_ROLE -u FLEET_PROJECT_DIR FLEET_HOME="${HOME}" "${SELF}" up`;
+    hc(["run", "--bg", "--no-parent", "--no-notify", "--name", "handoff-cos", "--", "sh", "-c", restart]);
+    return log(ROLE === "cos" ? "Restarting the CoS in a few seconds. Stop working now." : "Restarting the CoS in a few seconds.");
+  }
   const p = myProject();
   const md = path.join(projDir(p.name), "prd.md");
   if (Date.now() - fs.statSync(md).mtimeMs > 10 * 60 * 1000)
@@ -1072,7 +1080,7 @@ const COMMANDS = {
   send: { fn: cmdSend, who: "you, cos (to a lead), lead (to its own workers)", help: "a message to a lead, or a lead's to its worker; one that starts with \"/\" goes untagged, so its /command runs",
     pos: ["name", "text"] },
   stop: { fn: cmdStop, who: "lead", help: "kill one of this project's workers", pos: ["name"] },
-  handoff: { fn: cmdHandoff, who: "lead", help: "restart this lead with a fresh context once Now in prd.md is current; workers keep running" },
+  handoff: { fn: cmdHandoff, who: "lead, cos, you", help: "restart with a fresh context: a lead (once Now in prd.md is current; workers keep running), or the CoS (run by it or you; leads keep running)" },
   report: { fn: cmdReport, who: "lead, you", help: "a report to the CoS, into its inbox (never `hc send cos`); prints its id", pos: ["text?"], opts: {
     "--kind": { choices: REPORT_KINDS, def: "fyi" },
     "--file": { help: "a file holding the report (for anything longer than ten lines)" },
