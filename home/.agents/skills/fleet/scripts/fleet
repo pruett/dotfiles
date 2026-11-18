@@ -836,8 +836,9 @@ function reusable(name, want) {
 }
 
 // A lead starts a Devin cloud session: right account, repo, then Fusion, each checked on the
-// live screen before the brief is sent. A rerun carries on from what the session shows, and
-// sends the brief only when the session holds no sign of it and no earlier run began sending.
+// live screen before the brief is sent. A rerun carries on from what the session shows.
+// Sending is never inferred safe: once <name>.sending exists, nothing deletes it or sends
+// again on its own. Only a confirmed delivery (.sent) or the lead's --resend ends that state.
 function cmdCloud(a) {
   need("lead");
   const p = myProject();
@@ -850,18 +851,15 @@ function cmdCloud(a) {
   const saved = path.join(projDir(p.name), "briefs", `${name}.md`);
   const sentFile = saved.replace(/\.md$/, ".sent"); // written once the brief is in the session
   const sendingFile = saved.replace(/\.md$/, ".sending"); // written just before hc send: delivery unknown until .sent
+  const resendFix = `fix: \`hc read ${name} --lines 500\`; if the brief is not there, rerun with --resend (or use a new slug)`;
+  if (!a.resend && exists(sentFile))
+    throw new Fail(`${name} already got its brief (${sentFile}); nothing was sent again. Talk to it with \`fleet send\`.\n  ${resendFix}`, 2);
+  if (!a.resend && exists(sendingFile))
+    throw new Fail(`${name}: an earlier run began sending its brief and never confirmed it, so it may have arrived; nothing was sent.\n  ${resendFix}`, 2);
   const argv = [r.run, a.company, "--cloud"];
-  if (reusable(name, { project: p.name, role: "cloud-agent", company: a.company, cwd, argv: argv.join(" ") })) {
-    if (exists(sentFile) || delivered(name)) {
-      if (!exists(sentFile)) fs.writeFileSync(sentFile, now() + "\n");
-      throw new Fail(`${name} already has its brief, so nothing was sent again; talk to it with \`fleet send\` (${saved})`, 2);
-    }
-    if (exists(sendingFile) && !a.resend)
-      throw new Fail(`${name}: an earlier run began sending its brief and never confirmed it, so it may have arrived; nothing was sent.\n` +
-        `  fix: \`hc read ${name} --lines 500\`; if the brief is not there, rerun with --resend`, 2);
-    log(`${name} is running and has no brief yet; checking its repo and model.`);
-  } else {
-    for (const f of [sentFile, sendingFile]) if (exists(f)) fs.unlinkSync(f); // they marked a session that is gone
+  if (reusable(name, { project: p.name, role: "cloud-agent", company: a.company, cwd, argv: argv.join(" ") }))
+    log(`${name} is running; checking its repo and model.`);
+  else {
     hc(["run", "--bg", "--json", "--no-notify", "--outlive-parent", "--name", name, "--cwd", cwd, "--label", "fleet.role=cloud-agent",
       "--label", `fleet.project=${p.name}`, "--label", `fleet.company=${a.company}`, "--", ...argv]);
     log(`Started ${name}: ${argv.join(" ")}`);
@@ -886,11 +884,16 @@ function cmdCloud(a) {
   // The cloud agent has no system prompt, so its role's rules go ahead of the brief, as `fleet exec` does.
   const sent = hc(["send", name, `${rolePrompt("cloud-agent", r)}\n\n---\n\n${task}`], false);
   if (sent.status !== 0) {
-    // A failed send may still have arrived (hc's manual): look before calling it unsent.
-    for (let i = 0; i < 10 && !delivered(name); i++) spawnSync("sleep", ["0.5"]);
-    if (!delivered(name))
-      throw new Fail(`hc send ${name} failed and the session shows no brief yet: ${(sent.stderr || sent.stdout).trim()}\n` +
-        `  fix: \`hc read ${name} --lines 500\`; if the brief is not there, rerun with --resend`);
+    // A failed send may still have arrived (hc's manual). Only seeing it confirms it; anything
+    // else leaves .sending in place for the lead to judge.
+    let seen = false;
+    try {
+      for (let i = 0; i < 10 && !(seen = delivered(name)); i++) spawnSync("sleep", ["0.5"]);
+    } catch (e) {
+      if (!(e instanceof Fail)) throw e;
+    }
+    if (!seen)
+      throw new Fail(`hc send ${name} failed and its arrival is not confirmed: ${(sent.stderr || sent.stdout).trim()}\n  ${resendFix}`);
     log(`${name}: hc send reported a failure, but the brief is in the session.`);
   }
   fs.writeFileSync(sentFile, now() + "\n");
@@ -1306,7 +1309,7 @@ const COMMANDS = {
       "--repo": { required: true, help: "the repo /repo selects, as Devin's picker names it (web, backend, ...)" },
       "--brief": { help: "a file holding the brief; saved to briefs/ when sent" },
       "--dry-run": { bool: true, help: "set up the session (repo, model) and send nothing; costs nothing" },
-      "--resend": { bool: true, help: "send although an earlier run began sending and never confirmed it; only after `hc read` shows the brief is not there" } } },
+      "--resend": { bool: true, help: "send although an earlier run with this slug began sending or sent; only after `hc read` shows the brief is not there" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
   send: { fn: cmdSend, who: "you, captain (to a lead), lead (to its own workers)", help: "a message to a lead, or a lead's to its worker; one that starts with \"/\" goes untagged, so its /command runs",
     pos: ["name", "text"] },

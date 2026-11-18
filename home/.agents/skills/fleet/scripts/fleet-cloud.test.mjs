@@ -91,6 +91,7 @@ function setup({ devin = new FakeDevin(), terminal = null, sendFails = null } = 
   const hc = (args) => {
     const ok = (stdout = "") => ({ status: 0, stdout, stderr: "" });
     const [cmd, name] = args;
+    if (env.fails?.[cmd]) return { status: 1, stdout: "", stderr: `${cmd} failed` };
     if (cmd === "get") return env.term && env.term.name === name ? ok(JSON.stringify(env.term)) : { status: 1, stdout: "", stderr: "not_found" };
     if (cmd === "run") {
       const labels = {}, dash = args.indexOf("--");
@@ -99,7 +100,7 @@ function setup({ devin = new FakeDevin(), terminal = null, sendFails = null } = 
       env.launches++;
       return ok("{}");
     }
-    if (cmd === "read") return args[3] !== "0" && env.historyFails ? { status: 1, stdout: "", stderr: "read failed" } : ok(env.devin.screen(args[3] !== "0"));
+    if (cmd === "read") return ok(env.devin.screen(args[3] !== "0"));
     if (cmd === "keys") return args.slice(2).forEach((k) => env.devin.key(k)), ok();
     if (cmd === "send") {
       if (env.sendFails) return env.sendFails(args[2]);
@@ -237,23 +238,66 @@ test("re-check: a brief that arrived without a trace, then a crash before .sent,
   const r = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief);
   assert.equal(r.code, 2);
   assert.match(r.err, /rerun with --resend/);
-  t.env.historyFails = true; // and a failed history read is no evidence either way
-  const r2 = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief);
-  assert.notEqual(r2.code, 0);
-  assert.match(r2.err, /hc read .* failed/);
   assert.equal(devin.sent.length, 1);
 });
 
-test("finding 4: a rerun after a delivered brief never sends it twice, even without the .sent file", async () => {
+test("finding 4: a rerun after a confirmed brief refuses; nothing is inferred from the screen", async () => {
   const t = setup();
   const r = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(t.root, "brief.md"));
   assert.equal(r.code, 0, r.err);
-  fs.unlinkSync(path.join(t.briefs, `${NAME}.sent`)); // as if it crashed right after hc send
+  assert.ok(fs.existsSync(path.join(t.briefs, `${NAME}.sent`)));
+  assert.ok(!fs.existsSync(path.join(t.briefs, `${NAME}.sending`)));
   const again = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(t.root, "brief.md"));
   assert.equal(again.code, 2);
-  assert.match(again.err, /already has its brief, so nothing was sent again/);
+  assert.match(again.err, /already got its brief.*rerun with --resend \(or use a new slug\)/s);
   assert.equal(t.env.devin.sent.length, 1);
-  assert.ok(fs.existsSync(path.join(t.briefs, `${NAME}.sent`)));
+});
+
+test("re-check 3: once .sending exists, no failure path (hc get, launch, history read, send) clears it or sends again", async () => {
+  const devin = new FakeDevin({ collapse: true });
+  const t = setup({ devin });
+  const brief = path.join(t.root, "brief.md"), sending = path.join(t.briefs, `${NAME}.sending`);
+  const go = (...extra) => t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief, ...extra);
+  t.env.sendFails = (text) => { devin.send(text); throw new Error("simulated crash after hc send"); };
+  await assert.rejects(go(), /simulated crash/);
+  t.env.sendFails = null;
+  const fix = /hc read sup-5182-cloud-agent-audit --lines 500`; if the brief is not there, rerun with --resend \(or use a new slug\)/;
+  // Each failure, then a plain retry: refused, marker kept, still one send. The session going away changes nothing either.
+  for (const fails of [{ get: true }, { run: true }, { read: true }, { get: true, run: true }, {}]) {
+    t.env.fails = fails;
+    if (!fails.get) t.env.term = fails.run ? null : t.env.term; // a lost session: the next launch fails
+    const r = await go();
+    assert.equal(r.code, 2, JSON.stringify(fails) + r.err);
+    assert.match(r.err, fix);
+    assert.ok(fs.existsSync(sending), JSON.stringify(fails));
+    t.env.fails = null;
+    const retry = await go();
+    assert.equal(retry.code, 2);
+    assert.match(retry.err, fix);
+    assert.equal(devin.sent.length, 1, JSON.stringify(fails));
+  }
+  // Even --resend, when hc get or the launch fails, leaves the marker and gives the same fix line.
+  for (const fails of [{ get: true, run: true }, { run: true }]) {
+    t.env.term = null;
+    t.env.fails = fails;
+    const r = await go("--resend");
+    assert.notEqual(r.code, 0);
+    assert.ok(fs.existsSync(sending));
+    t.env.fails = null;
+    assert.equal((await go()).code, 2);
+    assert.equal(devin.sent.length, 1);
+  }
+  // A send that fails with no visible trace, and a history read that fails while checking it: marker kept, same fix line.
+  t.env.term = null;
+  t.env.sendFails = () => ((t.env.fails = { read: true }), { status: 1, stdout: "", stderr: "timed out" });
+  const lost = await go("--resend");
+  assert.equal(lost.code, 1);
+  assert.match(lost.err, /arrival is not confirmed[\s\S]*/);
+  assert.match(lost.err, fix);
+  assert.ok(fs.existsSync(sending));
+  t.env.sendFails = null, t.env.fails = null;
+  assert.equal((await go()).code, 2);
+  assert.equal(devin.sent.length, 1);
 });
 
 test("finding 4: a failed hc send that still arrived counts as sent; one that did not needs --resend", async () => {
@@ -266,7 +310,7 @@ test("finding 4: a failed hc send that still arrived counts as sent; one that di
   u.env.sendFails = () => ({ status: 1, stdout: "", stderr: "timed out" });
   const lost = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"));
   assert.equal(lost.code, 1);
-  assert.match(lost.err, /shows no brief yet.*fix: .*rerun with --resend/s);
+  assert.match(lost.err, /arrival is not confirmed.*fix: .*rerun with --resend/s);
   u.env.sendFails = null;
   const refused = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"));
   assert.equal(refused.code, 2);
