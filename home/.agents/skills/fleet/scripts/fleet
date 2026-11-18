@@ -852,9 +852,11 @@ function cmdCloud(a) {
   const sentFile = saved.replace(/\.md$/, ".sent"); // written once the brief is in the session
   const sendingFile = saved.replace(/\.md$/, ".sending"); // written just before hc send: delivery unknown until .sent
   const resendFix = `fix: \`hc read ${name} --lines 500\`; if the brief is not there, rerun with --resend (or use a new slug)`;
-  if (!a.resend && exists(sentFile))
+  const readOr = (f) => { try { return fs.readFileSync(f, "utf8"); } catch { return null; } };
+  const seenSent = readOr(sentFile), seenSending = readOr(sendingFile); // what --resend was judged against
+  if (!a.resend && seenSent !== null)
     throw new Fail(`${name} already got its brief (${sentFile}); nothing was sent again. Talk to it with \`fleet send\`.\n  ${resendFix}`, 2);
-  if (!a.resend && exists(sendingFile))
+  if (!a.resend && seenSending !== null)
     throw new Fail(`${name}: an earlier run began sending its brief and never confirmed it, so it may have arrived; nothing was sent.\n  ${resendFix}`, 2);
   const argv = [r.run, a.company, "--cloud"];
   if (reusable(name, { project: p.name, role: "cloud-agent", company: a.company, cwd, argv: argv.join(" ") }))
@@ -879,8 +881,23 @@ function cmdCloud(a) {
     return out(name);
   }
   fs.mkdirSync(path.dirname(saved), { recursive: true });
+  // Take .sending with an exclusive create, so of two overlapping runs only one sends. --resend
+  // ends only the unconfirmed send the lead looked at, never one a run started since.
+  if (a.resend && seenSending !== null && readOr(sendingFile) === seenSending) fs.unlinkSync(sendingFile);
+  let fd;
+  try {
+    fd = fs.openSync(sendingFile, "wx");
+  } catch (e) {
+    if (e.code !== "EEXIST") throw e;
+    throw new Fail(`${name}: another run is sending its brief, or began to; nothing was sent.\n  ${resendFix}`, 2);
+  }
+  fs.writeSync(fd, `${now()} pid ${process.pid} ${hex2()}\n`);
+  fs.closeSync(fd);
+  if (readOr(sentFile) !== seenSent) {
+    fs.unlinkSync(sendingFile); // ours, and nothing was sent under it
+    throw new Fail(`${name}: another run sent its brief meanwhile; nothing was sent again.\n  ${resendFix}`, 2);
+  }
   fs.writeFileSync(saved, task + "\n");
-  fs.writeFileSync(sendingFile, now() + "\n");
   // The cloud agent has no system prompt, so its role's rules go ahead of the brief, as `fleet exec` does.
   const sent = hc(["send", name, `${rolePrompt("cloud-agent", r)}\n\n---\n\n${task}`], false);
   if (sent.status !== 0) {
@@ -896,7 +913,7 @@ function cmdCloud(a) {
       throw new Fail(`hc send ${name} failed and its arrival is not confirmed: ${(sent.stderr || sent.stdout).trim()}\n  ${resendFix}`);
     log(`${name}: hc send reported a failure, but the brief is in the session.`);
   }
-  fs.writeFileSync(sentFile, now() + "\n");
+  fs.writeFileSync(sentFile, `${now()} pid ${process.pid} ${hex2()}\n`);
   fs.unlinkSync(sendingFile);
   log(`${name}: brief sent (${saved}).`);
   let url = null;

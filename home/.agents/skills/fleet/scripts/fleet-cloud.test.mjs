@@ -100,7 +100,7 @@ function setup({ devin = new FakeDevin(), terminal = null, sendFails = null } = 
       env.launches++;
       return ok("{}");
     }
-    if (cmd === "read") return ok(env.devin.screen(args[3] !== "0"));
+    if (cmd === "read") return env.onRead?.(), ok(env.devin.screen(args[3] !== "0"));
     if (cmd === "keys") return args.slice(2).forEach((k) => env.devin.key(k)), ok();
     if (cmd === "send") {
       if (env.sendFails) return env.sendFails(args[2]);
@@ -317,6 +317,37 @@ test("finding 4: a failed hc send that still arrived counts as sent; one that di
   const retry = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"), "--resend");
   assert.equal(retry.code, 0, retry.err);
   assert.equal(u.env.devin.sent.length, 1);
+});
+
+test("overlapping runs: one paused past the guards while another sends refuses, and so does one that finds .sending taken", async () => {
+  const t = setup();
+  const brief = path.join(t.root, "brief.md"), go = () => t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief);
+  // A passes the guards and sets the session up; at its last screen read (Fusion set), B runs to the end.
+  let b = null;
+  t.env.onRead = () => {
+    if (t.env.devin.model !== "Fusion" || t.env.devin.picker) return;
+    t.env.onRead = null;
+    b = go(); // cmdCloud is synchronous, so B finishes here, inside A's pause
+  };
+  const a = await go();
+  assert.equal((await b).code, 0);
+  assert.equal(a.code, 2);
+  assert.match(a.err, /another run sent its brief meanwhile; nothing was sent again.*rerun with --resend/s);
+  assert.equal(t.env.devin.sent.length, 1);
+  assert.ok(fs.existsSync(path.join(t.briefs, `${NAME}.sent`)));
+  assert.ok(!fs.existsSync(path.join(t.briefs, `${NAME}.sending`))); // A released the lock it took
+  // C runs with --resend; while it is paused, another run takes .sending first: C must not send.
+  const u = setup();
+  u.env.onRead = () => {
+    if (u.env.devin.model !== "Fusion" || u.env.devin.picker) return;
+    u.env.onRead = null;
+    fs.writeFileSync(path.join(u.briefs, `${NAME}.sending`), "another run\n");
+  };
+  const c = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"), "--resend");
+  assert.equal(c.code, 2);
+  assert.match(c.err, /another run is sending its brief, or began to; nothing was sent.*rerun with --resend/s);
+  assert.equal(u.env.devin.sent.length, 0);
+  assert.equal(fs.readFileSync(path.join(u.briefs, `${NAME}.sending`), "utf8"), "another run\n"); // not ours to clear
 });
 
 test("finding 5: the session URL is printed for app.devin.ai and for an enterprise host", async () => {
