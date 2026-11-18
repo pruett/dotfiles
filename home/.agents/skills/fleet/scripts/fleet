@@ -660,27 +660,172 @@ function cmdProjectLs(a) {
   for (const p of ps) out(`${pad(p.name, 26)} ${pad(p.status, 9)} lead ${p.lead_status}`);
 }
 
-// A lead starts a worker: `fleet run implementer ui --cwd <worktree> "<brief>"`.
-function cmdRun(a) {
-  need("lead");
-  const p = myProject();
-  if (LEADERS.includes(a.role)) throw new Fail(`${a.role} is not a worker role`, 2);
-  role(a.role);
+// The hc name of a worker the project may start now: <key>-<role>-<slug>.
+function workerName(p, roleName, slug) {
+  if (LEADERS.includes(roleName)) throw new Fail(`${roleName} is not a worker role`, 2);
+  role(roleName);
   // A researcher may scout while the PRD is being written; every other role waits for its approval.
-  const scouting = p.status === "aligning" && a.role === "researcher";
+  const scouting = p.status === "aligning" && roleName === "researcher";
   if (p.status !== "active" && !scouting)
     throw new Fail(`${p.name} is ${p.status}; get the PRD approved first${p.status === "aligning" ? " (only a researcher may run now)" : ""}`, 2);
   if (!scouting && sha(readPrd(p.name).text) !== p.prd_hash)
     throw new Fail("the PRD changed since it was approved; ask the Captain to approve it again (`fleet report --kind prd`)", 2);
-  const name = `${workerKey(p.name)}-${a.role}-${a.slug}`;
-  if (name.length > 32) throw new Fail(`${name} is over hc's 32 characters; use a slug of ${32 - name.length + a.slug.length} or fewer`, 2);
+  const name = `${workerKey(p.name)}-${roleName}-${slug}`;
+  if (name.length > 32) throw new Fail(`${name} is over hc's 32 characters; use a slug of ${32 - name.length + slug.length} or fewer`, 2);
+  return name;
+}
+
+// A lead starts a worker: `fleet run implementer ui --cwd <worktree> "<brief>"`.
+function cmdRun(a) {
+  need("lead");
+  const p = myProject();
+  const name = workerName(p, a.role, a.slug);
   if (live(name)) throw new Fail(`${name} is already running`, 2);
+  if (a.role === "cloud-agent") log("For a Devin cloud session, use `fleet cloud` instead: it sets the repo and the Fusion model before the brief.");
   const brief = path.join(projDir(p.name), "briefs", `${name}.md`);
   fs.mkdirSync(path.dirname(brief), { recursive: true });
   fs.writeFileSync(brief, a.task + "\n");
   launch({ role: a.role, name, cwd: path.resolve(expand(a.cwd || ".")), task: a.task,
     labels: [`fleet.project=${p.name}`], parent: "outlive" });
   out(name);
+}
+
+// ---- Devin cloud sessions -------------------------------------------------------
+
+// What the Devin cloud REPL shows (devin v3000): its empty prompt, its pickers and the status bar.
+const DEVIN_READY = "Ask Devin to build features";
+const DEVIN_REPO_PICKER = "Which repositories should Devin use?";
+const DEVIN_STATUS = /^Cloud · (\S.*?)(?:\s{2,}|$)/m; // the status bar: "Cloud · Fusion"
+
+const screenOf = (name) => hc(["read", name, "--lines", "200"], false).stdout;
+
+// Poll the screen until test(screen) is true; else fail with what to do about it.
+function waitScreen(name, test, secs, what, fix) {
+  for (let i = 0; i < secs * 2; i++) {
+    const s = screenOf(name);
+    if (test(s)) return s;
+    spawnSync("sleep", ["0.5"]);
+  }
+  throw new Fail(`${name}: ${what} did not show within ${secs}s; nothing was sent.\n` +
+    `  screen: hc read ${name}\n  fix: ${fix}`);
+}
+
+// Type text raw, one key per character: `hc send` tags text <hc from>, which makes it a message.
+function typeRaw(name, text) {
+  hc(["keys", name, ...[...text].map((c) => (c === " " ? "space" : c))]);
+}
+
+// A picker's items: the lines under its "/ <search>" box, up to the first blank line.
+// marks: the characters that start an item ("□■" for repos, "❭ " for models).
+function pickerItems(screen, marks) {
+  const lines = screen.split("\n");
+  const box = lines.findLastIndex((l) => l.startsWith("/ "));
+  const items = [];
+  for (const l of lines.slice(box + 2)) {
+    if (!l.trim() || !marks.includes(l[0]) || l[1] !== " ") break;
+    items.push({ mark: l[0], label: l.slice(2).split(/\s{2,}/)[0].trim() });
+  }
+  return items;
+}
+
+const kill = (name) => `\`hc kill ${name}\`, then rerun this command for a fresh session`;
+
+// Set the session's repository with /repo, unless the screen already says it is set.
+function cloudRepo(name, repo) {
+  const done = `✓ Repository set to ${repo}.`;
+  if (screenOf(name).includes(done)) return log(`${name}: repository already set to ${repo}.`);
+  typeRaw(name, "/repo");
+  hc(["keys", name, "enter"]);
+  waitScreen(name, (s) => s.includes(DEVIN_REPO_PICKER), 15, "the /repo picker", kill(name));
+  typeRaw(name, repo);
+  waitScreen(name, (s) => s.split("\n").some((l) => l.trimEnd() === `/ ${repo}`), 15, `the repo search for '${repo}'`, kill(name));
+  spawnSync("sleep", ["1"]); // the list filters just after the search box shows the text
+  const items = pickerItems(screenOf(name), "□■"), at = items.findIndex((it) => it.label === repo);
+  if (at < 0)
+    throw new Fail(`${name}: Devin's account has no repo named '${repo}' (search shows: ${items.map((it) => it.label).join(", ") || "nothing"}); nothing was sent.\n` +
+      `  fix: pass --repo with a name Devin's /repo picker lists, or add the repo to the account in Devin's settings`, 2);
+  if (at) hc(["keys", name, ...Array(at).fill("down")]);
+  hc(["keys", name, "space"]);
+  const picked = pickerItems(waitScreen(name, (s) => pickerItems(s, "□■").some((it) => it.mark === "■"), 10,
+    `a selected '■ ${repo}' line`, kill(name)), "□■").filter((it) => it.mark === "■").map((it) => it.label);
+  if (picked.join() !== repo)
+    throw new Fail(`${name}: the picker selected [${picked.join(", ")}], not ${repo}; nothing was sent.\n  fix: ${kill(name)}`);
+  hc(["keys", name, "enter"]);
+  waitScreen(name, (s) => s.includes(done), 20, `'${done}'`, kill(name));
+  log(`${name}: ${done}`);
+}
+
+// Pick the model with alt+m (--model is ignored with --cloud), unless the status bar already shows it.
+function cloudModel(name, model) {
+  const current = (s) => (s.match(new RegExp(DEVIN_STATUS.source, "gm")) || []).map((l) => l.match(DEVIN_STATUS)[1]).at(-1);
+  if (current(screenOf(name)) === model) return log(`${name}: model already ${model}.`);
+  hc(["keys", name, "alt+m"]);
+  const s = waitScreen(name, (s) => pickerItems(s, "❭ ").some((it) => it.mark === "❭"), 10, "the model picker (alt+m)", kill(name));
+  const items = pickerItems(s, "❭ ");
+  const to = items.findIndex((it) => it.label === model), from = items.findIndex((it) => it.mark === "❭");
+  if (to < 0)
+    throw new Fail(`${name}: the model picker has no '${model}' (it lists: ${items.map((it) => it.label).join(", ")}); nothing was sent.\n` +
+      "  fix: pass --model with one of those names", 2);
+  if (to !== from) hc(["keys", name, ...Array(Math.abs(to - from)).fill(to < from ? "up" : "down")]);
+  const on = pickerItems(screenOf(name), "❭ ").find((it) => it.mark === "❭");
+  if (on?.label !== model)
+    throw new Fail(`${name}: the model picker is on '${on?.label}', not ${model}; nothing was sent.\n  fix: ${kill(name)}`);
+  hc(["keys", name, "enter"]);
+  waitScreen(name, (s) => current(s) === model, 15, `the status bar 'Cloud · ${model}'`, kill(name));
+  log(`${name}: status bar reads Cloud · ${model}.`);
+}
+
+// A lead starts a Devin cloud session: right account, repo, then model, each checked on
+// screen before the brief is sent. Rerun after a failure, it carries on from what the screen shows.
+function cmdCloud(a) {
+  need("lead");
+  const p = myProject();
+  const r = role("cloud-agent"), name = workerName(p, "cloud-agent", a.slug);
+  const cwd = path.join(workRoot(), a.company);
+  if (!isDir(cwd)) throw new Fail(`no company folder ${cwd}; --company names a folder under ${workRoot()}`, 2);
+  if (!a.dry_run && !a.brief) throw new Fail("give the brief with --brief <file> (or --dry-run to set up without sending)", 2);
+  const task = a.brief ? fs.readFileSync(expand(a.brief), "utf8").trim() : null;
+  if (task === "") throw new Fail(`${a.brief} is empty`, 2);
+  const saved = path.join(projDir(p.name), "briefs", `${name}.md`); // written when the brief is sent
+  if (exists(saved) && live(name)) throw new Fail(`${name} already has its brief (${saved}); talk to it with \`fleet send\``, 2);
+  if (live(name)) log(`${name} is running; checking its repo and model.`);
+  else {
+    hc(["run", "--bg", "--json", "--no-notify", "--outlive-parent", "--name", name, "--cwd", cwd,
+      "--label", "fleet.role=cloud-agent", "--label", `fleet.project=${p.name}`, "--", r.run, a.company, "--cloud"]);
+    log(`Started ${name}: ${r.run} ${a.company} --cloud`);
+  }
+  waitScreen(name, (s) => s.includes(DEVIN_READY), 60, `Devin's empty prompt ('${DEVIN_READY}')`,
+    `\`hc read ${name}\`: a login prompt means \`devin-as ${a.company} auth login\`; else ${kill(name)}`);
+  try {
+    cloudRepo(name, a.repo);
+    cloudModel(name, a.model);
+  } catch (e) {
+    hc(["keys", name, "esc"], false); // close a picker left open, so a rerun finds the empty prompt
+    throw e;
+  }
+  if (a.dry_run) {
+    log(`Dry run: ${name} is ready (repo ${a.repo}, Cloud · ${a.model}) and got no message. ` +
+      `Send the brief with \`fleet cloud ${a.slug} --company ${a.company} --repo ${a.repo} --brief <file>\`, or \`hc kill ${name}\`.`);
+    return out(name);
+  }
+  fs.mkdirSync(path.dirname(saved), { recursive: true });
+  fs.writeFileSync(saved, task + "\n");
+  // The cloud agent has no system prompt, so its role's rules go ahead of the brief, as `fleet exec` does.
+  const sent = hc(["send", name, `${rolePrompt("cloud-agent", r)}\n\n---\n\n${task}`], false);
+  if (sent.status !== 0) {
+    fs.unlinkSync(saved);
+    throw new Fail(`hc send ${name} failed: ${(sent.stderr || sent.stdout).trim()}`);
+  }
+  log(`${name}: brief sent (${saved}).`);
+  let url = null;
+  for (let i = 0; i < 60 && !url; i++) {
+    url = (screenOf(name).match(/https:\/\/app\.devin\.ai\/sessions\/[\w-]+/) || [])[0] || null;
+    if (!url) spawnSync("sleep", ["0.5"]);
+  }
+  if (url) log(`${name}: session ${url}`);
+  else log(`${name}: no session URL on screen yet; find it later with \`hc read ${name} | grep devin.ai\`.`);
+  out(name);
+  if (url) out(url);
 }
 
 function cmdLs(a) {
@@ -1076,6 +1221,13 @@ const COMMANDS = {
   "project ls": { fn: cmdProjectLs, help: "list projects with their status and lead", opts: json },
   run: { fn: cmdRun, who: "lead", help: "start a worker <key>-<role>-<slug> (<key>: the project name, or its initials past 12 characters): fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name; while aligning, only a researcher",
     pos: ["role", "slug", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
+  cloud: { fn: cmdCloud, who: "lead", help: "start a Devin cloud session <key>-cloud-agent-<slug>: account, /repo, then the model, each checked on screen before the brief is sent; refuses to send when one fails; rerun carries on; prints its name (and session URL)",
+    pos: ["slug"], opts: {
+      "--company": { required: true, help: "the folder under the work root, which is also the Devin account (devin-as)" },
+      "--repo": { required: true, help: "the repo /repo selects, as Devin's picker names it (web, backend, ...)" },
+      "--model": { def: "Fusion", help: "the model picked with alt+m, as its picker names it" },
+      "--brief": { help: "a file holding the brief; saved to briefs/ when sent" },
+      "--dry-run": { bool: true, help: "set up the session (repo, model) and send nothing; costs nothing" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
   send: { fn: cmdSend, who: "you, captain (to a lead), lead (to its own workers)", help: "a message to a lead, or a lead's to its worker; one that starts with \"/\" goes untagged, so its /command runs",
     pos: ["name", "text"] },
