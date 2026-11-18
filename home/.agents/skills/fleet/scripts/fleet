@@ -704,7 +704,7 @@ const BRIEF_MARK = "Your role in the fleet: cloud-agent."; // the first line `fl
 // The visible screen only: hc's history can hold restored, stale text, so session state is
 // never read from it. History is read only to look for evidence that the brief arrived.
 const screenOf = (name) => hc(["read", name, "--lines", "0"], false).stdout;
-const historyOf = (name) => hc(["read", name, "--lines", "500"], false).stdout;
+const historyOf = (name, check = true) => hc(["read", name, "--lines", "500"], check).stdout; // a failed read is no evidence
 const lastMatch = (re, s) => [...s.matchAll(re)].at(-1) || null;
 const delivered = (name) => { const h = historyOf(name); return h.includes(BRIEF_MARK) || DEVIN_URL.test(h); };
 
@@ -837,7 +837,7 @@ function reusable(name, want) {
 
 // A lead starts a Devin cloud session: right account, repo, then Fusion, each checked on the
 // live screen before the brief is sent. A rerun carries on from what the session shows, and
-// sends the brief only when the session holds no sign of it.
+// sends the brief only when the session holds no sign of it and no earlier run began sending.
 function cmdCloud(a) {
   need("lead");
   const p = myProject();
@@ -849,15 +849,19 @@ function cmdCloud(a) {
   if (task === "") throw new Fail(`${a.brief} is empty`, 2);
   const saved = path.join(projDir(p.name), "briefs", `${name}.md`);
   const sentFile = saved.replace(/\.md$/, ".sent"); // written once the brief is in the session
+  const sendingFile = saved.replace(/\.md$/, ".sending"); // written just before hc send: delivery unknown until .sent
   const argv = [r.run, a.company, "--cloud"];
   if (reusable(name, { project: p.name, role: "cloud-agent", company: a.company, cwd, argv: argv.join(" ") })) {
     if (exists(sentFile) || delivered(name)) {
       if (!exists(sentFile)) fs.writeFileSync(sentFile, now() + "\n");
       throw new Fail(`${name} already has its brief, so nothing was sent again; talk to it with \`fleet send\` (${saved})`, 2);
     }
+    if (exists(sendingFile) && !a.resend)
+      throw new Fail(`${name}: an earlier run began sending its brief and never confirmed it, so it may have arrived; nothing was sent.\n` +
+        `  fix: \`hc read ${name} --lines 500\`; if the brief is not there, rerun with --resend`, 2);
     log(`${name} is running and has no brief yet; checking its repo and model.`);
   } else {
-    if (exists(sentFile)) fs.unlinkSync(sentFile); // it marked a session that is gone
+    for (const f of [sentFile, sendingFile]) if (exists(f)) fs.unlinkSync(f); // they marked a session that is gone
     hc(["run", "--bg", "--json", "--no-notify", "--outlive-parent", "--name", name, "--cwd", cwd, "--label", "fleet.role=cloud-agent",
       "--label", `fleet.project=${p.name}`, "--label", `fleet.company=${a.company}`, "--", ...argv]);
     log(`Started ${name}: ${argv.join(" ")}`);
@@ -878,20 +882,23 @@ function cmdCloud(a) {
   }
   fs.mkdirSync(path.dirname(saved), { recursive: true });
   fs.writeFileSync(saved, task + "\n");
+  fs.writeFileSync(sendingFile, now() + "\n");
   // The cloud agent has no system prompt, so its role's rules go ahead of the brief, as `fleet exec` does.
   const sent = hc(["send", name, `${rolePrompt("cloud-agent", r)}\n\n---\n\n${task}`], false);
   if (sent.status !== 0) {
     // A failed send may still have arrived (hc's manual): look before calling it unsent.
     for (let i = 0; i < 10 && !delivered(name); i++) spawnSync("sleep", ["0.5"]);
     if (!delivered(name))
-      throw new Fail(`hc send ${name} failed and the session shows no brief: ${(sent.stderr || sent.stdout).trim()}\n  fix: rerun this command to send it again`);
+      throw new Fail(`hc send ${name} failed and the session shows no brief yet: ${(sent.stderr || sent.stdout).trim()}\n` +
+        `  fix: \`hc read ${name} --lines 500\`; if the brief is not there, rerun with --resend`);
     log(`${name}: hc send reported a failure, but the brief is in the session.`);
   }
   fs.writeFileSync(sentFile, now() + "\n");
+  fs.unlinkSync(sendingFile);
   log(`${name}: brief sent (${saved}).`);
   let url = null;
   for (let i = 0; i < 60 && !url; i++) {
-    url = (historyOf(name).match(DEVIN_URL) || [])[0] || null;
+    url = (historyOf(name, false).match(DEVIN_URL) || [])[0] || null;
     if (!url) spawnSync("sleep", ["0.5"]);
   }
   if (url) log(`${name}: session ${url}`);
@@ -1298,7 +1305,8 @@ const COMMANDS = {
       "--company": { required: true, help: "the folder under the work root, which is also the Devin account (devin-as)" },
       "--repo": { required: true, help: "the repo /repo selects, as Devin's picker names it (web, backend, ...)" },
       "--brief": { help: "a file holding the brief; saved to briefs/ when sent" },
-      "--dry-run": { bool: true, help: "set up the session (repo, model) and send nothing; costs nothing" } } },
+      "--dry-run": { bool: true, help: "set up the session (repo, model) and send nothing; costs nothing" },
+      "--resend": { bool: true, help: "send although an earlier run began sending and never confirmed it; only after `hc read` shows the brief is not there" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
   send: { fn: cmdSend, who: "you, captain (to a lead), lead (to its own workers)", help: "a message to a lead, or a lead's to its worker; one that starts with \"/\" goes untagged, so its /command runs",
     pos: ["name", "text"] },

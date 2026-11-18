@@ -17,8 +17,8 @@ const MODELS = ["Fusion", "Ultra", "Normal", "Lite"];
 
 // One Devin cloud REPL: its repos, model, open picker, transcript and the messages it got.
 class FakeDevin {
-  constructor({ repos = ["web", "backend", "ai-tools"], selected = [], model = "Normal", models = MODELS, history = "", url } = {}) {
-    Object.assign(this, { repos, selected, model, models, history, url, input: "", picker: null, transcript: [], sent: [] });
+  constructor({ repos = ["web", "backend", "ai-tools"], selected = [], model = "Normal", models = MODELS, history = "", url, collapse = false } = {}) {
+    Object.assign(this, { repos, selected, model, models, history, url, collapse, input: "", picker: null, transcript: [], sent: [] });
   }
   repoRows() {
     const p = this.picker, rows = p.order.filter((r) => r.includes(p.search));
@@ -58,7 +58,7 @@ class FakeDevin {
   }
   send(text) {
     this.sent.push({ text, repos: [...this.selected], model: this.model });
-    this.transcript.push(`❭ ${text.split("\n")[0]}`);
+    this.transcript.push(this.collapse ? "❭ [Pasted text #1]" : `❭ ${text.split("\n")[0]}`); // collapse: no trace of the text
     if (this.url) this.transcript.push(` Session: ${this.url}`);
   }
   screen(withHistory) {
@@ -99,7 +99,7 @@ function setup({ devin = new FakeDevin(), terminal = null, sendFails = null } = 
       env.launches++;
       return ok("{}");
     }
-    if (cmd === "read") return ok(env.devin.screen(args[3] !== "0"));
+    if (cmd === "read") return args[3] !== "0" && env.historyFails ? { status: 1, stdout: "", stderr: "read failed" } : ok(env.devin.screen(args[3] !== "0"));
     if (cmd === "keys") return args.slice(2).forEach((k) => env.devin.key(k)), ok();
     if (cmd === "send") {
       if (env.sendFails) return env.sendFails(args[2]);
@@ -206,16 +206,42 @@ test("finding 3: a terminal without the fleet.company label (or of another proje
   assert.equal(t.calls.filter((c) => c[1] === "keys").length, 0);
 });
 
-test("finding 4: a crash after the brief is saved, before it is sent, does not block the rerun", async () => {
+test("finding 4: a crash before hc send leaves a .sending marker; the rerun refuses until --resend", async () => {
   const t = setup();
-  t.env.sendFails = () => { throw new Error("simulated crash after saving the brief"); };
-  await assert.rejects(t.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(t.root, "brief.md")), /simulated crash/);
-  assert.ok(fs.existsSync(path.join(t.briefs, `${NAME}.md`)));
+  const brief = path.join(t.root, "brief.md");
+  t.env.sendFails = () => { throw new Error("simulated crash just before hc send"); };
+  await assert.rejects(t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief), /simulated crash/);
+  assert.ok(fs.existsSync(path.join(t.briefs, `${NAME}.sending`)));
   t.env.sendFails = null;
-  const r = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(t.root, "brief.md"));
-  assert.equal(r.code, 0, r.err);
+  const keys = t.calls.filter((c) => c[1] === "keys").length;
+  const r = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /began sending its brief and never confirmed it.*fix: `hc read .* --lines 500`; if the brief is not there, rerun with --resend/s);
+  assert.equal(t.env.devin.sent.length, 0);
+  assert.equal(t.calls.filter((c) => c[1] === "keys").length, keys); // refused before touching the session
+  const again = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief, "--resend");
+  assert.equal(again.code, 0, again.err);
   assert.equal(t.env.devin.sent.length, 1);
   assert.equal(t.env.launches, 1); // the same session, carried on
+  assert.ok(fs.existsSync(path.join(t.briefs, `${NAME}.sent`)));
+  assert.ok(!fs.existsSync(path.join(t.briefs, `${NAME}.sending`)));
+});
+
+test("re-check: a brief that arrived without a trace, then a crash before .sent, is never sent twice", async () => {
+  const devin = new FakeDevin({ collapse: true }); // no role line and no URL in the history
+  const t = setup({ devin });
+  const brief = path.join(t.root, "brief.md");
+  t.env.sendFails = (text) => { devin.send(text); throw new Error("simulated crash after hc send"); };
+  await assert.rejects(t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief), /simulated crash/);
+  t.env.sendFails = null;
+  const r = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /rerun with --resend/);
+  t.env.historyFails = true; // and a failed history read is no evidence either way
+  const r2 = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", brief);
+  assert.notEqual(r2.code, 0);
+  assert.match(r2.err, /hc read .* failed/);
+  assert.equal(devin.sent.length, 1);
 });
 
 test("finding 4: a rerun after a delivered brief never sends it twice, even without the .sent file", async () => {
@@ -230,7 +256,7 @@ test("finding 4: a rerun after a delivered brief never sends it twice, even with
   assert.ok(fs.existsSync(path.join(t.briefs, `${NAME}.sent`)));
 });
 
-test("finding 4: a failed hc send that still arrived counts as sent; one that did not can be retried", async () => {
+test("finding 4: a failed hc send that still arrived counts as sent; one that did not needs --resend", async () => {
   const t = setup();
   t.env.sendFails = (text) => (t.env.devin.send(text), { status: 1, stdout: "", stderr: "timed out" });
   const r = await t.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(t.root, "brief.md"));
@@ -240,9 +266,11 @@ test("finding 4: a failed hc send that still arrived counts as sent; one that di
   u.env.sendFails = () => ({ status: 1, stdout: "", stderr: "timed out" });
   const lost = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"));
   assert.equal(lost.code, 1);
-  assert.match(lost.err, /shows no brief.*fix: rerun/s);
+  assert.match(lost.err, /shows no brief yet.*fix: .*rerun with --resend/s);
   u.env.sendFails = null;
-  const retry = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"));
+  const refused = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"));
+  assert.equal(refused.code, 2);
+  const retry = await u.run("audit", "--company", "suppco", "--repo", "web", "--brief", path.join(u.root, "brief.md"), "--resend");
   assert.equal(retry.code, 0, retry.err);
   assert.equal(u.env.devin.sent.length, 1);
 });
