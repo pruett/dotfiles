@@ -693,11 +693,20 @@ function cmdRun(a) {
 // ---- Devin cloud sessions -------------------------------------------------------
 
 // What the Devin cloud REPL shows (devin v3000): its empty prompt, its pickers and the status bar.
+const FUSION = "Fusion"; // every cloud session runs Fusion (the CEO's rule), so there is no --model
 const DEVIN_READY = "Ask Devin to build features";
 const DEVIN_REPO_PICKER = "Which repositories should Devin use?";
-const DEVIN_STATUS = /^Cloud · (\S.*?)(?:\s{2,}|$)/m; // the status bar: "Cloud · Fusion"
+const DEVIN_STATUS = /^Cloud · (\S.*?)(?:\s{2,}|$)/gm; // the status bar: "Cloud · Fusion"
+const DEVIN_REPO_SET = /^\s*(?:✓ Repositor(?:y|ies) set to (.+)\.|Repository selection canceled\.)\s*$/gm;
+const DEVIN_URL = /https:\/\/(?:app\.devin\.ai|[a-z0-9-]+\.devinenterprise\.com)\/sessions\/[\w-]+/; // devin-as: app or <company> enterprise
+const BRIEF_MARK = "Your role in the fleet: cloud-agent."; // the first line `fleet cloud` sends
 
-const screenOf = (name) => hc(["read", name, "--lines", "200"], false).stdout;
+// The visible screen only: hc's history can hold restored, stale text, so session state is
+// never read from it. History is read only to look for evidence that the brief arrived.
+const screenOf = (name) => hc(["read", name, "--lines", "0"], false).stdout;
+const historyOf = (name) => hc(["read", name, "--lines", "500"], false).stdout;
+const lastMatch = (re, s) => [...s.matchAll(re)].at(-1) || null;
+const delivered = (name) => { const h = historyOf(name); return h.includes(BRIEF_MARK) || DEVIN_URL.test(h); };
 
 // Poll the screen until test(screen) is true; else fail with what to do about it.
 function waitScreen(name, test, secs, what, fix) {
@@ -715,6 +724,14 @@ function typeRaw(name, text) {
   hc(["keys", name, ...[...text].map((c) => (c === " " ? "space" : c))]);
 }
 
+// Press one key n times, one at a time: a burst of picker keys can land as a cancel.
+function press(name, key, n = 1) {
+  for (let i = 0; i < n; i++) {
+    hc(["keys", name, key]);
+    spawnSync("sleep", ["0.2"]);
+  }
+}
+
 // A picker's items: the lines under its "/ <search>" box, up to the first blank line.
 // marks: the characters that start an item ("□■" for repos, "❭ " for models).
 function pickerItems(screen, marks) {
@@ -729,54 +746,98 @@ function pickerItems(screen, marks) {
 }
 
 const kill = (name) => `\`hc kill ${name}\`, then rerun this command for a fresh session`;
+const picked = (items) => items.filter((it) => it.mark === "■").map((it) => it.label);
 
-// Set the session's repository with /repo, unless the screen already says it is set.
-function cloudRepo(name, repo) {
-  const done = `✓ Repository set to ${repo}.`;
-  if (screenOf(name).includes(done)) return log(`${name}: repository already set to ${repo}.`);
+// Open /repo; its unfiltered list shows the selected repos first, marked ■.
+function openRepos(name) {
   typeRaw(name, "/repo");
-  hc(["keys", name, "enter"]);
-  waitScreen(name, (s) => s.includes(DEVIN_REPO_PICKER), 15, "the /repo picker", kill(name));
-  typeRaw(name, repo);
-  waitScreen(name, (s) => s.split("\n").some((l) => l.trimEnd() === `/ ${repo}`), 15, `the repo search for '${repo}'`, kill(name));
-  spawnSync("sleep", ["1"]); // the list filters just after the search box shows the text
-  const items = pickerItems(screenOf(name), "□■"), at = items.findIndex((it) => it.label === repo);
-  if (at < 0)
-    throw new Fail(`${name}: Devin's account has no repo named '${repo}' (search shows: ${items.map((it) => it.label).join(", ") || "nothing"}); nothing was sent.\n` +
-      `  fix: pass --repo with a name Devin's /repo picker lists, or add the repo to the account in Devin's settings`, 2);
-  if (at) hc(["keys", name, ...Array(at).fill("down")]);
-  hc(["keys", name, "space"]);
-  const picked = pickerItems(waitScreen(name, (s) => pickerItems(s, "□■").some((it) => it.mark === "■"), 10,
-    `a selected '■ ${repo}' line`, kill(name)), "□■").filter((it) => it.mark === "■").map((it) => it.label);
-  if (picked.join() !== repo)
-    throw new Fail(`${name}: the picker selected [${picked.join(", ")}], not ${repo}; nothing was sent.\n  fix: ${kill(name)}`);
-  hc(["keys", name, "enter"]);
-  waitScreen(name, (s) => s.includes(done), 20, `'${done}'`, kill(name));
-  log(`${name}: ${done}`);
+  press(name, "enter");
+  return pickerItems(waitScreen(name, (s) => s.includes(DEVIN_REPO_PICKER) && pickerItems(s, "□■").length > 0,
+    15, "the /repo picker", kill(name)), "□■");
 }
 
-// Pick the model with alt+m (--model is ignored with --cloud), unless the status bar already shows it.
-function cloudModel(name, model) {
-  const current = (s) => (s.match(new RegExp(DEVIN_STATUS.source, "gm")) || []).map((l) => l.match(DEVIN_STATUS)[1]).at(-1);
-  if (current(screenOf(name)) === model) return log(`${name}: model already ${model}.`);
-  hc(["keys", name, "alt+m"]);
-  const s = waitScreen(name, (s) => pickerItems(s, "❭ ").some((it) => it.mark === "❭"), 10, "the model picker (alt+m)", kill(name));
-  const items = pickerItems(s, "❭ ");
-  const to = items.findIndex((it) => it.label === model), from = items.findIndex((it) => it.mark === "❭");
-  if (to < 0)
-    throw new Fail(`${name}: the model picker has no '${model}' (it lists: ${items.map((it) => it.label).join(", ")}); nothing was sent.\n` +
-      "  fix: pass --model with one of those names", 2);
-  if (to !== from) hc(["keys", name, ...Array(Math.abs(to - from)).fill(to < from ? "up" : "down")]);
-  const on = pickerItems(screenOf(name), "❭ ").find((it) => it.mark === "❭");
-  if (on?.label !== model)
-    throw new Fail(`${name}: the model picker is on '${on?.label}', not ${model}; nothing was sent.\n  fix: ${kill(name)}`);
-  hc(["keys", name, "enter"]);
-  waitScreen(name, (s) => current(s) === model, 15, `the status bar 'Cloud · ${model}'`, kill(name));
-  log(`${name}: status bar reads Cloud · ${model}.`);
+function closeRepos(name) {
+  press(name, "esc"); // cancels: the selection stays as it was
+  waitScreen(name, (s) => !s.includes(DEVIN_REPO_PICKER) && s.includes(DEVIN_READY), 10, "the empty prompt after closing /repo", kill(name));
 }
 
-// A lead starts a Devin cloud session: right account, repo, then model, each checked on
-// screen before the brief is sent. Rerun after a failure, it carries on from what the screen shows.
+// Make /repo select exactly `repo`, reading the live picker on every run: a confirmation in
+// the history may be stale, and the session may have been switched to another repo since.
+function cloudRepo(name, repo) {
+  let items = openRepos(name);
+  if (picked(items).join() !== repo) {
+    let at = 0; // the cursor starts on the first row, and toggling keeps the rows in place
+    for (const [i, it] of items.entries()) {
+      if (it.mark !== "■" || it.label === repo) continue;
+      press(name, "down", i - at), at = i;
+      press(name, "space");
+    }
+    waitScreen(name, (s) => picked(pickerItems(s, "□■")).every((l) => l === repo), 5, `/repo with only ${repo} selected`, kill(name));
+    typeRaw(name, repo);
+    waitScreen(name, (s) => s.split("\n").some((l) => l.trimEnd() === `/ ${repo}`), 15, `the repo search for '${repo}'`, kill(name));
+    spawnSync("sleep", ["1"]); // the list filters just after the search box shows the text
+    items = pickerItems(screenOf(name), "□■");
+    const i = items.findIndex((it) => it.label === repo);
+    if (i < 0)
+      throw new Fail(`${name}: Devin's account has no repo named '${repo}' (search shows: ${items.map((it) => it.label).join(", ") || "nothing"}); nothing was sent.\n` +
+        `  fix: pass --repo with a name Devin's /repo picker lists, or add the repo to the account in Devin's settings`, 2);
+    if (items[i].mark === "□") {
+      press(name, "down", i); // a search puts the cursor back on the first row
+      press(name, "space");
+    }
+    waitScreen(name, (s) => pickerItems(s, "□■").some((it) => it.label === repo && it.mark === "■"), 10, `a selected '■ ${repo}' line`, kill(name));
+    press(name, "enter");
+    // The prompt comes back before the confirmation line; the reopened picker below is the proof.
+    waitScreen(name, (s) => !s.includes(DEVIN_REPO_PICKER) && s.includes(DEVIN_READY) && lastMatch(DEVIN_REPO_SET, s)?.[1] === repo,
+      20, `'✓ Repository set to ${repo}.' as /repo's last line`, kill(name));
+    items = openRepos(name); // check what Devin kept, not what was typed
+  }
+  closeRepos(name);
+  if (picked(items).join() !== repo)
+    throw new Fail(`${name}: /repo has [${picked(items).join(", ")}] selected, not only ${repo}; nothing was sent.\n  fix: ${kill(name)}`);
+  log(`${name}: /repo has only ${repo} selected.`);
+}
+
+// The model on the visible status bar, or null.
+const statusModel = (s) => lastMatch(DEVIN_STATUS, s)?.[1] ?? null;
+
+// Pick Fusion with alt+m (--model is ignored with --cloud), unless the status bar already shows it.
+function cloudModel(name) {
+  if (statusModel(screenOf(name)) !== FUSION) {
+    press(name, "alt+m");
+    const items = pickerItems(waitScreen(name, (s) => pickerItems(s, "❭ ").some((it) => it.mark === "❭"), 10,
+      "the model picker (alt+m)", kill(name)), "❭ ");
+    const to = items.findIndex((it) => it.label === FUSION), from = items.findIndex((it) => it.mark === "❭");
+    if (to < 0)
+      throw new Fail(`${name}: the model picker has no ${FUSION} (it lists: ${items.map((it) => it.label).join(", ")}); nothing was sent.\n` +
+        `  fix: check that the account (devin-as) has ${FUSION}; cloud sessions run nothing else`, 2);
+    press(name, to < from ? "up" : "down", Math.abs(to - from));
+    const on = pickerItems(screenOf(name), "❭ ").find((it) => it.mark === "❭");
+    if (on?.label !== FUSION)
+      throw new Fail(`${name}: the model picker is on '${on?.label}', not ${FUSION}; nothing was sent.\n  fix: ${kill(name)}`);
+    press(name, "enter");
+  }
+  waitScreen(name, (s) => statusModel(s) === FUSION && s.includes(DEVIN_READY), 15, `the status bar 'Cloud · ${FUSION}'`, kill(name));
+  log(`${name}: status bar reads Cloud · ${FUSION}.`);
+}
+
+// A live terminal with this name is reused only when it is the session this command would start.
+function reusable(name, want) {
+  const t = live(name);
+  if (!t) return false;
+  const l = t.labels || {};
+  const got = { project: l["fleet.project"], role: l["fleet.role"], company: l["fleet.company"],
+    cwd: t.cwd && path.resolve(t.cwd), argv: (t.argv || []).join(" ") };
+  const bad = Object.keys(want).filter((k) => got[k] !== want[k]);
+  if (bad.length)
+    throw new Fail(`${name} is running but is not this session (${bad.map((k) => `${k} ${got[k] ?? "unset"}, wanted ${want[k]}`).join("; ")}); nothing was sent.\n` +
+      `  fix: pick another slug, or \`hc kill ${name}\` if that session is yours to replace`, 2);
+  return true;
+}
+
+// A lead starts a Devin cloud session: right account, repo, then Fusion, each checked on the
+// live screen before the brief is sent. A rerun carries on from what the session shows, and
+// sends the brief only when the session holds no sign of it.
 function cmdCloud(a) {
   need("lead");
   const p = myProject();
@@ -786,25 +847,32 @@ function cmdCloud(a) {
   if (!a.dry_run && !a.brief) throw new Fail("give the brief with --brief <file> (or --dry-run to set up without sending)", 2);
   const task = a.brief ? fs.readFileSync(expand(a.brief), "utf8").trim() : null;
   if (task === "") throw new Fail(`${a.brief} is empty`, 2);
-  const saved = path.join(projDir(p.name), "briefs", `${name}.md`); // written when the brief is sent
-  if (exists(saved) && live(name)) throw new Fail(`${name} already has its brief (${saved}); talk to it with \`fleet send\``, 2);
-  if (live(name)) log(`${name} is running; checking its repo and model.`);
-  else {
-    hc(["run", "--bg", "--json", "--no-notify", "--outlive-parent", "--name", name, "--cwd", cwd,
-      "--label", "fleet.role=cloud-agent", "--label", `fleet.project=${p.name}`, "--", r.run, a.company, "--cloud"]);
-    log(`Started ${name}: ${r.run} ${a.company} --cloud`);
+  const saved = path.join(projDir(p.name), "briefs", `${name}.md`);
+  const sentFile = saved.replace(/\.md$/, ".sent"); // written once the brief is in the session
+  const argv = [r.run, a.company, "--cloud"];
+  if (reusable(name, { project: p.name, role: "cloud-agent", company: a.company, cwd, argv: argv.join(" ") })) {
+    if (exists(sentFile) || delivered(name)) {
+      if (!exists(sentFile)) fs.writeFileSync(sentFile, now() + "\n");
+      throw new Fail(`${name} already has its brief, so nothing was sent again; talk to it with \`fleet send\` (${saved})`, 2);
+    }
+    log(`${name} is running and has no brief yet; checking its repo and model.`);
+  } else {
+    if (exists(sentFile)) fs.unlinkSync(sentFile); // it marked a session that is gone
+    hc(["run", "--bg", "--json", "--no-notify", "--outlive-parent", "--name", name, "--cwd", cwd, "--label", "fleet.role=cloud-agent",
+      "--label", `fleet.project=${p.name}`, "--label", `fleet.company=${a.company}`, "--", ...argv]);
+    log(`Started ${name}: ${argv.join(" ")}`);
   }
   waitScreen(name, (s) => s.includes(DEVIN_READY), 60, `Devin's empty prompt ('${DEVIN_READY}')`,
     `\`hc read ${name}\`: a login prompt means \`devin-as ${a.company} auth login\`; else ${kill(name)}`);
   try {
     cloudRepo(name, a.repo);
-    cloudModel(name, a.model);
+    cloudModel(name);
   } catch (e) {
     hc(["keys", name, "esc"], false); // close a picker left open, so a rerun finds the empty prompt
     throw e;
   }
   if (a.dry_run) {
-    log(`Dry run: ${name} is ready (repo ${a.repo}, Cloud · ${a.model}) and got no message. ` +
+    log(`Dry run: ${name} is ready (repo ${a.repo}, Cloud · ${FUSION}) and got no message. ` +
       `Send the brief with \`fleet cloud ${a.slug} --company ${a.company} --repo ${a.repo} --brief <file>\`, or \`hc kill ${name}\`.`);
     return out(name);
   }
@@ -813,17 +881,21 @@ function cmdCloud(a) {
   // The cloud agent has no system prompt, so its role's rules go ahead of the brief, as `fleet exec` does.
   const sent = hc(["send", name, `${rolePrompt("cloud-agent", r)}\n\n---\n\n${task}`], false);
   if (sent.status !== 0) {
-    fs.unlinkSync(saved);
-    throw new Fail(`hc send ${name} failed: ${(sent.stderr || sent.stdout).trim()}`);
+    // A failed send may still have arrived (hc's manual): look before calling it unsent.
+    for (let i = 0; i < 10 && !delivered(name); i++) spawnSync("sleep", ["0.5"]);
+    if (!delivered(name))
+      throw new Fail(`hc send ${name} failed and the session shows no brief: ${(sent.stderr || sent.stdout).trim()}\n  fix: rerun this command to send it again`);
+    log(`${name}: hc send reported a failure, but the brief is in the session.`);
   }
+  fs.writeFileSync(sentFile, now() + "\n");
   log(`${name}: brief sent (${saved}).`);
   let url = null;
   for (let i = 0; i < 60 && !url; i++) {
-    url = (screenOf(name).match(/https:\/\/app\.devin\.ai\/sessions\/[\w-]+/) || [])[0] || null;
+    url = (historyOf(name).match(DEVIN_URL) || [])[0] || null;
     if (!url) spawnSync("sleep", ["0.5"]);
   }
   if (url) log(`${name}: session ${url}`);
-  else log(`${name}: no session URL on screen yet; find it later with \`hc read ${name} | grep devin.ai\`.`);
+  else log(`${name}: no session URL on screen yet; find it later with \`hc read ${name} --lines 500 | grep /sessions/\`.`);
   out(name);
   if (url) out(url);
 }
@@ -1221,11 +1293,10 @@ const COMMANDS = {
   "project ls": { fn: cmdProjectLs, help: "list projects with their status and lead", opts: json },
   run: { fn: cmdRun, who: "lead", help: "start a worker <key>-<role>-<slug> (<key>: the project name, or its initials past 12 characters): fleet run <role> <slug> --cwd <dir> \"<brief>\"; prints its name; while aligning, only a researcher",
     pos: ["role", "slug", "task"], opts: { "--cwd": { help: "the folder it works in (default: here)" } } },
-  cloud: { fn: cmdCloud, who: "lead", help: "start a Devin cloud session <key>-cloud-agent-<slug>: account, /repo, then the model, each checked on screen before the brief is sent; refuses to send when one fails; rerun carries on; prints its name (and session URL)",
+  cloud: { fn: cmdCloud, who: "lead", help: "start a Devin cloud session <key>-cloud-agent-<slug>: account, /repo, then the Fusion model, each checked on screen before the brief is sent; refuses to send when one fails; rerun carries on; prints its name (and session URL)",
     pos: ["slug"], opts: {
       "--company": { required: true, help: "the folder under the work root, which is also the Devin account (devin-as)" },
       "--repo": { required: true, help: "the repo /repo selects, as Devin's picker names it (web, backend, ...)" },
-      "--model": { def: "Fusion", help: "the model picked with alt+m, as its picker names it" },
       "--brief": { help: "a file holding the brief; saved to briefs/ when sent" },
       "--dry-run": { bool: true, help: "set up the session (repo, model) and send nothing; costs nothing" } } },
   ls: { fn: cmdLs, who: "lead", help: "this project's running workers", opts: json },
