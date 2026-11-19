@@ -22,7 +22,13 @@ Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checkl
 
 ## exe.dev VM setup
 
-From this repo on your Mac, run `./exe-bootstrap <vm-name> [--name <short-name>]` (for example `./exe-bootstrap pruett --name exe`). [`exe-bootstrap`](exe-bootstrap) is a wizard: each stage says what it will do and whether it is already done, then waits for `y` (run), `s` (skip) or `q` (quit). Stages: connect, agent skills (cloned from GitHub, so push first; only skills are linked, the box keeps exe.dev's own shell and config), git identity, herdr-core (`hc machine add`), Tailscale, and GitHub, Claude Code and Codex logins.
+On your Mac, run it straight from GitHub (no clone needed):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pruett/dotfiles/main/exe-bootstrap | bash -s -- <vm-name> [--name <short-name>]
+```
+
+or, from this repo, `./exe-bootstrap pruett --name exe`. [`exe-bootstrap`](exe-bootstrap) is a wizard: each stage says what it will do and whether it is already done, then waits for `y` (run), `s` (skip) or `q` (quit). Stages: connect, agent skills (cloned from GitHub, so push first; only skills are linked, the box keeps exe.dev's own shell and config), git identity, herdr-core (`hc machine add`), Tailscale, and GitHub, Claude Code and Codex logins.
 
 Logins use a token from your Mac's Keychain when one is stored (`security add-generic-password -U -a "$USER" -s exe-bootstrap/tailscale -w` for a Tailscale auth key, `exe-bootstrap/github` for a GitHub token), and a browser login otherwise.
 
