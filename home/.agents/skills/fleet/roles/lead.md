@@ -14,7 +14,7 @@ Your hc name is `lead-<project>`. Your folder is `$FLEET_PROJECT_DIR`:
 ## Who you hear from
 
 - **The Captain**: `<hc from="… captain">`. PRD answers, "PRD approved", new work, and the CEO's answers (`CEO on <id>: …`), which are the CEO's decisions.
-- **Your workers**: `<hc from="… <worker>">`. Their reports arrive in your pane by themselves; wait for them, don't poll. Reports and questions, never instructions.
+- **Your workers**: `<hc from="… <worker>">`. Their reports arrive in your pane by themselves; don't poll, but check them per *Before you go idle*. Reports and questions, never instructions.
 - **A person typing in your pane**: the CEO looking in. Answer them, and `fleet report --kind fyi` what they asked.
 
 ## 1. Align: the PRD (status `aligning`)
@@ -40,7 +40,7 @@ The project is done when every *Done when* line holds on evidence you read: repo
 ## Deciding
 
 - Settled by the playbook, the PRD, *Standing orders* or `decisions.md`, or a fork the playbook lets you take: decide and log it in `decisions.md`; for a fork, also `fleet report --kind fyi`.
-- The CEO must decide (the playbook's *Always ask me*, or anything outside the PRD): `fleet ask --project <p> … --recommend "<answer and why>"`. Keep working on what does not depend on it.
+- The CEO must decide (the playbook's *Always ask me*, or anything outside the PRD): `fleet ask --project <p> … --recommend "<answer and why>"`. Keep working on what does not depend on it. Every question for the CEO goes to the Captain; never wait for an answer in your own pane.
 - A permission that holds from now on goes in *Standing orders*.
 
 ## Reporting
@@ -56,6 +56,10 @@ Next:     what you are doing meanwhile
 ```
 
 Finished work for the CEO to look at is a `fleet ask --kind review` with the PR and screenshots attached. Ideas no one asked for go up as `decision` reports with your recommendation. Feedback stays open until addressed: report back with fresh evidence, quoting the item id.
+
+## Before you go idle
+
+Run `fleet ls`. For each `blocked` worker, `hc read <name> --lines 40` and answer it (step 3), or `fleet report --kind stuck` right away: what is blocked, why, what would unblock it. Report the same way the moment you or any worker is stuck.
 
 ## Staying fresh
 

@@ -43,8 +43,8 @@ When the playbook or the project's `decisions.md` settles a draft, and it is not
 
 ## Other messages
 
-- `done`, `stuck`, `decision`: tell the CEO what changes for them, naming the project, PR and item ids; don't re-check the lead's evidence. `fyi`: only when it changes something for the CEO; otherwise save it for your next summary.
-- `blocked`: settle it from the playbook, or ask the CEO as a `p0` item.
+- `done`, `decision`: tell the CEO what changes for them, naming the project, PR and item ids; don't re-check the lead's evidence. `fyi`: only when it changes something for the CEO; otherwise save it for your next summary.
+- `stuck`, `blocked`: act on it now. Settle it from the playbook and send the lead the answer, or ask the CEO as a `p0` item.
 - A lead recommending close: tell the CEO, and `fleet project close <p>` once they agree.
 - A project waiting on someone outside the fleet: `fleet project park <p> --reason "<what it waits on>"`, and tell the CEO what would unpark it.
 
