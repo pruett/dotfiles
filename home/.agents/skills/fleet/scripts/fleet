@@ -540,7 +540,7 @@ function cmdUp() {
   fs.writeFileSync(HQ_FILE, HOME + "\n");
   if (live(CAPTAIN)) log("The Captain is already running as `captain`.");
   else {
-    launch({ role: "captain", name: CAPTAIN, cwd: fs.realpathSync(HOME), task: "Start your shift.",
+    launch({ role: "captain", name: CAPTAIN, cwd: fs.realpathSync(workRoot()), task: "Start your shift.",
       space: HQ_SPACE, parent: "none", keep: true });
     log("Started the Captain as `captain`.");
   }
