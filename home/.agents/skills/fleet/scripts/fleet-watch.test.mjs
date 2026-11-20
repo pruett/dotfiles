@@ -19,7 +19,7 @@ class Slept extends Error {} // `inbox --wait` found nothing and went to sleep: 
 
 // A fleet with an active project sup-5182 and a mocked hc whose terminals are `terms`
 // ({name: {status, screen}}); `sent` collects every `hc send`. `started` gives what `hc run` starts.
-function setup({ started = () => ({ screen: "" }), project = P } = {}) {
+function setup({ started = () => ({ screen: "" }), project = P, script = SCRIPT } = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "fleet-watch-")));
   const bin = path.join(root, "bin"); // every role's program, so `fleet exec` finds it on PATH
   fs.mkdirSync(bin);
@@ -55,7 +55,7 @@ function setup({ started = () => ({ screen: "" }), project = P } = {}) {
       exit: (c) => { code = c; throw new Exit(); } };
     const setTimeout = () => { throw new Slept(); };
     const ctx = vm.createContext({ require: (m) => (m === "node:child_process" ? { spawnSync } : require(m)),
-      __filename: SCRIPT, process: proc, setTimeout, console });
+      __filename: script, process: proc, setTimeout, console });
     ctx.globalThis = ctx;
     vm.runInContext(SOURCE, ctx);
     return ctx.api.main().catch((e) => { if (!(e instanceof Exit || e instanceof Slept)) throw e; })
@@ -175,8 +175,10 @@ test("fleet run accepts Claude's trust prompt and succeeds once the worker repor
   assert.equal(r.out.trim(), WORKER);
 });
 
-const TEACH = "  Teach auto mode about your environment?\n\n  ❯ 1. Yes\n    2. Not now\n    3. Don't show again\n\n  Enter to confirm · Esc to cancel\n\n❯ \n";
-const TRUST = " Quick safety check: Is this a project you created or one you trust?\n\n ❯ No, exit\n   Yes, I trust this folder\n\n Enter to confirm · Esc to cancel\n";
+// Screens captured from Claude Code 2.1.311 (hc read --lines 0) showing each dialog.
+const TRUST = ["", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", " Accessing workspace:", "", " /private/tmp/claude-501/-Users-kevinpruett-worktrees-dotfiles-fse-dialogs/2c1db493-edfd-473a-9ecd-294843429c52/scratchpad/work/acme/trust", "", " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source project, or work from your team). If not, take a moment to review what's in this", " folder first.", "", " Claude Code'll be able to read, edit, and execute files here.", "", " Security guide", "", " ❯ No, exit", "   Yes, I trust this folder", "", " Enter to confirm · Esc to cancel"].join("\n");
+const TEACH = ["", " ▐▛███▛█   Claude Code v2.1.311", "▝▜██████▀  Haiku 5.5 · API Usage Billing", " ▝▝   ▝▝   /private/tmp/claude-501/-Users-kevinpruett-worktrees-dotfiles-fse-dialogs/2c1db493-edfd-473a-9ecd-294843429c52/scratchpad/work/acme/before", "", "⚠ 1 MCP server needs authentication · run /mcp", "", "❯ say hi", "  ⎿  Not logged in · Please run /login", "", "✻ Baked for 0s · done 4:20 PM"].join("\n") + "\n".repeat(95) +
+  ["", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", "  Teach auto mode about your environment?", "", "  Auto mode works better when it knows your environment. Takes about a minute.", "", "  ❯ 1. Yes", "    2. Not now", "    3. Don't show again", "", "  Enter to confirm · Esc to cancel", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", "❯ ", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"].join("\n");
 
 for (const [dialog, screen] of [["Teach auto mode about your environment?", TEACH], ["trust this folder", TRUST]]) {
   test(`fleet send types nothing and fails, naming the dialog and \`hc read\`, when the target shows "${dialog}"`, async () => {
@@ -188,15 +190,25 @@ for (const [dialog, screen] of [["Teach auto mode about your environment?", TEAC
     assert.match(r.err, new RegExp(`hc read ${LEAD}`));
     assert.equal(t.sent.length, 0);
   });
+
+  test(`fleet send reaches a target whose latest output quotes "${dialog}"`, async () => {
+    const t = setup();
+    t.terms[LEAD] = { status: "idle", screen: `● The fix checks "${dialog}" before sending.\n\n❯ \n` };
+    t.terms[WORKER] = { status: "working", screen: `● Quoting the dialog:\n  ${dialog}\n  Yes, I trust this folder\n  1. Yes\n✻ Working…\n❯ \n` };
+    assert.equal((await t.fleet("captain", "send", LEAD, "Status?")).code, 0);
+    assert.equal((await t.fleet("lead", "send", WORKER, "Carry on.")).code, 0);
+    assert.deepEqual(t.sent, [{ to: LEAD, text: "Status?" }, { to: WORKER, text: "Carry on." }]);
+  });
 }
 
-test("fleet send still reaches an idle or working target, even one whose earlier output quotes a dialog", async () => {
+test("fleet send types nothing and fails when it cannot read the target's screen", async () => {
   const t = setup();
-  t.terms[LEAD] = { status: "idle", screen: "❯ \n" };
-  t.terms[WORKER] = { status: "working", screen: TEACH + "● Reading findings.md\n".repeat(40) + "✻ Working…\n❯ \n" };
-  assert.equal((await t.fleet("captain", "send", LEAD, "Status?")).code, 0);
-  assert.equal((await t.fleet("lead", "send", WORKER, "Carry on.")).code, 0);
-  assert.deepEqual(t.sent, [{ to: LEAD, text: "Status?" }, { to: WORKER, text: "Carry on." }]);
+  t.terms[LEAD] = { status: null, screen: TRUST };
+  t.hcDown.add("read");
+  const r = await t.fleet("captain", "send", LEAD, "Status?");
+  assert.equal(r.code, 1);
+  assert.match(r.err, /hc read/);
+  assert.equal(t.sent.length, 0);
 });
 
 test("fleet exec starts every Claude role with the Teach dialog turned off, and Codex and Devin without Claude's settings", async () => {
@@ -207,10 +219,29 @@ test("fleet exec starts every Claude role with the Teach dialog turned off, and 
   for (const [name, r] of Object.entries(roles)) {
     t.execs.length = 0;
     await t.fleetIn(company, "you", "exec", name, "Do the task.");
-    const [argv] = t.execs;
+    const argv = [...t.execs[0]]; // out of the script's realm, for deepEqual
     assert.equal(argv[0], r.run, name);
-    const i = argv.indexOf("--settings");
-    if (r.run === "claude") assert.deepEqual(JSON.parse(argv[i + 1]).skillOverrides, { "auto-mode-setup": "off" }, name);
-    else assert.equal(i, -1, name);
+    const settings = argv.filter((x, i) => argv[i - 1] === "--settings");
+    if (r.run === "claude") assert.deepEqual(settings.map((x) => JSON.parse(x).skillOverrides), [{ "auto-mode-setup": "off" }], name);
+    else assert.deepEqual(settings, [], name);
   }
 });
+
+for (const flag of [["--settings", "{}"], ["--settings={}"]]) {
+  test(`fleet exec refuses a Claude role given its own ${flag.join(" ")}, in the command or in the role's args`, async () => {
+    const t = setup();
+    let r = await t.fleet("you", "exec", "researcher", ...flag, "Do the task.");
+    assert.equal(r.code, 2);
+    assert.match(r.err, /--settings/);
+    const skill = path.join(t.root, "skill"), roles = JSON.parse(fs.readFileSync(path.join(path.dirname(SCRIPT), "..", "roles.json"), "utf8"));
+    roles.roles.researcher.args.push(...flag);
+    fs.mkdirSync(path.join(skill, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(skill, "roles.json"), JSON.stringify(roles));
+    fs.copyFileSync(SCRIPT, path.join(skill, "scripts", "fleet"));
+    const t2 = setup({ script: path.join(skill, "scripts", "fleet") });
+    r = await t2.fleet("you", "exec", "researcher", "Do the task.");
+    assert.equal(r.code, 2);
+    assert.match(r.err, /--settings/);
+    assert.equal(t.execs.length + t2.execs.length, 0);
+  });
+}

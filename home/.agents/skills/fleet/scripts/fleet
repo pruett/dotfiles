@@ -85,13 +85,16 @@ const PRD_FIELDS = ["Goal", "Done when", "Repos", "Worktrees", "Scope", "Verific
 const ROLE = process.env.FLEET_ROLE || "you"; // who is running this command
 const LEADERS = ["captain", "lead"]; // roles started by `fleet up` and `fleet project`, never `fleet run`
 // Claude settings every Claude agent starts with: no "Teach auto mode about your environment?"
-// dialog, which waits for a person. Claude keeps one --settings, so a later one replaces this.
+// dialog, which waits for a person. Claude keeps only the last --settings, so no other may be passed.
 const CLAUDE_SETTINGS = JSON.stringify({ skillOverrides: { "auto-mode-setup": "off" } });
 // Claude dialogs that wait for a key; text sent into one picks an answer (Enter on the trust
-// dialog picks "No, exit"). Each is a line of the dialog, found only near the screen's bottom.
-const CLAUDE_DIALOGS = ["trust this folder", "Teach auto mode about your environment?",
-  "Detected a custom API key in your environment", "New MCP server found in this project",
-  "WARNING: Claude Code running in Bypass Permissions mode"];
+// dialog picks "No, exit"). name -> the lines it renders, each a whole line (less the ❯ cursor)
+// near the screen's bottom, so a message quoting them is not a dialog.
+const CLAUDE_DIALOGS = {
+  "trust this folder": ["No, exit", "Yes, I trust this folder", "Enter to confirm · Esc to cancel"],
+  "Teach auto mode about your environment?": ["Teach auto mode about your environment?", "1. Yes", "2. Not now",
+    "3. Don't show again", "Enter to confirm · Esc to cancel"],
+};
 
 // This fleet's optional settings, kept in $FLEET_HOME/config.env: name -> [what it is, default].
 const SETTINGS = {
@@ -523,6 +526,8 @@ function cmdExec(a) {
   };
   const args = (r.args || []).map((x) => (x === "{company}" ? company() : x));
   const argv = [r.run, ...args], extra = [...a.extra], prompt = rolePrompt(a.role, r);
+  if (r.run === "claude" && [...args, ...extra].some((x) => x === "--settings" || x.startsWith("--settings=")))
+    throw new Fail(`${a.role} starts Claude with fleet's own --settings (no Teach auto mode dialog); Claude keeps only one, so drop yours`, 2);
   if (r.run === "claude") argv.push("--settings", CLAUDE_SETTINGS, "--append-system-prompt", prompt);
   else if (extra.length && !extra.at(-1).startsWith("-")) extra.push(`${prompt}\n\n---\n\n${extra.pop()}`);
   else extra.push(prompt);
@@ -966,8 +971,9 @@ function cmdSend(a) {
     if (!/^lead-/.test(a.name)) throw new Fail(`${a.name} is not a lead (lead-<p>)`, 2);
     if (!live(a.name)) throw new Fail(`${a.name} is not running; start it with \`fleet project start ${a.name.slice(5)}\``, 2);
   }
-  const screen = hc(["read", a.name, "--lines", "0"], false).stdout.trimEnd().split("\n").slice(-25).join("\n");
-  const dialog = CLAUDE_DIALOGS.find((d) => screen.includes(d));
+  const screen = new Set(hc(["read", a.name, "--lines", "0"]).stdout.trimEnd().split("\n").slice(-25)
+    .map((l) => l.replace(/^\s*❯?/, "").trim()));
+  const dialog = Object.keys(CLAUDE_DIALOGS).find((d) => CLAUDE_DIALOGS[d].every((l) => screen.has(l)));
   if (dialog) throw new Fail(`${a.name} shows Claude's "${dialog}" dialog, so nothing was sent; look with \`hc read ${a.name}\``);
   const raw = a.text.startsWith("/"), env = { ...process.env };
   if (raw) delete env.HC_TERMINAL_ID; // without it hc cannot tag the sender
