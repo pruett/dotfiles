@@ -347,15 +347,15 @@ function launch({ role, name, cwd, task, space, labels = [], parent = "child", k
   if (parent === "none") args.push("--no-parent");
   args.push("--", "env", `FLEET_HOME=${HOME}`, SELF, "exec", role, task); // hc run passes no environment
   hc(args);
-  settle(name, cwd);
+  return settle(name, cwd);
 }
 
-// Wait until the agent reports a status. Claude asks before working in a folder it has
-// not seen; accept that once, and it then starts on its task.
+// Wait until the agent reports a status; false if it never does. Claude asks before working
+// in a folder it has not seen; accept that once, and it then starts on its task.
 function settle(name, cwd) {
   for (let i = 0; i < 40; i++) {
     const st = word(live(name));
-    if (!["live", "stopped"].includes(st)) return;
+    if (!["live", "stopped"].includes(st)) return true;
     const screen = hc(["read", name, "--lines", "0"], false).stdout;
     if (screen.includes("trust this folder")) {
       log(`${name}: accepting Claude's trust prompt for ${cwd}.`);
@@ -365,6 +365,7 @@ function settle(name, cwd) {
     spawnSync("sleep", ["0.5"]);
   }
   log(`${name}: started, but has reported no status after 20 seconds. Look with \`hc read ${name}\`.`);
+  return false;
 }
 
 // ---- commands ---------------------------------------------------------------
@@ -685,8 +686,9 @@ function cmdRun(a) {
   const brief = path.join(projDir(p.name), "briefs", `${name}.md`);
   fs.mkdirSync(path.dirname(brief), { recursive: true });
   fs.writeFileSync(brief, a.task + "\n");
-  launch({ role: a.role, name, cwd: path.resolve(expand(a.cwd || ".")), task: a.task,
-    labels: [`fleet.project=${p.name}`], parent: "outlive" });
+  if (!launch({ role: a.role, name, cwd: path.resolve(expand(a.cwd || ".")), task: a.task,
+    labels: [`fleet.project=${p.name}`], parent: "outlive" }))
+    throw new Fail(`${name} never reported a status, so it may not have its brief; look with \`hc read ${name}\``);
   out(name);
 }
 
@@ -1086,22 +1088,32 @@ function unread() {
 const seenFile = () => path.join(HOME, "inbox", "leads.state");
 const readSeen = () => (exists(seenFile()) ? readJson(seenFile()) : {});
 
-// Inbox messages for leads that turned blocked or stopped since the last look.
-function watchLeads() {
+// Inbox messages for leads that turned blocked or stopped since the last look, and for
+// workers that turned blocked (their lead hears too). A worker's entry lasts while it runs.
+function watchFleet() {
   const seen = readSeen(), nowSeen = {};
   for (const p of projects()) {
     if (["closed", "parked"].includes(p.status)) continue;
     const st = word(live(p.lead));
     nowSeen[p.lead] = st;
     const before = seen[p.lead]; // undefined on the first look: nothing to compare with
-    if (before === undefined || before === st) continue;
-    if (st === "blocked")
-      deliver("blocked", p.lead, p.name, `${p.lead} is blocked: it needs a person. Read it with \`hc read ${p.lead} --lines 60\`.`);
-    else if (st === "stopped")
-      deliver("stopped", p.lead, p.name, `${p.lead} has stopped. Restart it with \`fleet project start ${p.name}\` if its plan has open work.`);
+    if (before !== undefined && before !== st) {
+      if (st === "blocked")
+        deliver("blocked", p.lead, p.name, `${p.lead} is blocked: it needs a person. Read it with \`hc read ${p.lead} --lines 60\`.`);
+      else if (st === "stopped")
+        deliver("stopped", p.lead, p.name, `${p.lead} has stopped. Restart it with \`fleet project start ${p.name}\` if its plan has open work.`);
+    }
+    for (const w of workers(p)) {
+      const wst = (nowSeen[w.name] = word(w));
+      if (wst !== "blocked" || seen[w.name] === "blocked") continue;
+      const note = `${w.name} is blocked: it needs an answer. Read it with \`hc read ${w.name} --lines 40\`.`;
+      const told = hc(["send", p.lead, note], false).status === 0;
+      deliver("blocked", w.name, p.name, `${note} It is a worker of ${p.name}; ${told ? `${p.lead} was told` : `telling ${p.lead} failed`}.`);
+    }
   }
+  const leads = Object.fromEntries(Object.entries(seen).filter(([n]) => n.startsWith("lead-")));
   fs.mkdirSync(path.join(HOME, "inbox"), { recursive: true });
-  fs.writeFileSync(seenFile(), JSON.stringify({ ...seen, ...nowSeen }));
+  fs.writeFileSync(seenFile(), JSON.stringify({ ...leads, ...nowSeen }));
 }
 
 // A lead stopped on purpose: no `stopped` message for it.
@@ -1160,7 +1172,7 @@ async function cmdInbox(a) {
   let msgs;
   if (a.wait) {
     for (;;) {
-      watchLeads();
+      watchFleet();
       msgs = unread();
       if (msgs.length) break;
       await sleep(3000);
