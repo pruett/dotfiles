@@ -292,10 +292,10 @@ function workerKey(name) {
   return initials.length > 1 ? initials : name.slice(0, 6);
 }
 
-// A project's workers: live terminals named <key>-<role>-<slug>.
-function workers(p) {
+// A project's workers: live terminals named <key>-<role>-<slug>, from `hc ls` unless given.
+function workers(p, terms = (hcJson("ls") || {}).terminals || []) {
   const rs = Object.keys(roles()).filter((r) => !LEADERS.includes(r));
-  return ((hcJson("ls") || {}).terminals || [])
+  return terms
     .filter((t) => t.name && rs.some((r) => t.name.startsWith(`${workerKey(p.name)}-${r}-`)));
 }
 
@@ -1089,10 +1089,11 @@ const seenFile = () => path.join(HOME, "inbox", "leads.state");
 const readSeen = () => (exists(seenFile()) ? readJson(seenFile()) : {});
 
 // Inbox messages for leads that turned blocked or stopped since the last look, and for
-// workers that turned blocked (their lead hears too). A worker's entry lasts while it runs.
+// workers that turned blocked (their lead hears too). A worker's entry lasts while it runs;
+// when `hc ls` fails, workers are not looked at and their entries stay for the next look.
 function watchFleet() {
-  const seen = readSeen(), nowSeen = {};
-  for (const p of projects()) {
+  const seen = readSeen(), nowSeen = {}, ps = projects(), listing = hcJson("ls");
+  for (const p of ps) {
     if (["closed", "parked"].includes(p.status)) continue;
     const st = word(live(p.lead));
     nowSeen[p.lead] = st;
@@ -1103,7 +1104,7 @@ function watchFleet() {
       else if (st === "stopped")
         deliver("stopped", p.lead, p.name, `${p.lead} has stopped. Restart it with \`fleet project start ${p.name}\` if its plan has open work.`);
     }
-    for (const w of workers(p)) {
+    for (const w of listing ? workers(p, listing.terminals || []) : []) {
       const wst = (nowSeen[w.name] = word(w));
       if (wst !== "blocked" || seen[w.name] === "blocked") continue;
       const note = `${w.name} is blocked: it needs an answer. Read it with \`hc read ${w.name} --lines 40\`.`;
@@ -1111,9 +1112,10 @@ function watchFleet() {
       deliver("blocked", w.name, p.name, `${note} It is a worker of ${p.name}; ${told ? `${p.lead} was told` : `telling ${p.lead} failed`}.`);
     }
   }
-  const leads = Object.fromEntries(Object.entries(seen).filter(([n]) => n.startsWith("lead-")));
+  const leads = new Set(ps.map((p) => p.lead));
+  const kept = Object.fromEntries(Object.entries(seen).filter(([n]) => !listing || leads.has(n)));
   fs.mkdirSync(path.join(HOME, "inbox"), { recursive: true });
-  fs.writeFileSync(seenFile(), JSON.stringify({ ...leads, ...nowSeen }));
+  fs.writeFileSync(seenFile(), JSON.stringify({ ...kept, ...nowSeen }));
 }
 
 // A lead stopped on purpose: no `stopped` message for it.

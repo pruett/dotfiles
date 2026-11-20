@@ -18,18 +18,19 @@ class Slept extends Error {} // `inbox --wait` found nothing and went to sleep: 
 
 // A fleet with an active project sup-5182 and a mocked hc whose terminals are `terms`
 // ({name: {status, screen}}); `sent` collects every `hc send`. `started` gives what `hc run` starts.
-function setup({ started = () => ({ screen: "" }) } = {}) {
+function setup({ started = () => ({ screen: "" }), project = P } = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "fleet-watch-")));
-  const home = path.join(root, ".fleet"), pdir = path.join(home, "projects", P);
+  const home = path.join(root, ".fleet"), pdir = path.join(home, "projects", project);
   fs.mkdirSync(path.join(pdir, "briefs"), { recursive: true });
   fs.writeFileSync(path.join(pdir, "prd.md"), "## PRD\napproved\n");
   const hash = crypto.createHash("sha256").update("approved").digest("hex").slice(0, 16);
-  fs.writeFileSync(path.join(pdir, "project.json"), JSON.stringify({ name: P, lead: LEAD, status: "active", prd_hash: hash }));
-  const terms = {}, sent = [];
+  fs.writeFileSync(path.join(pdir, "project.json"), JSON.stringify({ name: project, lead: `lead-${project}`, status: "active", prd_hash: hash }));
+  const terms = {}, sent = [], hcDown = new Set(); // hcDown: hc commands that fail
   const hc = (args) => {
     const ok = (stdout = "") => ({ status: 0, stdout, stderr: "" });
     const missing = { status: 1, stdout: "", stderr: "not_found" };
     const [cmd, name] = args, t = terms[name];
+    if (hcDown.has(cmd)) return { status: 1, stdout: "", stderr: "server not running" };
     if (cmd === "ls") return ok(JSON.stringify({ terminals: Object.entries(terms).map(([n, x]) => ({ name: n, state: "live", status: x.status })) }));
     if (cmd === "get") return t ? ok(JSON.stringify({ name, state: "live", status: t.status && { app: "claude-code", state: t.status } })) : missing;
     if (cmd === "run") return (terms[args[args.indexOf("--name") + 1]] = started()), ok("{}");
@@ -62,7 +63,7 @@ function setup({ started = () => ({ screen: "" }) } = {}) {
     const r = await fleet("captain", "inbox", "--wait");
     assert.equal(r.code, 0, r.err);
   };
-  return { fleet, poll, inbox, terms, sent, root };
+  return { fleet, poll, inbox, terms, sent, root, hcDown };
 }
 
 test("a worker turning blocked reaches the Captain's inbox and its lead once per transition", async () => {
@@ -102,6 +103,28 @@ test("a worker already blocked when first seen is reported; one restarted under 
   await t.poll({ [WORKER]: "blocked" });
   assert.equal(t.inbox().length, 2);
   assert.equal(t.sent.length, 2);
+});
+
+test("a worker of a project named 'lead' that is restarted already blocked is reported again", async () => {
+  const t = setup({ project: "lead" });
+  const w = "lead-researcher-findings";
+  await t.poll({ "lead-lead": "idle", [w]: "blocked" });
+  delete t.terms[w];
+  await t.poll({});
+  await t.poll({ [w]: "blocked" });
+  assert.equal(t.inbox().length, 2);
+  assert.equal(t.sent.length, 2);
+});
+
+test("a failed hc ls does not make a still-blocked worker look new", async () => {
+  const t = setup();
+  await t.poll({ [LEAD]: "idle", [WORKER]: "blocked" });
+  t.hcDown.add("ls");
+  await t.poll({});
+  t.hcDown.delete("ls");
+  await t.poll({ [WORKER]: "blocked" });
+  assert.equal(t.inbox().length, 1);
+  assert.equal(t.sent.length, 1);
 });
 
 test("a blocked worker whose lead is not running still reaches the Captain", async () => {
