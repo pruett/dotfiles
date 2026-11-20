@@ -88,8 +88,8 @@ const LEADERS = ["captain", "lead"]; // roles started by `fleet up` and `fleet p
 // dialog, which waits for a person. Claude keeps only the last --settings, so no other may be passed.
 const CLAUDE_SETTINGS = JSON.stringify({ skillOverrides: { "auto-mode-setup": "off" } });
 // Claude dialogs that wait for a key; text sent into one picks an answer (Enter on the trust
-// dialog picks "No, exit"). name -> the lines it renders, each a whole line (less the ❯ cursor)
-// near the screen's bottom, so a message quoting them is not a dialog.
+// dialog picks "No, exit"). name -> the lines it renders, each as whole rows (less the ❯ cursor;
+// a narrow pane wraps one over several) near the screen's bottom, so a message quoting them is not a dialog.
 const CLAUDE_DIALOGS = {
   "trust this folder": ["No, exit", "Yes, I trust this folder", "Enter to confirm · Esc to cancel"],
   "Teach auto mode about your environment?": ["Teach auto mode about your environment?", "1. Yes", "2. Not now",
@@ -971,9 +971,10 @@ function cmdSend(a) {
     if (!/^lead-/.test(a.name)) throw new Fail(`${a.name} is not a lead (lead-<p>)`, 2);
     if (!live(a.name)) throw new Fail(`${a.name} is not running; start it with \`fleet project start ${a.name.slice(5)}\``, 2);
   }
-  const screen = new Set(hc(["read", a.name, "--lines", "0"]).stdout.trimEnd().split("\n").slice(-25)
-    .map((l) => l.replace(/^\s*❯?/, "").trim()));
-  const dialog = Object.keys(CLAUDE_DIALOGS).find((d) => CLAUDE_DIALOGS[d].every((l) => screen.has(l)));
+  const rows = hc(["read", a.name, "--lines", "0"]).stdout.trimEnd().split("\n").slice(-25)
+    .map((l) => l.replace(/^\s*❯?/, "").trim());
+  const shown = (line) => rows.some((_, i) => [1, 2, 3].some((n) => rows.slice(i, i + n).join(" ") === line));
+  const dialog = Object.keys(CLAUDE_DIALOGS).find((d) => CLAUDE_DIALOGS[d].every(shown));
   if (dialog) throw new Fail(`${a.name} shows Claude's "${dialog}" dialog, so nothing was sent; look with \`hc read ${a.name}\``);
   const raw = a.text.startsWith("/"), env = { ...process.env };
   if (raw) delete env.HC_TERMINAL_ID; // without it hc cannot tag the sender

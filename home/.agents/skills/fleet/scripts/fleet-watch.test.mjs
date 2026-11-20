@@ -175,13 +175,24 @@ test("fleet run accepts Claude's trust prompt and succeeds once the worker repor
   assert.equal(r.out.trim(), WORKER);
 });
 
-// Screens captured from Claude Code 2.1.311 (hc read --lines 0) showing each dialog.
+// Screens captured from Claude Code 2.1.311 (hc read --lines 0) showing each dialog, in a 200-, 80- and 40-column pane.
 const TRUST = ["", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", " Accessing workspace:", "", " /private/tmp/claude-501/-Users-kevinpruett-worktrees-dotfiles-fse-dialogs/2c1db493-edfd-473a-9ecd-294843429c52/scratchpad/work/acme/trust", "", " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source project, or work from your team). If not, take a moment to review what's in this", " folder first.", "", " Claude Code'll be able to read, edit, and execute files here.", "", " Security guide", "", " ❯ No, exit", "   Yes, I trust this folder", "", " Enter to confirm · Esc to cancel"].join("\n");
 const TEACH = ["", " ▐▛███▛█   Claude Code v2.1.311", "▝▜██████▀  Haiku 5.5 · API Usage Billing", " ▝▝   ▝▝   /private/tmp/claude-501/-Users-kevinpruett-worktrees-dotfiles-fse-dialogs/2c1db493-edfd-473a-9ecd-294843429c52/scratchpad/work/acme/before", "", "⚠ 1 MCP server needs authentication · run /mcp", "", "❯ say hi", "  ⎿  Not logged in · Please run /login", "", "✻ Baked for 0s · done 4:20 PM"].join("\n") + "\n".repeat(95) +
   ["", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", "  Teach auto mode about your environment?", "", "  Auto mode works better when it knows your environment. Takes about a minute.", "", "  ❯ 1. Yes", "    2. Not now", "    3. Don't show again", "", "  Enter to confirm · Esc to cancel", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", "❯ ", "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"].join("\n");
+const TRUST_40 = ["", "────────────────────────────────────────", " Accessing workspace:", "", " /private/tmp/claude-501/-Users-kevinpr", " uett-worktrees-dotfiles-fse-dialogs/2c", " 1db493-edfd-473a-9ecd-294843429c52/scr", " atchpad/narrow/t40", "", " Quick safety check: Is this a project", " you created or one you trust? (Like", " your own code, a well-known open", " source project, or work from your", " team). If not, take a moment to review", " what's in this folder first.", "", " Claude Code'll be able to read, edit,", " and execute files here.", "", " Security guide", "", " ❯ No, exit", "   Yes, I trust this folder", "", " Enter to confirm · Esc to cancel"].join("\n");
+const TRUST_80 = ["", "────────────────────────────────────────────────────────────────────────────────", " Accessing workspace:", "", " /private/tmp/claude-501/-Users-kevinpruett-worktrees-dotfiles-fse-dialogs/2c1d", " b493-edfd-473a-9ecd-294843429c52/scratchpad/narrow/t80", "", " Quick safety check: Is this a project you created or one you trust? (Like your", " own code, a well-known open source project, or work from your team). If not,", " take a moment to review what's in this folder first.", "", " Claude Code'll be able to read, edit, and execute files here.", "", " Security guide", "", " ❯ No, exit", "   Yes, I trust this folder", "", " Enter to confirm · Esc to cancel"].join("\n");
+const TEACH_40 = ["", "           Claude Code v2.1.311", " ▐▛███▛█   Haiku 5.5", "▝▜██████▀  API Usage Billing", " ▝▝   ▝▝   /…/narrow/teach40", "", "⚠ 1 MCP server needs authentication ·", "  run /mcp", "", "❯ say hi", "  ⎿  Not logged in · Please run /login", "", "✻ Churned for 0s · done 4:30 PM"].join("\n") +
+  "\n".repeat(11) +
+  ["────────────────────────────────────────", "  Teach auto mode about your", "  environment?", "", "  Auto mode works better when it knows", "  your environment. Takes about a", "  minute.", "", "  ❯ 1. Yes", "    2. Not now", "    3. Don't show again", "", "  Enter to confirm · Esc to cancel", "────────────────────────────────────────", "❯ ", "────────────────────────────────────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"].join("\n");
+const TEACH_80 = ["", " ▐▛███▛█   Claude Code v2.1.311", "▝▜██████▀  Haiku 5.5 · API Usage Billing", " ▝▝   ▝▝   /…/2c1db493-edfd-473a-9ecd-294843429c52/scratchpad/narrow/teach80", "", "⚠ 1 MCP server needs authentication · run /mcp", "", "❯ say hi", "  ⎿  Not logged in · Please run /login", "", "✻ Crunched for 0s · done 4:30 PM"].join("\n") +
+  "\n".repeat(16) +
+  ["────────────────────────────────────────────────────────────────────────────────", "  Teach auto mode about your environment?", "", "  Auto mode works better when it knows your environment. Takes about a minute.", "", "  ❯ 1. Yes", "    2. Not now", "    3. Don't show again", "", "  Enter to confirm · Esc to cancel", "────────────────────────────────────────────────────────────────────────────────", "❯ ", "────────────────────────────────────────────────────────────────────────────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"].join("\n");
 
-for (const [dialog, screen] of [["Teach auto mode about your environment?", TEACH], ["trust this folder", TRUST]]) {
-  test(`fleet send types nothing and fails, naming the dialog and \`hc read\`, when the target shows "${dialog}"`, async () => {
+const DIALOG_SCREENS = [["Teach auto mode about your environment?", 200, TEACH], ["trust this folder", 200, TRUST],
+  ["Teach auto mode about your environment?", 80, TEACH_80], ["trust this folder", 80, TRUST_80],
+  ["Teach auto mode about your environment?", 40, TEACH_40], ["trust this folder", 40, TRUST_40]];
+for (const [dialog, cols, screen] of DIALOG_SCREENS) {
+  test(`fleet send types nothing and fails, naming the dialog and \`hc read\`, when a ${cols}-column target shows "${dialog}"`, async () => {
     const t = setup();
     t.terms[LEAD] = { status: null, screen };
     const r = await t.fleet("captain", "send", LEAD, "Status?");
@@ -190,7 +201,9 @@ for (const [dialog, screen] of [["Teach auto mode about your environment?", TEAC
     assert.match(r.err, new RegExp(`hc read ${LEAD}`));
     assert.equal(t.sent.length, 0);
   });
+}
 
+for (const dialog of ["Teach auto mode about your environment?", "trust this folder"]) {
   test(`fleet send reaches a target whose latest output quotes "${dialog}"`, async () => {
     const t = setup();
     t.terms[LEAD] = { status: "idle", screen: `● The fix checks "${dialog}" before sending.\n\n❯ \n` };
