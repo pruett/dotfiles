@@ -1,5 +1,6 @@
-// Tests for the Captain's watcher (`fleet inbox --wait`) and for `fleet run` waiting on a new
-// worker, against a mocked `hc`: node --test <this file>.
+// Tests for the Captain's watcher (`fleet inbox --wait`), for `fleet run` waiting on a new
+// worker, for `fleet send` refusing a Claude dialog and for the program `fleet exec` starts,
+// against a mocked `hc`: node --test <this file>.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -20,12 +21,15 @@ class Slept extends Error {} // `inbox --wait` found nothing and went to sleep: 
 // ({name: {status, screen}}); `sent` collects every `hc send`. `started` gives what `hc run` starts.
 function setup({ started = () => ({ screen: "" }), project = P } = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "fleet-watch-")));
+  const bin = path.join(root, "bin"); // every role's program, so `fleet exec` finds it on PATH
+  fs.mkdirSync(bin);
+  for (const prog of ["claude", "codex", "devin-as"]) fs.writeFileSync(path.join(bin, prog), "", { mode: 0o755 });
   const home = path.join(root, ".fleet"), pdir = path.join(home, "projects", project);
   fs.mkdirSync(path.join(pdir, "briefs"), { recursive: true });
   fs.writeFileSync(path.join(pdir, "prd.md"), "## PRD\napproved\n");
   const hash = crypto.createHash("sha256").update("approved").digest("hex").slice(0, 16);
   fs.writeFileSync(path.join(pdir, "project.json"), JSON.stringify({ name: project, lead: `lead-${project}`, status: "active", prd_hash: hash }));
-  const terms = {}, sent = [], hcDown = new Set(); // hcDown: hc commands that fail
+  const terms = {}, sent = [], hcDown = new Set(), execs = []; // hcDown: hc commands that fail; execs: programs started
   const hc = (args) => {
     const ok = (stdout = "") => ({ status: 0, stdout, stderr: "" });
     const missing = { status: 1, stdout: "", stderr: "not_found" };
@@ -40,11 +44,13 @@ function setup({ started = () => ({ screen: "" }), project = P } = {}) {
     return ok();
   };
   const spawnSync = (prog, args) => (prog === "hc" ? hc(args) : { status: 0, stdout: "", stderr: "" });
-  const fleet = (role, ...argv) => {
+  const fleet = (role, ...argv) => fleetIn(root, role, ...argv);
+  const fleetIn = (cwd, role, ...argv) => {
     const outs = [], errs = [];
     let code = 0;
     const proc = { ...process, argv: ["node", SCRIPT, ...argv],
-      env: { PATH: process.env.PATH, FLEET_HOME: home, FLEET_ROLE: role, ...(role === "lead" ? { FLEET_PROJECT_DIR: pdir } : {}) },
+      cwd: () => cwd, execve: (file, args) => { execs.push(args); throw new Exit(); },
+      env: { PATH: `${bin}:${process.env.PATH}`, FLEET_HOME: home, FLEET_ROLE: role, ...(role === "lead" ? { FLEET_PROJECT_DIR: pdir } : {}) },
       stdout: { write: (s) => outs.push(s) }, stderr: { write: (s) => errs.push(s) },
       exit: (c) => { code = c; throw new Exit(); } };
     const setTimeout = () => { throw new Slept(); };
@@ -63,7 +69,7 @@ function setup({ started = () => ({ screen: "" }), project = P } = {}) {
     const r = await fleet("captain", "inbox", "--wait");
     assert.equal(r.code, 0, r.err);
   };
-  return { fleet, poll, inbox, terms, sent, root, hcDown };
+  return { fleet, fleetIn, poll, inbox, terms, sent, execs, root, hcDown };
 }
 
 test("a worker turning blocked reaches the Captain's inbox and its lead once per transition", async () => {
@@ -167,4 +173,44 @@ test("fleet run accepts Claude's trust prompt and succeeds once the worker repor
   const r = await t.fleet("lead", "run", "researcher", "findings", "--cwd", t.root, "Read the repo.");
   assert.equal(r.code, 0, r.err);
   assert.equal(r.out.trim(), WORKER);
+});
+
+const TEACH = "  Teach auto mode about your environment?\n\n  ❯ 1. Yes\n    2. Not now\n    3. Don't show again\n\n  Enter to confirm · Esc to cancel\n\n❯ \n";
+const TRUST = " Quick safety check: Is this a project you created or one you trust?\n\n ❯ No, exit\n   Yes, I trust this folder\n\n Enter to confirm · Esc to cancel\n";
+
+for (const [dialog, screen] of [["Teach auto mode about your environment?", TEACH], ["trust this folder", TRUST]]) {
+  test(`fleet send types nothing and fails, naming the dialog and \`hc read\`, when the target shows "${dialog}"`, async () => {
+    const t = setup();
+    t.terms[LEAD] = { status: null, screen };
+    const r = await t.fleet("captain", "send", LEAD, "Status?");
+    assert.equal(r.code, 1);
+    assert.ok(r.err.includes(dialog), r.err);
+    assert.match(r.err, new RegExp(`hc read ${LEAD}`));
+    assert.equal(t.sent.length, 0);
+  });
+}
+
+test("fleet send still reaches an idle or working target, even one whose earlier output quotes a dialog", async () => {
+  const t = setup();
+  t.terms[LEAD] = { status: "idle", screen: "❯ \n" };
+  t.terms[WORKER] = { status: "working", screen: TEACH + "● Reading findings.md\n".repeat(40) + "✻ Working…\n❯ \n" };
+  assert.equal((await t.fleet("captain", "send", LEAD, "Status?")).code, 0);
+  assert.equal((await t.fleet("lead", "send", WORKER, "Carry on.")).code, 0);
+  assert.deepEqual(t.sent, [{ to: LEAD, text: "Status?" }, { to: WORKER, text: "Carry on." }]);
+});
+
+test("fleet exec starts every Claude role with the Teach dialog turned off, and Codex and Devin without Claude's settings", async () => {
+  const t = setup();
+  const company = path.join(t.root, "acme");
+  fs.mkdirSync(company);
+  const roles = JSON.parse(fs.readFileSync(path.join(path.dirname(SCRIPT), "..", "roles.json"), "utf8")).roles;
+  for (const [name, r] of Object.entries(roles)) {
+    t.execs.length = 0;
+    await t.fleetIn(company, "you", "exec", name, "Do the task.");
+    const [argv] = t.execs;
+    assert.equal(argv[0], r.run, name);
+    const i = argv.indexOf("--settings");
+    if (r.run === "claude") assert.deepEqual(JSON.parse(argv[i + 1]).skillOverrides, { "auto-mode-setup": "off" }, name);
+    else assert.equal(i, -1, name);
+  }
 });
