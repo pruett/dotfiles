@@ -81,9 +81,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/architect/SKILL.md",
-      "skillFolderHash": "f45c6c8f99e0055533f0f969b855361c0e56b140",
+      "skillFolderHash": "92dfa67297ef9fdb77a1f2a11825e861e1789fd6",
       "installedAt": "2026-10-21T18:09:09.352Z",
-      "updatedAt": "2026-10-21T18:09:09.352Z"
+      "updatedAt": "2026-11-21T16:23:49.460Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "arena": {
       "source": "cursor/plugins",
@@ -91,9 +92,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/arena/SKILL.md",
-      "skillFolderHash": "1fe4ff6ac759ecc886c0f4087047ad48098df49c",
+      "skillFolderHash": "5c95af84a2a5e97ea915a32f9af2031fe16e7781",
       "installedAt": "2026-10-21T18:09:09.353Z",
-      "updatedAt": "2026-10-30T20:12:44.350Z"
+      "updatedAt": "2026-11-21T16:23:49.591Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "benchmark-checklist": {
       "source": "cursor/plugins",
@@ -101,9 +103,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/benchmark-checklist/SKILL.md",
-      "skillFolderHash": "7c402481a0934533cb49cdce811b362cf99ef641",
+      "skillFolderHash": "95621ebe5e1571f3689186adc741c2de2ab96552",
       "installedAt": "2026-10-21T18:09:09.353Z",
-      "updatedAt": "2026-10-21T18:09:09.353Z"
+      "updatedAt": "2026-11-21T16:23:49.714Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "bro": {
       "source": "cursor/plugins",
@@ -131,9 +134,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/figure-it-out/SKILL.md",
-      "skillFolderHash": "c9851c453a623c86c3ab507e1349d3c06db284cb",
+      "skillFolderHash": "9a76b799a36b0a55ec422ebd1b24e2bc2c89153d",
       "installedAt": "2026-10-21T18:09:09.354Z",
-      "updatedAt": "2026-10-21T18:09:09.354Z"
+      "updatedAt": "2026-11-21T16:23:49.857Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "how": {
       "source": "cursor/plugins",
@@ -141,9 +145,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/how/SKILL.md",
-      "skillFolderHash": "c08738fb550f3e03a88c4ff3d5ba6f9d88bad849",
+      "skillFolderHash": "552ab68d6da62e91294091da82c20f68b9c1e53b",
       "installedAt": "2026-10-21T18:09:09.355Z",
-      "updatedAt": "2026-10-21T18:09:09.355Z"
+      "updatedAt": "2026-11-21T16:23:50.006Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "in-your-own-words": {
       "source": "cursor/plugins",
@@ -181,9 +186,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/no-comments/SKILL.md",
-      "skillFolderHash": "7ebbbc395fe6fc99cc38e4d192c0ae7a0ce8e5ae",
+      "skillFolderHash": "165b06ad43311429a06bcfacd77bbb86b7091e0f",
       "installedAt": "2026-10-21T18:09:09.356Z",
-      "updatedAt": "2026-10-21T18:09:09.356Z"
+      "updatedAt": "2026-11-21T16:23:50.135Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "poteto-mode": {
       "source": "cursor/plugins",
@@ -191,9 +197,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/poteto-mode/SKILL.md",
-      "skillFolderHash": "86c3b36ea41265ab232a04193be6669399f180af",
+      "skillFolderHash": "0a9b15956452bc4c5c1a687a125bdc5b2a7fc23a",
       "installedAt": "2026-10-21T18:09:09.356Z",
-      "updatedAt": "2026-10-30T20:12:48.438Z"
+      "updatedAt": "2026-11-21T16:23:50.436Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-attack-the-premise": {
       "source": "cursor/plugins",
@@ -201,9 +208,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-attack-the-premise/SKILL.md",
-      "skillFolderHash": "0b0de55b1f1e7a989a10dd8680f01a67ef378ebc",
+      "skillFolderHash": "c82bc65197a802bce740f4a65d39e9c600c79013",
       "installedAt": "2026-10-21T18:09:09.357Z",
-      "updatedAt": "2026-10-21T18:09:09.357Z"
+      "updatedAt": "2026-11-21T16:23:50.576Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-boundary-discipline": {
       "source": "cursor/plugins",
@@ -211,9 +219,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-boundary-discipline/SKILL.md",
-      "skillFolderHash": "743b098e6874a93b11e9f4d5843c79a243580ae2",
+      "skillFolderHash": "d7c9f885052de6177eb888c51c22285f4d225278",
       "installedAt": "2026-10-21T18:09:09.357Z",
-      "updatedAt": "2026-10-21T18:09:09.357Z"
+      "updatedAt": "2026-11-21T16:23:50.696Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-build-the-lever": {
       "source": "cursor/plugins",
@@ -221,9 +230,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-build-the-lever/SKILL.md",
-      "skillFolderHash": "dd1ee184f4f4d585e42a006f0a1837afdbb3d627",
+      "skillFolderHash": "12058cceb18fcc376d4d4769f4f6712f1ed28b62",
       "installedAt": "2026-10-21T18:09:09.357Z",
-      "updatedAt": "2026-10-21T18:09:09.357Z"
+      "updatedAt": "2026-11-21T16:23:50.873Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-encode-lessons-in-structure": {
       "source": "cursor/plugins",
@@ -261,9 +271,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-explain-the-number/SKILL.md",
-      "skillFolderHash": "7d97b8efd90780774b38ccb9dad1aa232bd51ff9",
+      "skillFolderHash": "8461455edc3b13feef93aba9a600b3af16f4a2f9",
       "installedAt": "2026-10-21T18:09:09.359Z",
-      "updatedAt": "2026-10-30T20:12:52.813Z"
+      "updatedAt": "2026-11-21T16:23:50.995Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-fix-root-causes": {
       "source": "cursor/plugins",
@@ -271,9 +282,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-fix-root-causes/SKILL.md",
-      "skillFolderHash": "f1075eead43f95cd9896381345ff28f0da7e1aea",
+      "skillFolderHash": "6edd70a10872c757a49aac1d0b7a34e696901ac3",
       "installedAt": "2026-10-21T18:09:09.359Z",
-      "updatedAt": "2026-10-21T18:09:09.359Z"
+      "updatedAt": "2026-11-21T16:23:51.139Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-foundational-thinking": {
       "source": "cursor/plugins",
@@ -281,9 +293,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-foundational-thinking/SKILL.md",
-      "skillFolderHash": "5880f6577956b14ee4ee89cb72c03fd8bd82a5ac",
+      "skillFolderHash": "49fc29c7f64b8f1e0ed56d2359c53243cc4e37d6",
       "installedAt": "2026-10-21T18:09:09.359Z",
-      "updatedAt": "2026-10-21T18:09:09.359Z"
+      "updatedAt": "2026-11-21T16:23:51.265Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-guard-the-context-window": {
       "source": "cursor/plugins",
@@ -311,9 +324,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-make-operations-idempotent/SKILL.md",
-      "skillFolderHash": "5111ac1acc6584dad178af96174140ee5b29bca4",
+      "skillFolderHash": "8fe8816c3620993245104a14bd83536b4362fda8",
       "installedAt": "2026-10-21T18:09:09.361Z",
-      "updatedAt": "2026-10-21T18:09:09.361Z"
+      "updatedAt": "2026-11-21T16:23:51.400Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-migrate-callers-then-delete-legacy-apis": {
       "source": "cursor/plugins",
@@ -331,9 +345,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-minimize-reader-load/SKILL.md",
-      "skillFolderHash": "f64929f93ffd334f36699b83f53ee7155c4a2063",
+      "skillFolderHash": "83722d6d8707f842217b7e1e611b77933c1eb4a8",
       "installedAt": "2026-10-21T18:09:09.361Z",
-      "updatedAt": "2026-10-21T18:09:09.361Z"
+      "updatedAt": "2026-11-21T16:23:51.513Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-model-the-domain": {
       "source": "cursor/plugins",
@@ -341,9 +356,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-model-the-domain/SKILL.md",
-      "skillFolderHash": "6ea2f64ebf635cb2eb8391197e40f32e5f841557",
+      "skillFolderHash": "90e1d94729175ce6899cc57e5b0250dbf73de8b4",
       "installedAt": "2026-10-21T18:09:09.362Z",
-      "updatedAt": "2026-10-21T18:09:09.362Z"
+      "updatedAt": "2026-11-21T16:23:51.630Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-never-block-on-the-human": {
       "source": "cursor/plugins",
@@ -371,9 +387,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-prove-it-works/SKILL.md",
-      "skillFolderHash": "fa6b1097795e31941bc1fbebb8b2d6ca29e975b0",
+      "skillFolderHash": "71f6ab944f3fc9d5bb9b1b261edfa80ded54b96c",
       "installedAt": "2026-10-21T18:09:09.364Z",
-      "updatedAt": "2026-10-21T18:09:09.364Z"
+      "updatedAt": "2026-11-21T16:23:51.790Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-redesign-from-first-principles": {
       "source": "cursor/plugins",
@@ -391,9 +408,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-separate-before-serializing-shared-state/SKILL.md",
-      "skillFolderHash": "89505c32f2d472da415e7696a6893ad28e108c5f",
+      "skillFolderHash": "15bc5fb33e9b5848d3400857ebeac175044dc6c8",
       "installedAt": "2026-10-21T18:09:09.365Z",
-      "updatedAt": "2026-10-21T18:09:09.365Z"
+      "updatedAt": "2026-11-21T16:23:51.916Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-sequence-verifiable-units": {
       "source": "cursor/plugins",
@@ -401,9 +419,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-sequence-verifiable-units/SKILL.md",
-      "skillFolderHash": "c1b345dcea21e3d58e7012f8e6547974d295fb3a",
+      "skillFolderHash": "af35037d5f04bacc0654b6e05732d7ca37ff3023",
       "installedAt": "2026-10-21T18:09:09.366Z",
-      "updatedAt": "2026-10-21T18:09:09.366Z"
+      "updatedAt": "2026-11-21T16:23:52.035Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-subtract-before-you-add": {
       "source": "cursor/plugins",
@@ -421,9 +440,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-test-behavior-not-implementation/SKILL.md",
-      "skillFolderHash": "7fa3d5dba8496dcd08278a99903a2dfb58a2e179",
+      "skillFolderHash": "76d920dd320db21e8e8bc2a316554acfb1d23263",
       "installedAt": "2026-10-21T18:09:09.367Z",
-      "updatedAt": "2026-10-21T18:09:09.367Z"
+      "updatedAt": "2026-11-21T16:23:52.166Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-type-system-discipline": {
       "source": "cursor/plugins",
@@ -431,9 +451,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/principle-type-system-discipline/SKILL.md",
-      "skillFolderHash": "32850aaddd70478a6dacb153bbcef8532bf7d626",
+      "skillFolderHash": "84b9a2eb92026202de0f1ca6e51a0bd500ebfe29",
       "installedAt": "2026-10-21T18:09:09.368Z",
-      "updatedAt": "2026-10-21T18:09:09.368Z"
+      "updatedAt": "2026-11-21T16:23:52.291Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "show-me-your-work": {
       "source": "cursor/plugins",
@@ -441,9 +462,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/show-me-your-work/SKILL.md",
-      "skillFolderHash": "0234e1847a2085eb61f4934e3d6948cdbf82c6d0",
+      "skillFolderHash": "82a1b9fca7c0fc8e8d8df0a34c934dadfb8cefee",
       "installedAt": "2026-10-21T18:09:09.368Z",
-      "updatedAt": "2026-10-21T18:09:09.368Z"
+      "updatedAt": "2026-11-21T16:23:52.430Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "swarm": {
       "source": "cursor/plugins",
@@ -451,9 +473,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/swarm/SKILL.md",
-      "skillFolderHash": "19e3c7dafac8db18bed15644b3f544b96f39a009",
+      "skillFolderHash": "b3f1117e2e1f6bdcbb74572b9497f0d608be1d8d",
       "installedAt": "2026-10-21T18:09:09.369Z",
-      "updatedAt": "2026-10-30T20:12:54.442Z"
+      "updatedAt": "2026-11-21T16:23:52.557Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "teach": {
       "source": "cursor/plugins",
@@ -461,9 +484,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/teach/SKILL.md",
-      "skillFolderHash": "0e15c28b1e6526084fdce26a11ef0871223f13e0",
+      "skillFolderHash": "56dd7444966f3e68a636e730941800956f5ceacb",
       "installedAt": "2026-10-21T18:09:09.370Z",
-      "updatedAt": "2026-10-21T18:09:09.370Z"
+      "updatedAt": "2026-11-21T16:23:52.697Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "technical-writing": {
       "source": "cursor/plugins",
@@ -471,9 +495,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/technical-writing/SKILL.md",
-      "skillFolderHash": "7a14ca0ff3945987018076ae705b9a72eb359b11",
+      "skillFolderHash": "b1befecbc67dbcf6dfef7ed089d657a2f823223b",
       "installedAt": "2026-10-21T18:09:09.370Z",
-      "updatedAt": "2026-10-21T18:09:09.370Z"
+      "updatedAt": "2026-11-21T16:23:52.865Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "unslop": {
       "source": "cursor/plugins",
@@ -481,9 +506,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/unslop/SKILL.md",
-      "skillFolderHash": "4e572dd70e5557f490e3991c52ea58f0dcee8936",
+      "skillFolderHash": "3319d5baa095167501a128703a008446dd099d0c",
       "installedAt": "2026-10-21T18:09:09.371Z",
-      "updatedAt": "2026-10-21T18:09:09.371Z"
+      "updatedAt": "2026-11-21T16:23:52.988Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "why": {
       "source": "cursor/plugins",
@@ -491,9 +517,10 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/why/SKILL.md",
-      "skillFolderHash": "81d7303540b87446dd012615c7b13cda19c92f43",
+      "skillFolderHash": "2608dc2d93794dd7060b826b81b6da0be6bc673c",
       "installedAt": "2026-10-21T18:09:09.372Z",
-      "updatedAt": "2026-10-21T18:09:09.372Z"
+      "updatedAt": "2026-11-21T16:23:53.110Z",
+      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "show-me": {
       "source": "humanlayer/skills",
