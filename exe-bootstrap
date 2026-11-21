@@ -92,14 +92,15 @@ run_connect() {
 # --- skills -------------------------------------------------------------------
 title_skills() { echo "Agent skills"; }
 about_skills() {
-  echo "Clone only the skills part of ${DOTFILES_REPO_HTTPS} to ~/.dotfiles,"
-  echo "run skills-sync to link them (~/.agents/skills for Codex and Pi, one link"
+  echo "Clone ${DOTFILES_REPO_HTTPS} to ~/.dotfiles (all of it, so skills"
+  echo "find the files they read there), run skills-sync to link the skills (~/.agents/skills for Codex and Pi, one link"
   echo "per skill in ~/.claude/skills, skill CLIs such as wt in ~/.local/bin), and"
   echo "add a systemd timer that runs skills-sync every 10 minutes."
-  echo "Nothing else from the dotfiles is linked. Push new skills first."
+  echo "Nothing else is linked into ~. Push new skills first."
 }
 check_skills() {
-  qssh 'test -L ~/.claude/skills/worktrees && systemctl is-active -q skills-sync.timer' >/dev/null 2>&1
+  qssh 'test -L ~/.claude/skills/worktrees && systemctl is-active -q skills-sync.timer \
+    && [ "$(git -C ~/.dotfiles config --get core.sparseCheckout)" != true ]' >/dev/null 2>&1
 }
 run_skills() { remote_stage skills; }
 
@@ -288,12 +289,14 @@ main_local() {
 
 remote_skills() {
   local repo="$HOME/.dotfiles" units=/etc/systemd/system
+  # The whole repo lands on the box, so skills that read files elsewhere in
+  # ~/.dotfiles find them; only the skills get linked into ~.
   if [[ ! -d "$repo/.git" ]]; then
-    # Sparse: only the skills (home/.agents) and the bin links that point into
-    # them land on the box. Commits and pushes from here work as usual.
-    info "Cloning the skills from ${DOTFILES_REPO_HTTPS}..."
-    git clone --quiet --filter=blob:none --sparse "$DOTFILES_REPO_HTTPS" "$repo"
-    git -C "$repo" sparse-checkout set home/.agents home/.local/bin
+    info "Cloning ${DOTFILES_REPO_HTTPS}..."
+    git clone --quiet "$DOTFILES_REPO_HTTPS" "$repo"
+  elif [[ "$(git -C "$repo" config --get core.sparseCheckout)" == true ]]; then
+    info "Checking out the rest of ~/.dotfiles (it held only the skills)..."
+    git -C "$repo" sparse-checkout disable
   fi
   "$repo/home/.local/bin/skills-sync"
 
