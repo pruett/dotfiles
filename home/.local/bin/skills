@@ -15,19 +15,91 @@ run_skills_cli() {
     command env -u XDG_STATE_HOME npx --yes skills "$@"
 }
 
-# The upstream CLI auto-detects Pi from $managed_home/.pi/agent and links updated
-# skills into .pi/agent/skills. Pi already discovers ~/.agents/skills directly,
-# so drop those redundant links to keep them out of the repo.
-prune_pi_links() {
-  local pi_dir="$managed_home/.pi/agent/skills" link
-  [[ -d "$pi_dir" ]] || return 0
-  for link in "$pi_dir"/*; do
-    [[ -L "$link" ]] || continue
-    case "$(readlink "$link")" in
-      */.agents/skills/*) rm "$link" ;;
-    esac
+# The upstream CLI auto-detects Pi and Claude Code under $managed_home and links
+# updated skills into .pi/agent/skills and .claude/skills inside this repo. Pi
+# reads ~/.agents/skills directly and `skills sync` owns ~/.claude/skills, so
+# drop those links to keep them out of the repo.
+prune_agent_links() {
+  local dir link
+  for dir in "$managed_home/.pi/agent/skills" "$managed_home/.claude/skills"; do
+    [[ -d "$dir" && ! -L "$dir" ]] || continue
+    for link in "$dir"/*; do
+      [[ -L "$link" ]] || continue
+      case "$(readlink "$link")" in
+        */.agents/skills/*) rm "$link" ;;
+      esac
+    done
+    rmdir "$dir" 2>/dev/null || true
   done
-  rmdir "$pi_dir" 2>/dev/null || true
+}
+
+# pstack skills come from the Claude Code copy in cursor/plugins. The skills CLI
+# installs only skill folders, so after add or update copy the rest of what
+# they expect from the commit in the lockfile:
+#   - docs/harness/claude-code.md, which the skills link to as ../../docs/...
+#     and Claude reads at run time to map Cursor names to Claude Code.
+#   - agents/*.md into ~/.claude/agents, so `poteto-agent` exists.
+# The plugin install prefixes names with `pstack:`; this install does not, so
+# drop that prefix. Agent `model:` lines hold Cursor slugs; map them to a
+# Claude Code alias. Changes to claude-code.md are printed for review, since a
+# new kind of setup step there is not applied here.
+pstack_path="harness/pstack/claude-code"
+
+sync_pstack() {
+  local lock="$managed_home/.agents/.skill-lock.json"
+  local commit url src up doc new name file missing=()
+
+  commit="$(jq -r --arg p "$pstack_path/skills/" '
+    [.skills[] | select(.skillPath | startswith($p))] | max_by(.updatedAt) | .commit // empty
+  ' "$lock")"
+  [[ -n "$commit" ]] || return 0
+  url="$(jq -r --arg c "$commit" '[.skills[] | select(.commit == $c)][0].sourceUrl' "$lock")"
+
+  src="$(mktemp -d)"
+  trap 'rm -rf "$src"' RETURN
+  git -C "$src" init -q
+  git -C "$src" remote add origin "$url"
+  git -C "$src" sparse-checkout set "$pstack_path"
+  git -C "$src" fetch -q --depth 1 --filter=blob:none origin "$commit"
+  git -C "$src" checkout -q FETCH_HEAD
+  up="$src/$pstack_path"
+
+  doc="$managed_home/.agents/docs/harness/claude-code.md"
+  new="$src/claude-code.md"
+  {
+    printf '<!-- Copied by `skills` from %s/blob/%s/%s/docs/harness/claude-code.md, with the `pstack:` prefix dropped. pstack skills link here as ../../docs/harness/claude-code.md; ~/.claude/docs links to this folder so that path resolves. -->\n\n' \
+      "${url%.git}" "$commit" "$pstack_path"
+    sed -E 's/pstack:([<a-z])/\1/g' "$up/docs/harness/claude-code.md"
+  } >"$new"
+  mkdir -p "$(dirname "$doc")"
+  if [[ ! -f "$doc" ]] || ! diff -q <(tail -n +3 "$doc") <(tail -n +3 "$new") >/dev/null; then
+    printf 'pstack claude-code.md changed. Review for setup steps this command does not apply:\n'
+    diff -u --label old --label new <(tail -n +3 "$doc" 2>/dev/null) <(tail -n +3 "$new") || true
+  fi
+  cp "$new" "$doc"
+
+  mkdir -p "$managed_home/.claude/agents"
+  for file in "$up"/agents/*.md; do
+    sed -E \
+      -e 's/^model: claude-([a-z]+)-.*/model: \1/' \
+      -e '/^model: (opus|sonnet|haiku|fable|inherit)$/b' \
+      -e 's/^model: .*/model: inherit/' \
+      -e 's#~/\.cursor/plugins/#~/.agents/skills/#g' \
+      -e 's/pstack:([<a-z])/\1/g' \
+      "$file" >"$managed_home/.claude/agents/${file##*/}"
+  done
+  if [[ ! -e "$real_home/.claude/agents" ]]; then
+    printf 'Run `dot link` so ~/.claude/agents picks up the pstack agents.\n'
+  fi
+
+  for file in "$up"/skills/*; do
+    name="${file##*/}"
+    [[ -e "$managed_home/.agents/skills/$name" ]] || missing+=("$name")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    printf 'pstack skills upstream but not installed: %s\n' "${missing[*]}"
+    printf 'Add with: skills add %s/tree/main/%s --skill %s\n' "${url%.git}" "$pstack_path" "${missing[*]}"
+  fi
 }
 
 list_skills() {
@@ -191,7 +263,8 @@ case "${1:-help}" in
       exit 2
     fi
     run_skills_cli add "$@" --global --agent zed --yes
-    prune_pi_links
+    prune_agent_links
+    sync_pstack
     ;;
   list|ls)
     shift
@@ -204,7 +277,8 @@ case "${1:-help}" in
   update|upgrade)
     shift
     run_skills_cli update --global --yes "$@"
-    prune_pi_links
+    prune_agent_links
+    sync_pstack
     ;;
   sync)
     shift

@@ -1,4 +1,4 @@
-<!-- Copied from https://github.com/cursor/plugins/blob/190d28736eff128ec94f502a22c7fe0c4b56cd37/harness/pstack/claude-code/docs/harness/claude-code.md. pstack skills link here as ../../docs/harness/claude-code.md; ~/.claude/docs links to this folder so that path resolves. Re-sync by refetching that path. -->
+<!-- Copied by `skills` from https://github.com/cursor/plugins/blob/792440e8a560a4a3f63748cdee70491ecd412982/harness/pstack/claude-code/docs/harness/claude-code.md, with the `pstack:` prefix dropped. pstack skills link here as ../../docs/harness/claude-code.md; ~/.claude/docs links to this folder so that path resolves. -->
 
 # pstack in Claude Code
 
@@ -10,8 +10,8 @@ pstack skills use Cursor names. In Claude Code, read this file once per session,
 | --- | --- |
 | `Task` | `Agent` |
 | `AskQuestion` | `AskUserQuestion`. In `-p` mode it is absent, so ask in plain text. |
-| Open a todolist | Use `TodoWrite` if the session offers it. Otherwise keep the list in your reply and update it at each phase. |
-| Run another pstack skill (`/name` or "the **name** skill") | `Read` `<pstack>/skills/<name>/SKILL.md` and follow it. The `Skill` tool refuses most pstack skills. When you tell the user to type it, write `/pstack:<name>`. |
+| Open a todolist, or copy steps into the todolist tool | Use `TodoWrite` if the session offers it. Otherwise keep the list in your reply and update it at each phase. |
+| Run another pstack skill (`/name` or "the **name** skill") | `Read` `<pstack>/skills/<name>/SKILL.md` and follow it. The `Skill` tool refuses most pstack skills. When you tell the user to type it, write `/<name>`. |
 | `Grep`, `Glob` | `Bash` with `rg` when the session has no `Grep` or `Glob`. |
 
 ## Subagent fields
@@ -19,7 +19,8 @@ pstack skills use Cursor names. In Claude Code, read this file once per session,
 | Cursor | Claude Code |
 | --- | --- |
 | `subagent_type: generalPurpose` | `subagent_type: "general-purpose"` |
-| `poteto-agent`, `comment-sicko` | `pstack:poteto-agent`, `pstack:comment-sicko` |
+| `poteto-agent`, `comment-sicko` | `poteto-agent`, `comment-sicko` |
+| The `model:` line in `poteto-agent`'s file | It holds a Cursor slug. Pass `model` and `effort` on every `Agent` call that spawns `poteto-agent`, mapped with the Models table, so that slug never reaches the API. |
 | `readonly: true` | `subagent_type: "Explore"`. It keeps `Bash`, so the brief also says "do not edit files", and you check `git status` afterward. |
 | `readonly: false` | `general-purpose`. It keeps the session's MCP servers. |
 | `environment: "cloud"` | `isolation: "worktree"`. Name the branch or commit the worker checks out. |
@@ -34,7 +35,7 @@ pstack skills use Cursor names. In Claude Code, read this file once per session,
 | Cursor | Claude Code |
 | --- | --- |
 | `claude-<family>-<version>-<effort>[-fast]`, such as `claude-opus-5-5-xhigh` | `model: "opus"` and `effort: "xhigh"`. `model` takes only `opus`, `sonnet`, `haiku`, `fable`. Drop `-fast`. |
-| A `grok-*`, `gpt-*`, or other non-Claude slug | Omit `model` so the agent runs on the session model, and say so. |
+| A `gemini-*` or other non-Claude slug | Omit `model` so the agent runs on the session model, and say so. |
 | `auto` or `inherit-parent` | Omit `model`. |
 | The `pstack-models.mdc` rule, `~/.cursor/rules/pstack-models.mdc` | `~/.claude/rules/pstack-models.md`. Claude Code loads it into every new session, so its role lines are already in context. If they are not, read the file. If the file or the role's line is missing, use the skill's default slug. |
 | A role value `<model> <effort>`, such as `opus high` | `model: "opus"` and `effort: "high"`. |
@@ -44,7 +45,7 @@ pstack skills use Cursor names. In Claude Code, read this file once per session,
 Claude Code loads every `.md` file in `~/.claude/rules/` into each new session, so `setup-pstack` writes its rule there. Follow its steps with these changes:
 
 - Detect. The detected models are the `model` values that the `Agent` tool schema lists, each with an effort from its `effort` values. Write a real model as `<model> <effort>`, such as `opus xhigh`. The effort is the last token, so the budget step works as written.
-- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh` is `opus xhigh`, and `grok-4.7-xhigh-fast` is `inherit-parent`.
+- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh-fast` is `opus xhigh`, `claude-opus-5-5-high-fast` is `opus high`, `claude-fable-5-2-high` is `fable high`, and `gemini-4-neon-xhigh` is `inherit-parent`.
 - Write. Write `~/.claude/rules/pstack-models.md` with no frontmatter, then the comment lines, the `# budget` line, and one line per role from step 5. Overwrite the whole file. Never put the role lines in `CLAUDE.md` or `AGENTS.md`.
 
 ## Paths

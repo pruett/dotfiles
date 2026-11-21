@@ -40,7 +40,11 @@ pstack skills come from the Claude Code copy
 (`https://github.com/cursor/plugins/tree/main/harness/pstack/claude-code`), never
 the Cursor copy at `pstack/`. They link to an adapter at
 `../../docs/harness/claude-code.md`; `docs/` here holds a copy, and
-`~/.claude/docs` links to it so the path resolves. Refresh the copy when `skills update` changes pstack.
+`~/.claude/docs` links to it so the path resolves. After `add` and `update`,
+the wrapper refreshes that copy and the pstack agents (`poteto-agent`,
+`comment-sicko`, into `home/.claude/agents`) from the lockfile's commit, drops
+the plugin's `pstack:` prefix, prints any change to `claude-code.md` for
+review, and lists upstream pstack skills that are not installed.
 
 `zed` is used as the installer target because its global skill directory is the
 shared `~/.agents/skills` directory. Run `skills sync` to create one relative
