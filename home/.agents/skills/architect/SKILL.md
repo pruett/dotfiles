@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Architect
 
-In Claude Code, read [the Claude Code adapter](../../docs/harness/claude-code.md) once per session before you follow this skill. It maps the Cursor names in pstack skills to Claude Code.
+Read [the local pstack adapter](../../docs/harness/local.md) once per session before you follow this skill. It maps Cursor names and pstack skills not installed here to this setup.
 
 Before writing code, trace every system the change touches, then sketch two different shapes for it (types, signatures, module boundaries) and pick the one where each piece of state has one owner, each task has one way to do it, and callers need to know least. Redesign instead of patching if workarounds repeat.
 

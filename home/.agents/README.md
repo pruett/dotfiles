@@ -38,13 +38,17 @@ to create the Claude Code links.
 
 pstack skills come from the Claude Code copy
 (`https://github.com/cursor/plugins/tree/main/harness/pstack/claude-code`), never
-the Cursor copy at `pstack/`. They link to an adapter at
-`../../docs/harness/claude-code.md`; `docs/` here holds a copy, and
-`~/.claude/docs` links to it so the path resolves. After `add` and `update`,
-the wrapper refreshes that copy and the pstack agents (`poteto-agent`,
-`comment-sicko`, into `home/.claude/agents`) from the lockfile's commit, drops
-the plugin's `pstack:` prefix, prints any change to `claude-code.md` for
-review, and lists upstream pstack skills that are not installed.
+the Cursor copy at `pstack/`. Only part of pstack is installed: its Cursor-bound
+hub (`poteto-mode`, `arena`, `swarm`, `setup-pstack`, `poteto-help`,
+`make-bot-ui`, `automate-me`) is replaced by local skills (`mode`, the bake-off
+and race modes of `orchestrate`, and a local `automate-me`).
+`docs/harness/local.md` (hand-written) maps the pstack names to these for any
+harness. After `add` and `update`, the wrapper's `sync_pstack` copies
+`docs/harness/claude-code.md` and the pstack agent files from the lockfile's
+commit, points each pstack skill's adapter line at `local.md`, prints any change
+to `claude-code.md` for review, and lists upstream pstack skills that are
+neither installed nor skipped (`pstack_skip` in the wrapper).
+`~/.claude/docs` links to `docs/` so the skills' `../../docs/...` links resolve.
 
 `zed` is used as the installer target because its global skill directory is the
 shared `~/.agents/skills` directory. Run `skills sync` to create one relative

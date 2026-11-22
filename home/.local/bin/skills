@@ -33,17 +33,20 @@ prune_agent_links() {
   done
 }
 
-# pstack skills come from the Claude Code copy in cursor/plugins. The skills CLI
-# installs only skill folders, so after add or update copy the rest of what
-# they expect from the commit in the lockfile:
-#   - docs/harness/claude-code.md, which the skills link to as ../../docs/...
-#     and Claude reads at run time to map Cursor names to Claude Code.
-#   - agents/*.md into ~/.claude/agents, so `poteto-agent` exists.
-# The plugin install prefixes names with `pstack:`; this install does not, so
-# drop that prefix. Agent `model:` lines hold Cursor slugs; map them to a
-# Claude Code alias. Changes to claude-code.md are printed for review, since a
-# new kind of setup step there is not applied here.
+# pstack skills come from the Claude Code copy in cursor/plugins and are
+# written for Cursor. Only part of pstack is installed; docs/harness/local.md
+# (hand-written) maps the skills left out to local ones, for any harness.
+# After add or update, from the commit in the lockfile:
+#   - copy docs/harness/claude-code.md (Cursor -> Claude Code names), dropping
+#     the plugin's `pstack:` prefix, and print any change to it for review,
+#     since a new kind of setup step there is not applied here;
+#   - copy agents/*.md to docs/harness/agents/, which local.md points to;
+#   - point each skill's "In Claude Code, read the adapter" line at local.md;
+#   - list upstream skills that are neither installed nor in pstack_skip.
 pstack_path="harness/pstack/claude-code"
+pstack_skip=(poteto-mode arena swarm setup-pstack poteto-help make-bot-ui automate-me)
+pstack_adapter_line='In Claude Code, read [the Claude Code adapter](../../docs/harness/claude-code.md) once per session before you follow this skill. It maps the Cursor names in pstack skills to Claude Code.'
+pstack_local_line='Read [the local pstack adapter](../../docs/harness/local.md) once per session before you follow this skill. It maps Cursor names and pstack skills not installed here to this setup.'
 
 sync_pstack() {
   local lock="$managed_home/.agents/.skill-lock.json"
@@ -78,23 +81,18 @@ sync_pstack() {
   fi
   cp "$new" "$doc"
 
-  mkdir -p "$managed_home/.claude/agents"
-  for file in "$up"/agents/*.md; do
-    sed -E \
-      -e 's/^model: claude-([a-z]+)-.*/model: \1/' \
-      -e '/^model: (opus|sonnet|haiku|fable|inherit)$/b' \
-      -e 's/^model: .*/model: inherit/' \
-      -e 's#~/\.cursor/plugins/#~/.agents/skills/#g' \
-      -e 's/pstack:([<a-z])/\1/g' \
-      "$file" >"$managed_home/.claude/agents/${file##*/}"
+  mkdir -p "$managed_home/.agents/docs/harness/agents"
+  cp "$up"/agents/*.md "$managed_home/.agents/docs/harness/agents/"
+
+  for file in "$managed_home/.agents/skills"/*/SKILL.md; do
+    grep -qF "$pstack_adapter_line" "$file" || continue
+    PSTACK_OLD="$pstack_adapter_line" PSTACK_NEW="$pstack_local_line" \
+      perl -pi -e 's/\Q$ENV{PSTACK_OLD}\E/$ENV{PSTACK_NEW}/' "$file"
   done
-  if [[ ! -e "$real_home/.claude/agents" ]]; then
-    printf 'Run `dot link` so ~/.claude/agents picks up the pstack agents.\n'
-  fi
 
   for file in "$up"/skills/*; do
     name="${file##*/}"
-    [[ -e "$managed_home/.agents/skills/$name" ]] || missing+=("$name")
+    [[ -e "$managed_home/.agents/skills/$name" || " ${pstack_skip[*]} " == *" $name "* ]] || missing+=("$name")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
     printf 'pstack skills upstream but not installed: %s\n' "${missing[*]}"

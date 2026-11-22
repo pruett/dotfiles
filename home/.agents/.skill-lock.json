@@ -86,17 +86,6 @@
       "updatedAt": "2026-11-21T16:23:49.460Z",
       "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
-    "arena": {
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main",
-      "skillPath": "harness/pstack/claude-code/skills/arena/SKILL.md",
-      "skillFolderHash": "5c95af84a2a5e97ea915a32f9af2031fe16e7781",
-      "installedAt": "2026-10-21T18:09:09.353Z",
-      "updatedAt": "2026-11-21T16:23:49.591Z",
-      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
-    },
     "benchmark-checklist": {
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -189,17 +178,6 @@
       "skillFolderHash": "165b06ad43311429a06bcfacd77bbb86b7091e0f",
       "installedAt": "2026-10-21T18:09:09.356Z",
       "updatedAt": "2026-11-21T16:23:50.135Z",
-      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
-    },
-    "poteto-mode": {
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main",
-      "skillPath": "harness/pstack/claude-code/skills/poteto-mode/SKILL.md",
-      "skillFolderHash": "0a9b15956452bc4c5c1a687a125bdc5b2a7fc23a",
-      "installedAt": "2026-10-21T18:09:09.356Z",
-      "updatedAt": "2026-11-21T16:23:50.436Z",
       "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
     "principle-attack-the-premise": {
@@ -467,17 +445,6 @@
       "updatedAt": "2026-11-21T16:23:52.430Z",
       "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
     },
-    "swarm": {
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main",
-      "skillPath": "harness/pstack/claude-code/skills/swarm/SKILL.md",
-      "skillFolderHash": "b3f1117e2e1f6bdcbb74572b9497f0d608be1d8d",
-      "installedAt": "2026-10-21T18:09:09.369Z",
-      "updatedAt": "2026-11-21T16:23:52.557Z",
-      "commit": "792440e8a560a4a3f63748cdee70491ecd412982"
-    },
     "teach": {
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -539,17 +506,6 @@
       "skillFolderHash": "2104d685d33ba9594a4dfe13241f0f7f02190401",
       "installedAt": "2026-10-29T19:49:02.742Z",
       "updatedAt": "2026-10-29T19:49:02.742Z"
-    },
-    "automate-me": {
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main",
-      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
-      "skillPath": "harness/pstack/claude-code/skills/automate-me/SKILL.md",
-      "skillFolderHash": "c5bbf235eb339c05f4b66a4786d205eb95c65121",
-      "installedAt": "2026-11-22T17:10:09.199Z",
-      "updatedAt": "2026-11-22T17:10:09.199Z"
     },
     "blast-radius": {
       "source": "cursor/plugins",
@@ -617,28 +573,6 @@
       "installedAt": "2026-11-22T17:10:09.202Z",
       "updatedAt": "2026-11-22T17:10:09.202Z"
     },
-    "make-bot-ui": {
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main",
-      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
-      "skillPath": "harness/pstack/claude-code/skills/make-bot-ui/SKILL.md",
-      "skillFolderHash": "1932e2e8b1f6a97b47a8df63f87714aba7fcb620",
-      "installedAt": "2026-11-22T17:10:09.202Z",
-      "updatedAt": "2026-11-22T17:10:09.202Z"
-    },
-    "poteto-help": {
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main",
-      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
-      "skillPath": "harness/pstack/claude-code/skills/poteto-help/SKILL.md",
-      "skillFolderHash": "032df5ff26920f33245722bc1e51f4110479c36b",
-      "installedAt": "2026-11-22T17:10:09.202Z",
-      "updatedAt": "2026-11-22T17:10:09.202Z"
-    },
     "recall": {
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -658,17 +592,6 @@
       "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
       "skillPath": "harness/pstack/claude-code/skills/reflect/SKILL.md",
       "skillFolderHash": "9c8e9515ce32a31caf7bfcc98b074d0a14c09ef1",
-      "installedAt": "2026-11-22T17:10:09.203Z",
-      "updatedAt": "2026-11-22T17:10:09.203Z"
-    },
-    "setup-pstack": {
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main",
-      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
-      "skillPath": "harness/pstack/claude-code/skills/setup-pstack/SKILL.md",
-      "skillFolderHash": "f6c44cc7f6037aa56204234165a988fa281d08fa",
       "installedAt": "2026-11-22T17:10:09.203Z",
       "updatedAt": "2026-11-22T17:10:09.203Z"
     },

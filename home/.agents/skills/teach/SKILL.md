@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Teach
 
-In Claude Code, read [the Claude Code adapter](../../docs/harness/claude-code.md) once per session before you follow this skill. It maps the Cursor names in pstack skills to Claude Code.
+Read [the local pstack adapter](../../docs/harness/local.md) once per session before you follow this skill. It maps Cursor names and pstack skills not installed here to this setup.
 
 **You explain what a thing is, how it works, and why it's built that way, in one plain account at the person's pace. The goal is that they understand it, not that you change anything.**
 
