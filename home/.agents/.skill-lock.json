@@ -539,6 +539,182 @@
       "skillFolderHash": "2104d685d33ba9594a4dfe13241f0f7f02190401",
       "installedAt": "2026-10-29T19:49:02.742Z",
       "updatedAt": "2026-10-29T19:49:02.742Z"
+    },
+    "automate-me": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/automate-me/SKILL.md",
+      "skillFolderHash": "c5bbf235eb339c05f4b66a4786d205eb95c65121",
+      "installedAt": "2026-11-22T17:10:09.199Z",
+      "updatedAt": "2026-11-22T17:10:09.199Z"
+    },
+    "blast-radius": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/blast-radius/SKILL.md",
+      "skillFolderHash": "88d9b57545971959dd93878d6c6ac7f3a84737b8",
+      "installedAt": "2026-11-22T17:10:09.200Z",
+      "updatedAt": "2026-11-22T17:10:09.200Z"
+    },
+    "correct": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/correct/SKILL.md",
+      "skillFolderHash": "5ebee6f7fe9cd7f97b1c698dbbf4f19ed8c4c5f4",
+      "installedAt": "2026-11-22T17:10:09.201Z",
+      "updatedAt": "2026-11-22T17:10:09.201Z"
+    },
+    "create-formal-verification-skill": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/create-formal-verification-skill/SKILL.md",
+      "skillFolderHash": "3613621dde8263041abd42bce695726193da1991",
+      "installedAt": "2026-11-22T17:10:09.201Z",
+      "updatedAt": "2026-11-22T17:10:09.201Z"
+    },
+    "ketchup": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/ketchup/SKILL.md",
+      "skillFolderHash": "01c36585506764e9b40b2bfb165a9943b403b158",
+      "installedAt": "2026-11-22T17:10:09.201Z",
+      "updatedAt": "2026-11-22T17:10:09.201Z"
+    },
+    "ketchup-video": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/ketchup-video/SKILL.md",
+      "skillFolderHash": "73f013af52a35306c4bb5b484dae72bf1c8f9edd",
+      "installedAt": "2026-11-22T17:10:09.201Z",
+      "updatedAt": "2026-11-22T17:10:09.201Z"
+    },
+    "maintain-formal-verification-skill": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/maintain-formal-verification-skill/SKILL.md",
+      "skillFolderHash": "8690a0d54b535770e5406d641a222e0ff8b9f07c",
+      "installedAt": "2026-11-22T17:10:09.202Z",
+      "updatedAt": "2026-11-22T17:10:09.202Z"
+    },
+    "make-bot-ui": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/make-bot-ui/SKILL.md",
+      "skillFolderHash": "1932e2e8b1f6a97b47a8df63f87714aba7fcb620",
+      "installedAt": "2026-11-22T17:10:09.202Z",
+      "updatedAt": "2026-11-22T17:10:09.202Z"
+    },
+    "poteto-help": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/poteto-help/SKILL.md",
+      "skillFolderHash": "032df5ff26920f33245722bc1e51f4110479c36b",
+      "installedAt": "2026-11-22T17:10:09.202Z",
+      "updatedAt": "2026-11-22T17:10:09.202Z"
+    },
+    "recall": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/recall/SKILL.md",
+      "skillFolderHash": "4bc612577c912c7294e17453e8358447691f3583",
+      "installedAt": "2026-11-22T17:10:09.202Z",
+      "updatedAt": "2026-11-22T17:10:09.202Z"
+    },
+    "reflect": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/reflect/SKILL.md",
+      "skillFolderHash": "9c8e9515ce32a31caf7bfcc98b074d0a14c09ef1",
+      "installedAt": "2026-11-22T17:10:09.203Z",
+      "updatedAt": "2026-11-22T17:10:09.203Z"
+    },
+    "setup-pstack": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/setup-pstack/SKILL.md",
+      "skillFolderHash": "f6c44cc7f6037aa56204234165a988fa281d08fa",
+      "installedAt": "2026-11-22T17:10:09.203Z",
+      "updatedAt": "2026-11-22T17:10:09.203Z"
+    },
+    "sharpen": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/sharpen/SKILL.md",
+      "skillFolderHash": "672ef555c7b4c24b4a5bd016647c5d836a1d6aa6",
+      "installedAt": "2026-11-22T17:10:09.203Z",
+      "updatedAt": "2026-11-22T17:10:09.203Z"
+    },
+    "statechart": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/statechart/SKILL.md",
+      "skillFolderHash": "d3d60f78916e8c17a598c39738e45ab419603f06",
+      "installedAt": "2026-11-22T17:10:09.203Z",
+      "updatedAt": "2026-11-22T17:10:09.203Z"
+    },
+    "tdd": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/tdd/SKILL.md",
+      "skillFolderHash": "1064da72ceca07bf7f36bddebada585bb59da7bc",
+      "installedAt": "2026-11-22T17:10:09.203Z",
+      "updatedAt": "2026-11-22T17:10:09.203Z"
+    },
+    "typescript-best-practices": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git",
+      "ref": "main",
+      "commit": "7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9",
+      "skillPath": "harness/pstack/claude-code/skills/typescript-best-practices/SKILL.md",
+      "skillFolderHash": "1ccca3c7c0d358c0cd5edd313cd03a31fc75ee5f",
+      "installedAt": "2026-11-22T17:10:09.204Z",
+      "updatedAt": "2026-11-22T17:10:09.204Z"
     }
   },
   "dismissed": {}

@@ -1,4 +1,4 @@
-<!-- Copied by `skills` from https://github.com/cursor/plugins/blob/792440e8a560a4a3f63748cdee70491ecd412982/harness/pstack/claude-code/docs/harness/claude-code.md, with the `pstack:` prefix dropped. pstack skills link here as ../../docs/harness/claude-code.md; ~/.claude/docs links to this folder so that path resolves. -->
+<!-- Copied by `skills` from https://github.com/cursor/plugins/blob/7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9/harness/pstack/claude-code/docs/harness/claude-code.md, with the `pstack:` prefix dropped. pstack skills link here as ../../docs/harness/claude-code.md; ~/.claude/docs links to this folder so that path resolves. -->
 
 # pstack in Claude Code
 
