@@ -23,7 +23,7 @@ Assume the goal is right; challenge the execution. Read the callers, callees and
 
 Use the ones that apply; a small bug fix needs no architecture essay.
 
-- **Correctness.** Edge cases (empty, null, boundaries), swallowed errors, races and stale state, both happy and sad paths, what happens if it runs twice or crashed halfway. For a suspected bug, show the call chain that triggers it.
+- **Correctness.** Edge cases (empty, null, boundaries), swallowed errors, races and stale state, both happy and sad paths, what happens if it runs twice or crashed halfway. For a suspected bug, find the input that triggers it and write the repro.
 - **Root cause.** Guard clauses, retries, casts or comments that hide a deeper problem; a fix in module A that belongs in B's contract; a "don't do X" convention that a type, lint rule or runtime check could enforce.
 - **Structure.** Validation at the boundary, not scattered. Ad-hoc conditionals tangled into unrelated flows. Logic in the wrong layer, or duplicating an existing helper. A new API kept alongside the old one it replaces. A file pushed past 1,000 lines.
 - **Simplification.** A restructuring that deletes whole branches, helpers or layers while keeping behavior. One-caller wrappers, pass-through layers, one decision repeated in several places, config for cases that do not exist, dead code. Smallest diff wins; return values over mutation, derive instead of syncing.
@@ -42,6 +42,7 @@ N. [critical|warning|nit] [kind] path:line: what is wrong or what to do. Why, wi
 
 - `critical` breaks behavior, data or security; `warning` will cause pain; `nit` is style. Separate "this is broken" from "I would do it differently".
 - `kind` is one of: `bug`, `design`, `security`, `delete-dead`, `collapse`, `dedupe`, `simplify`, `delete-test`, `rewrite-test`.
+- A `bug`, `security` or `rewrite-test` finding carries a repro the judge can run: a command, or the literal code of a failing test plus the command that runs it, and the output that shows the wrong behavior. The judge drops any of these findings without a repro, so spend your effort proving fewer real ones.
 - A `delete-test` names how to break the behavior while the test still passes. A `rewrite-test` gives the literal input and expected value. A finding across several files sketches the target shape in one or two lines.
 
 Close with one line: the single change that would improve this branch most. No problems found: say "no findings".
