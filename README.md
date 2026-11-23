@@ -22,7 +22,7 @@ Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checkl
 
 ## exe.dev VMs
 
-Dev boxes on exe.dev are declared in [`infra/exe-dev`](infra/exe-dev) and created with Alchemy: `cd infra/exe-dev && bun run deploy`. First boot clones this repo, links the agent skills, sets up git and a GitHub key, and joins the tailnet; then `ssh exe-dev-<name>`. See its README for the one-time setup.
+Dev boxes on exe.dev are declared and deployed with Alchemy from the private `pruett/iac` repo (`infra/exe-dev`). First boot clones this repo, links the agent skills, sets up git and a GitHub key, and joins the tailnet; then `ssh exe-dev-<name>`. This repo keeps only the Mac side: `home/.ssh/config.d/exe-dev` and `tailnet-ssh-known-hosts`.
 
 ## Manual pieces (reference)
 

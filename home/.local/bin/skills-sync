@@ -11,7 +11,7 @@
 # Edit a skill anywhere, commit it in ~/.dotfiles, then run skills-sync there.
 # Uncommitted changes are never committed or pushed; the pull keeps them
 # (--autostash). Boxes also run this every 10 minutes from a systemd timer that
-# infra/exe-dev/first-boot.sh installs, so a push from the Mac reaches them on its own.
+# the private iac repo's infra/exe-dev/first-boot.sh installs, so a push from the Mac reaches them on its own.
 #
 # Linking: on the Mac, `skills sync` (dot already links
 # ~/.agents/skills). On Linux boxes, which get only the skills from the repo:
