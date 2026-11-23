@@ -177,16 +177,12 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Symlink packages with stow (via `dot`), then agent skills (via `skills`)
+# Symlink packages with stow and agent skills for Claude Code (via `dot`)
 # ------------------------------------------------------------------------------
 
 info "Linking dotfile packages..."
 ./home/.local/bin/dot link
 success "Dotfiles linked"
-
-info "Linking skills for Claude Code..."
-./home/.local/bin/skills sync
-success "Skills linked"
 
 # ------------------------------------------------------------------------------
 # Done

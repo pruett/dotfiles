@@ -29,7 +29,7 @@ printf "${blue}━━━━━━━━━━━━━━━━━━━━━�
 echo "  ls              eza --icons=auto"
 echo "  vim             nvim"
 echo "  pn              pnpm"
-echo "  dot             cd \$DOTFILES && \$EDITOR .  (dot link|status for stow)"
+echo "  dot             cd \$DOTFILES && \$EDITOR .  (dot link|status|sync|skills)"
 echo "  c               clear"
 echo "  reload          source ~/.zshrc"
 echo "  brewu           Homebrew update/upgrade/cleanup cycle"

@@ -3,7 +3,9 @@ set -euo pipefail
 
 script_path="$(realpath "${BASH_SOURCE[0]}")"
 repo_root="$(cd "$(dirname "$script_path")/../../.." && pwd)"
+managed_home="$repo_root/home"
 target="$HOME"
+npm_cache="${npm_config_cache:-$target/.npm}"
 
 # .stowrc sets --no-folding, so stow links file by file and a file added to the
 # repo only appears after relinking. These directories (relative to the home
@@ -24,6 +26,11 @@ ignored_paths=(
 
 info() { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "$*" >&2; }
+fail() { warn "$*"; exit 1; }
+
+# ------------------------------------------------------------------------------
+# Linking: stow packages and folded directories
+# ------------------------------------------------------------------------------
 
 # A stow package is a top-level directory with tracked files, except
 # dot-directories. Gitignored directories (local scratch) are never stowed.
@@ -150,8 +157,138 @@ dangling_links() {
   done
 }
 
+# ------------------------------------------------------------------------------
+# Linking: agent skills
+# ------------------------------------------------------------------------------
+
+# Plugins under .plugins/<plugin>/skills own their skill files so each plugin
+# is self-contained when cloned on its own. Link them back into
+# home/.agents/skills so every agent sees them like any other skill.
+link_plugin_skills() {
+  local agents_dir="$managed_home/.agents/skills"
+  local source plugin name link expected current
+
+  mkdir -p "$agents_dir"
+
+  for source in "$repo_root"/.plugins/*/skills/*; do
+    [[ -d "$source" && ! -L "$source" ]] || continue
+    name="${source##*/}"
+    plugin="${source%/skills/*}"
+    plugin="${plugin##*/}"
+    link="$agents_dir/$name"
+    expected="../../../.plugins/$plugin/skills/$name"
+
+    if [[ -L "$link" ]]; then
+      current="$(readlink "$link")"
+      [[ "$current" == "$expected" ]] && continue
+      info "Updating $link -> $expected"
+      ln -sfn "$expected" "$link"
+    elif [[ -e "$link" ]]; then
+      warn "Refusing to replace non-symlink: $link (also in .plugins/$plugin)"
+      return 1
+    else
+      info "Linking $link -> $expected"
+      ln -s "$expected" "$link"
+    fi
+  done
+
+  # Remove links into .plugins whose skill was deleted or moved.
+  for link in "$agents_dir"/*; do
+    [[ -L "$link" && ! -e "$link" ]] || continue
+    case "$(readlink "$link")" in
+      ../../../.plugins/*)
+        info "Removing stale link $link"
+        rm "$link"
+        ;;
+    esac
+  done
+}
+
+# Codex and Pi read ~/.agents/skills directly; only Claude Code needs one link
+# per skill in ~/.claude/skills (not in this repo, since Claude Code writes its
+# own files there). A real folder Claude Code created is never replaced.
+link_claude_skills() {
+  local target_dir="$target/.claude/skills"
+  local source name link expected rc=0
+
+  mkdir -p "$target_dir"
+
+  for source in "$managed_home/.agents/skills"/*; do
+    [[ -d "$source" ]] || continue
+    name="${source##*/}"
+    link="$target_dir/$name"
+    expected="../../.agents/skills/$name"
+
+    if [[ -L "$link" ]]; then
+      [[ "$(readlink "$link")" == "$expected" ]] && continue
+      info "Updating $link -> $expected"
+      ln -sfn "$expected" "$link"
+    elif [[ -e "$link" ]]; then
+      warn "Refusing to replace non-symlink: $link"
+      rc=1
+    else
+      info "Linking $link -> $expected"
+      ln -s "$expected" "$link"
+    fi
+  done
+
+  # Remove links made here whose skill is gone.
+  for link in "$target_dir"/*; do
+    [[ -L "$link" ]] || continue
+    name="${link##*/}"
+    if [[ "$(readlink "$link")" == "../../.agents/skills/$name" && ! -e "$managed_home/.agents/skills/$name" ]]; then
+      info "Removing stale link $link"
+      rm "$link"
+    fi
+  done
+  return "$rc"
+}
+
+# Skills with no link, or a stale one, in ~/.claude/skills.
+claude_skill_changes() {
+  local source name link
+  for source in "$managed_home/.agents/skills"/*; do
+    [[ -d "$source" ]] || continue
+    name="${source##*/}"
+    link="$target/.claude/skills/$name"
+    [[ -L "$link" && "$(readlink "$link")" == "../../.agents/skills/$name" ]] || printf '%s\n' "$link"
+  done
+  for link in "$target/.claude/skills"/*; do
+    [[ -L "$link" && ! -e "$link" ]] && printf '%s\n' "$link"
+  done
+  return 0
+}
+
+# Linux boxes (exe.dev) have no stow and get only the skills: ~/.agents/{skills,docs},
+# the Claude Code links, ~/.claude/docs, and the CLIs that ship inside skills
+# (plus dot itself) in ~/.local/bin.
+link_linux() {
+  local bin dest
+  mkdir -p "$target/.agents" "$target/.claude" "$target/.local/bin"
+  ln -sfn "$managed_home/.agents/skills" "$target/.agents/skills"
+  ln -sfn "$managed_home/.agents/docs" "$target/.agents/docs"
+  ln -sfn ../.agents/docs "$target/.claude/docs"  # pstack skills link through ~/.claude/docs
+  link_claude_skills || true
+
+  # CLIs that ship inside a skill (home/.local/bin/wt -> ../../.agents/skills/...).
+  for bin in "$managed_home"/.local/bin/*; do
+    dest="$(readlink "$bin" || true)"
+    [[ "$dest" == *".agents/skills/"* ]] || continue
+    ln -sfn "$(cd "$(dirname "$bin")/$(dirname "$dest")" && pwd)/$(basename "$dest")" \
+      "$target/.local/bin/$(basename "$bin")"
+  done
+  ln -sfn "$managed_home/.local/bin/dot" "$target/.local/bin/dot"
+  # Before dot took over, boxes ran skills-sync.
+  [[ -L "$target/.local/bin/skills-sync" ]] && rm "$target/.local/bin/skills-sync"
+  return 0
+}
+
 cmd_link() {
   local package dir entry rc=0
+  if [[ "$(uname -s)" != Darwin ]]; then
+    link_linux
+    return
+  fi
   for package in $(packages); do
     stow_package "$package"
     info "Stowed $package"
@@ -168,6 +305,8 @@ cmd_link() {
     rm "$entry"
     info "Removed link to ignored path $entry"
   done < <(ignored_links)
+  link_plugin_skills || rc=1
+  link_claude_skills || rc=1
   return "$rc"
 }
 
@@ -198,6 +337,11 @@ cmd_status() {
     clean=false
     printf 'Links to ignored paths:\n%s\n' "$out"
   fi
+  out="$(claude_skill_changes)"
+  if [[ -n "$out" ]]; then
+    clean=false
+    printf 'Claude Code skill links missing or stale:\n%s\n' "$out"
+  fi
   info "Linked as whole directories: ${folded_dirs[*]/#/~/}"
   info "Never linked: ${ignored_paths[*]}"
   if [[ "$clean" == true ]]; then
@@ -208,16 +352,251 @@ cmd_status() {
   fi
 }
 
+# ------------------------------------------------------------------------------
+# Sync: keep this Mac and exe.dev boxes in step through GitHub
+# ------------------------------------------------------------------------------
+
+# The dotfiles repo on GitHub is the meeting point: every machine pulls from it
+# and pushes its own commits to it. Uncommitted changes are never committed or
+# pushed; the pull keeps them (--autostash). Boxes run `dot sync` every 10
+# minutes from a systemd timer that the private iac repo's
+# infra/exe-dev/first-boot.sh installs, so a push from the Mac reaches them.
+sync_repo() {
+  git -C "$repo_root" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 \
+    || fail "$(git -C "$repo_root" branch --show-current) has no upstream branch; nothing to sync with."
+
+  info "Pulling $(hostname -s)..."
+  if ! git -C "$repo_root" pull --quiet --rebase --autostash; then
+    fail "Pull stopped on a conflict in $repo_root. Resolve it there ('git status'), then run 'dot sync' again."
+  fi
+
+  if [[ -n "$(git -C "$repo_root" log --oneline '@{u}..' 2>/dev/null)" ]]; then
+    info "Pushing $(git -C "$repo_root" log --oneline '@{u}..' | wc -l | tr -d ' ') local commit(s)..."
+    git -C "$repo_root" push --quiet || warn "Push failed; the commits stay here. Is 'gh auth status' logged in?"
+  fi
+
+  if [[ -n "$(git -C "$repo_root" status --porcelain -- home/.agents)" ]]; then
+    warn "Uncommitted skill changes in $repo_root/home/.agents; commit them to share them."
+  fi
+}
+
+sync_boxes() {
+  command -v hc >/dev/null || fail "--boxes needs hc (herdr-core) on this Mac."
+  local box found=false
+  for box in $(hc machine ls --json | grep -o '"target":"[^"]*\.exe\.xyz"' | cut -d'"' -f4); do
+    found=true
+    info "Syncing ${box}..."
+    ssh -o ConnectTimeout=15 "$box" '~/.local/bin/dot sync' || warn "${box} did not sync."
+  done
+  $found || warn "No exe.dev boxes in 'hc machine ls'."
+}
+
+cmd_sync() {
+  case "${1:-}" in
+    ""|--boxes) ;;
+    *) fail "Usage: dot sync [--boxes]" ;;
+  esac
+  sync_repo
+  # Re-exec so a pull that changed this script links with the new version.
+  "$script_path" link
+  info "$(find "$target/.claude/skills" -maxdepth 1 -type l | wc -l | tr -d ' ') skills linked for Claude Code"
+  [[ "${1:-}" == --boxes ]] && sync_boxes
+  return 0
+}
+
+# ------------------------------------------------------------------------------
+# Skills: add, list and update with the upstream `skills` CLI
+# ------------------------------------------------------------------------------
+
+run_skills_cli() {
+  # The skills CLI stores its global lock at $XDG_STATE_HOME/skills/.skill-lock.json
+  # when that variable is set. Clear it so the lock resolves to
+  # $managed_home/.agents/.skill-lock.json and stays tracked in this repo.
+  npm_config_cache="$npm_cache" HOME="$managed_home" \
+    command env -u XDG_STATE_HOME npx --yes skills "$@"
+}
+
+# The upstream CLI auto-detects Pi and Claude Code under $managed_home and links
+# updated skills into .pi/agent/skills and .claude/skills inside this repo. Pi
+# reads ~/.agents/skills directly and link_claude_skills owns ~/.claude/skills,
+# so drop those links to keep them out of the repo.
+prune_agent_links() {
+  local dir link
+  for dir in "$managed_home/.pi/agent/skills" "$managed_home/.claude/skills"; do
+    [[ -d "$dir" && ! -L "$dir" ]] || continue
+    for link in "$dir"/*; do
+      [[ -L "$link" ]] || continue
+      case "$(readlink "$link")" in
+        */.agents/skills/*) rm "$link" ;;
+      esac
+    done
+    rmdir "$dir" 2>/dev/null || true
+  done
+}
+
+# pstack skills come from the Claude Code copy in cursor/plugins and are
+# written for Cursor. Only part of pstack is installed; docs/harness/local.md
+# (hand-written) maps the skills left out to local ones, for any harness.
+# After add or update, from the commit in the lockfile:
+#   - copy docs/harness/claude-code.md (Cursor -> Claude Code names), dropping
+#     the plugin's `pstack:` prefix, and print any change to it for review,
+#     since a new kind of setup step there is not applied here;
+#   - copy agents/*.md to docs/harness/agents/, which local.md points to;
+#   - point each skill's "In Claude Code, read the adapter" line at local.md;
+#   - list upstream skills that are neither installed nor in pstack_skip.
+pstack_path="harness/pstack/claude-code"
+pstack_skip=(poteto-mode arena swarm setup-pstack poteto-help make-bot-ui automate-me)
+pstack_adapter_line='In Claude Code, read [the Claude Code adapter](../../docs/harness/claude-code.md) once per session before you follow this skill. It maps the Cursor names in pstack skills to Claude Code.'
+pstack_local_line='Read [the local pstack adapter](../../docs/harness/local.md) once per session before you follow this skill. It maps Cursor names and pstack skills not installed here to this setup.'
+
+sync_pstack() {
+  local lock="$managed_home/.agents/.skill-lock.json"
+  local commit url src up doc new name file missing=()
+
+  commit="$(jq -r --arg p "$pstack_path/skills/" '
+    [.skills[] | select(.skillPath | startswith($p))] | max_by(.updatedAt) | .commit // empty
+  ' "$lock")"
+  [[ -n "$commit" ]] || return 0
+  url="$(jq -r --arg c "$commit" '[.skills[] | select(.commit == $c)][0].sourceUrl' "$lock")"
+
+  src="$(mktemp -d)"
+  trap 'rm -rf "$src"' RETURN
+  git -C "$src" init -q
+  git -C "$src" remote add origin "$url"
+  git -C "$src" sparse-checkout set "$pstack_path"
+  git -C "$src" fetch -q --depth 1 --filter=blob:none origin "$commit"
+  git -C "$src" checkout -q FETCH_HEAD
+  up="$src/$pstack_path"
+
+  doc="$managed_home/.agents/docs/harness/claude-code.md"
+  new="$src/claude-code.md"
+  {
+    printf '<!-- Copied by `dot skills` from %s/blob/%s/%s/docs/harness/claude-code.md, with the `pstack:` prefix dropped. pstack skills link here as ../../docs/harness/claude-code.md; ~/.claude/docs links to this folder so that path resolves. -->\n\n' \
+      "${url%.git}" "$commit" "$pstack_path"
+    sed -E 's/pstack:([<a-z])/\1/g' "$up/docs/harness/claude-code.md"
+  } >"$new"
+  mkdir -p "$(dirname "$doc")"
+  if [[ ! -f "$doc" ]] || ! diff -q <(tail -n +3 "$doc") <(tail -n +3 "$new") >/dev/null; then
+    printf 'pstack claude-code.md changed. Review for setup steps this command does not apply:\n'
+    diff -u --label old --label new <(tail -n +3 "$doc" 2>/dev/null) <(tail -n +3 "$new") || true
+  fi
+  cp "$new" "$doc"
+
+  mkdir -p "$managed_home/.agents/docs/harness/agents"
+  cp "$up"/agents/*.md "$managed_home/.agents/docs/harness/agents/"
+
+  for file in "$managed_home/.agents/skills"/*/SKILL.md; do
+    grep -qF "$pstack_adapter_line" "$file" || continue
+    PSTACK_OLD="$pstack_adapter_line" PSTACK_NEW="$pstack_local_line" \
+      perl -pi -e 's/\Q$ENV{PSTACK_OLD}\E/$ENV{PSTACK_NEW}/' "$file"
+  done
+
+  for file in "$up"/skills/*; do
+    name="${file##*/}"
+    [[ -e "$managed_home/.agents/skills/$name" || " ${pstack_skip[*]} " == *" $name "* ]] || missing+=("$name")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    printf 'pstack skills upstream but not installed: %s\n' "${missing[*]}"
+    printf 'Add with: dot skills add %s/tree/main/%s --skill %s\n' "${url%.git}" "$pstack_path" "${missing[*]}"
+  fi
+}
+
+list_skills() {
+  local skill_file name description found=false
+
+  for skill_file in "$managed_home/.agents/skills"/*/SKILL.md; do
+    [[ -f "$skill_file" ]] || continue
+    found=true
+    name="$(basename "$(dirname "$skill_file")")"
+    description="$(awk '
+      function clean(value) {
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        if (value ~ /^".*"$/ || value ~ /^\047.*\047$/) {
+          value = substr(value, 2, length(value) - 2)
+        }
+        return value
+      }
+      NR == 1 && $0 == "---" { frontmatter = 1; next }
+      frontmatter && collecting && /^[[:space:]]+/ {
+        line = clean($0)
+        description = description (description ? " " : "") line
+        next
+      }
+      frontmatter && collecting { collecting = 0; print description; exit }
+      frontmatter && $0 == "---" { exit }
+      frontmatter && /^description:[[:space:]]*/ {
+        sub(/^description:[[:space:]]*/, "")
+        if ($0 ~ /^[>|][-+]?[[:space:]]*$/) {
+          collecting = 1
+          next
+        }
+        print clean($0)
+        exit
+      }
+      END { if (collecting) print description }
+    ' "$skill_file")"
+
+    description="${description//$'\n'/ }"
+    if [[ ${#description} -gt 80 ]]; then
+      description="${description:0:77}..."
+    elif [[ -z "$description" ]]; then
+      description="(no description)"
+    fi
+    printf '%-24s %s\n' "$name" "$description"
+  done
+
+  if [[ "$found" == false ]]; then
+    printf 'No skills installed.\n'
+  fi
+}
+
+cmd_skills() {
+  local sub="${1:-list}"
+  [[ $# -gt 0 ]] && shift
+  link_plugin_skills
+  case "$sub" in
+    list|ls)
+      [[ $# -eq 0 ]] || fail "Usage: dot skills list"
+      list_skills
+      ;;
+    add)
+      [[ $# -gt 0 ]] || fail "Usage: dot skills add <source> [options]"
+      run_skills_cli add "$@" --global --agent zed --yes
+      prune_agent_links
+      sync_pstack
+      link_claude_skills
+      ;;
+    update|upgrade)
+      run_skills_cli update --global --yes "$@"
+      prune_agent_links
+      sync_pstack
+      link_claude_skills
+      ;;
+    *)
+      warn "Unknown skills command: $sub"
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 Usage: dot <command>
 
 Commands:
-  link     Stow every package into ~, link folded directories, remove stale links
-  status   Show what 'link' would change (exits 1 if anything is out of date)
-  edit     Open the dotfiles repo in $EDITOR
-  help     Show this help
+  link                 Stow every package into ~, link folded directories and
+                       agent skills (~/.claude/skills), remove stale links
+  status               Show what 'link' would change (exits 1 if anything is out of date)
+  sync [--boxes]       Pull, push this machine's commits, then link; --boxes then
+                       runs 'dot sync' on every exe.dev box (hc machine ls)
+  skills [list]        List agent skills with short descriptions
+  skills add <source>  Add skills from a path, URL, or GitHub repository
+  skills update [...]  Update all lockfile-managed skills, or only the named ones
+  edit                 Open the dotfiles repo in $EDITOR
+  help                 Show this help
 
+On Linux (exe.dev boxes) 'link' only links the agent skills and their CLIs.
 In zsh, bare `dot` (a function in aliases.zsh) cds into the repo and opens it.
 EOF
 }
@@ -225,6 +604,8 @@ EOF
 case "${1:-help}" in
   link|restow) cmd_link ;;
   status) cmd_status ;;
+  sync) shift; cmd_sync "$@" ;;
+  skills) shift; cmd_skills "$@" ;;
   edit) exec "${EDITOR:-vi}" "$repo_root" ;;
   help|-h|--help) usage ;;
   *)

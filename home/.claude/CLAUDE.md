@@ -9,4 +9,4 @@
 
 # Pointers
 
-- Skills are authored in `~/.dotfiles/home/.agents/skills/<name>/SKILL.md` (see `~/.dotfiles/home/.agents/README.md`); after adding or renaming one, run `skills sync`. Commit a SKILL.md before rewriting it.
+- Skills are authored in `~/.dotfiles/home/.agents/skills/<name>/SKILL.md` (see `~/.dotfiles/home/.agents/README.md`); after adding or renaming one, run `dot link`. Commit a SKILL.md before rewriting it.

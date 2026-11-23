@@ -62,4 +62,4 @@ Apply the **unslop** skill to every line, then show the draft and take feedback.
 
 ## 6. Land it
 
-Run `skills sync` so Claude Code sees it. Commit in `~/.dotfiles` once the user approves the draft.
+Run `dot link` so Claude Code sees it. Commit in `~/.dotfiles` once the user approves the draft.

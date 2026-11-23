@@ -16,7 +16,7 @@ The [`bootstrap`](bootstrap) script is idempotent (safe to re-run) and handles e
 4. Installs all formulae and casks from the [Brewfile](Brewfile) via `brew bundle` (including `gh` and `stow`)
 5. Authenticates with GitHub via `gh auth login` (SSH key generated and uploaded for you), then switches the `origin` remote to SSH so you can push
 6. Prompts for your git identity and writes it to the gitignored `home/.gitconfig.local`
-7. Symlinks every package with `dot link` ([GNU Stow](https://www.gnu.org/software/stow/) underneath), backing up any conflicting existing files to `<file>.pre-dotfiles`, then links skills for Claude Code with `skills sync`
+7. Symlinks every package and links agent skills for Claude Code with `dot link` ([GNU Stow](https://www.gnu.org/software/stow/) underneath), backing up any conflicting existing files to `<file>.pre-dotfiles`
 
 Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checklist.
 
@@ -34,13 +34,15 @@ Everything below is done automatically by `bootstrap`, but documented here for o
 $ cd ~/.dotfiles && brew bundle
 ```
 
-### Dotfile symlinks with `dot`
+### Managing dotfiles with `dot`
 
-`dot` (`home/.local/bin/dot`) owns all linking into `~`:
+`dot` (`home/.local/bin/dot`) is the one CLI for this repo: it owns all linking into `~`, syncing with GitHub, and agent skills:
 
 ```bash
 $ dot status   # what's out of date: unlinked files, folded dirs, dangling links
-$ dot link     # stow every package, link folded dirs, remove dangling links
+$ dot link     # stow every package, link folded dirs and Claude Code skills, remove dangling links
+$ dot sync     # pull, push this machine's commits, link (--boxes: also every exe.dev box)
+$ dot skills   # list skills; `dot skills add|update` (see home/.agents/README.md)
 $ dot edit     # open this repo in $EDITOR (bare `dot` in zsh also cds here)
 ```
 
