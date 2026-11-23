@@ -102,9 +102,10 @@ The detail behind the contract in `SKILL.md`. Full references: `node "<SKILLS>/h
 
 ## Fonts
 
-- Bundled, so they resolve by name: Inter, Montserrat, Outfit, Nunito, Oswald, League Gothic, Archivo Black, Space Mono, IBM Plex Mono, JetBrains Mono, EB Garamond, Playfair Display, Source Code Pro, Noto Sans JP, Roboto, Open Sans, Lato, Poppins. Common system fonts (Helvetica, Arial, Times, Menlo and the like) are swapped for the nearest of these.
-- Use the bundled Latin faces only at their shipped weights. Other scripts or weights require supplied local font files to avoid automatic font retrieval.
-- Any other family needs local `@font-face` in the file that uses it, with `src: url('assets/fonts/x.woff2')`. Keep the file in the project and check that every character renders.
+- Give every used font family, weight and style a project-local URL-backed `@font-face` rule. Copy approved font files and their licenses into `assets/fonts/`. The retained `code-editorial/fonts/` folder supplies Inter, EB Garamond and JetBrains Mono files at the weights named in their filenames.
+- Use a declared local family first in every CSS stack and in font variables. Include any other named fallback through local declarations too. Bundled family names, shipped weights and system/generic primary names alone do not prevent the compiler from retrieving Google Fonts.
+- For example, declare `@font-face { font-family: "VideoInter"; src: url("assets/fonts/Inter-400.woff2") format("woff2"); font-weight: 400; font-style: normal; }`, then use `font-family: "VideoInter", sans-serif`. Declare additional weights/styles from their matching local files and verify every character renders.
+- Remove generated external script/stylesheet references and default font stacks before the first check, snapshot, preview or render. Report missing local assets instead of fetching a substitute.
 
 ## Timing and the timeline
 

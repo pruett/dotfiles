@@ -268,7 +268,7 @@ counter is decorative chrome.
 ## Known Gaps
 
 - **Motion intentionally out of scope.** frame.md specifies composition only; the source uses scroll-snap nav, no transition spec.
-- **Fonts:** Use supplied local Fredoka/Quicksand files at their supported weights. If unavailable, choose a bundled face and document the substitution. Additional scripts need supplied local font files.
+- **Fonts:** Use supplied local Fredoka/Quicksand files at their supported weights. If unavailable, copy an approved font file and its license into `assets/fonts/`, declare it with a URL-backed local `@font-face` rule and document the substitution. Additional scripts need supplied local font files.
 - **9:16 / 1:1 are guidance**; keep ornament count high so corners stay filled per ratio.
 - Ornaments (daisy/star/sun/cloud/rainbow), markers, and framed headers are CSS/SVG-only; recoloring SVG ornaments requires editing their stroke values.
 - **Contrast:** keep `{colors.text-muted}` off pastel surfaces (cream/white cards only); small text on saturated grounds should be charcoal or white.

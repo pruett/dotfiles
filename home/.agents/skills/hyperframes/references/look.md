@@ -15,7 +15,7 @@ Read the first of `frame.md`, `design.md`, `DESIGN.md` at the project root that 
 - Use supplied local brand screenshots and source assets. Measure the source before choosing tokens.
 - Images the person attached: take palette and type from what you see.
 
-Use supplied brand fonts from `assets/fonts/` with local `@font-face`, or a bundled family/weight that covers the text. State any substitution.
+Use supplied brand fonts or approved copied font files from `assets/fonts/`, with URL-backed local `@font-face` declarations for every used weight/style. Put a declared local family first in each stack. State any substitution. A family name alone does not prevent remote retrieval.
 
 ## From a reference
 
@@ -23,7 +23,7 @@ A reference film or image gives its grammar, never its content: shot lengths, ho
 
 ## Presets
 
-The presets are optional design references. Each folder in `../assets/frame-presets/` retains its `FRAME.md` spec and any bundled fonts/licenses. Copy a selected spec to the project as `frame.md`. Use supplied local fonts or a bundled family/weight. The standalone HTML specimens are excluded from this installation.
+The presets are optional design references. Each folder in `../assets/frame-presets/` retains its `FRAME.md` spec and any bundled fonts/licenses. Copy a selected spec to the project as `frame.md`. Use supplied local fonts or approved copied font files, declared through project-local URL-backed `@font-face` rules for every used weight/style. The standalone HTML specimens are excluded from this installation.
 
 | Preset              | Look                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------------------------- |
