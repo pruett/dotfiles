@@ -1,0 +1,23 @@
+#!/bin/sh
+# Print known_hosts lines for a tailnet device from the SSH host keys Tailscale
+# reports for it. ~/.ssh/config.d/exe-dev runs this as KnownHostsCommand, so a
+# rebuilt exe.dev VM connects without a stale-key error.
+#
+# Usage: tailnet-ssh-known-hosts HOST   (tailnet hostname or MagicDNS name)
+set -eu
+host="${1:?usage: tailnet-ssh-known-hosts HOST}"
+
+# ssh may run this with a minimal PATH.
+for t in tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale /opt/homebrew/bin/tailscale /usr/bin/tailscale; do
+  command -v "$t" >/dev/null 2>&1 && { tailscale="$t"; break; }
+done
+for j in jq /opt/homebrew/bin/jq /usr/bin/jq; do
+  command -v "$j" >/dev/null 2>&1 && { jq="$j"; break; }
+done
+: "${tailscale:?tailscale not found}" "${jq:?jq not found}"
+
+"$tailscale" status --json | "$jq" -r --arg host "$host" '
+  .Peer[]
+  | select(.HostName == $host or ((.DNSName // "") | rtrimstr(".")) == $host)
+  | .sshHostKeys[]?
+  | "\($host) \(.)"'

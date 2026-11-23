@@ -1,0 +1,19 @@
+{
+  "name": "exe-dev",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-bun": "^4.1.5",
+    "alchemy": "^2.0.0-beta.87",
+    "effect": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.5",
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "plan": "alchemy deploy --stage live --dry-run",
+    "deploy": "alchemy deploy --stage live",
+    "typecheck": "tsc -p ."
+  }
+}
