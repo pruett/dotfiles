@@ -73,3 +73,14 @@ note  = Without supabase/.env.local, supabase commands here hit the main checkou
 [~/.dotfiles]
 # No gitignored files to copy and no install step; add include/setup when that changes.
 note = Edits here do not reach ~/ until merged to main in ~/.dotfiles (the home links point at the main checkout).
+
+[~/Projects/personal/board]
+# Cloudflare Worker + Durable Object host for @vercel/board. The only gitignored essential is
+# hosts/cloudflare/.dev.vars (BOARD_TOKEN, 32+ chars). Copy the main checkout's when it has one,
+# else generate a local-only token; keep a worktree's existing file. Temp file + mv, so a crash leaves no half file.
+setup = bun install --frozen-lockfile
+setup = f=hosts/cloudflare/.dev.vars; [ -s "$f" ] || { if [ -s "{main}/$f" ]; then cp "{main}/$f" "$f.tmp"; else printf 'BOARD_TOKEN=%s\n' "$(openssl rand -hex 24)" > "$f.tmp"; fi && chmod 600 "$f.tmp" && mv "$f.tmp" "$f"; }
+note  = Boot: `cd hosts/cloudflare && bun run dev` serves http://localhost:8788/api/board (fixed port 8788; stop any other checkout's dev server first).
+note  = Client: `set -a; . hosts/cloudflare/.dev.vars; set +a; BOARD_URL=http://localhost:8788/api/board bunx vb whoami` (or `bunx vb conformance`).
+note  = Test: `bun test` and `bun run typecheck`. If bun.lock changes on this branch, run `bun install --frozen-lockfile` again.
+note  = Local DO + R2 state lives in hosts/cloudflare/.wrangler/ (gitignored, per worktree); delete it for a clean board.
