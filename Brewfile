@@ -86,6 +86,8 @@ cask "font-meslo-lg-nerd-font"
 cask "ghostty"
 # Reverse proxy, secure introspectable tunnels to localhost
 cask "ngrok"
+# Tiling window manager for macOS
+cask "omniwm"
 # Move and resize windows using keyboard shortcuts or snap areas
 cask "rectangle"
 # Music streaming service
