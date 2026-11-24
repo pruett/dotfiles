@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Runs `dot link` after git changes which files exist under home/, so new,
+# renamed and deleted files get linked without remembering to. Edits to files
+# that already exist need no relink, so most pulls skip it. Installed as
+# post-merge, post-checkout and post-rewrite through core.hooksPath, which
+# `dot link` sets.
+set -euo pipefail
+
+# dot sync links right after its pull; don't link twice.
+[[ -n "${DOT_SYNC:-}" ]] && exit 0
+
+hook="$(basename "$0")"
+case "$hook" in
+  post-merge) old=ORIG_HEAD new=HEAD ;;
+  post-checkout)
+    # $3 is 1 for a branch checkout, 0 for a file checkout. A rebase checks
+    # out commits as it goes; post-rewrite covers it once it finishes.
+    [[ "${3:-0}" == 1 ]] || exit 0
+    [[ -d "$(git rev-parse --git-path rebase-merge)" || -d "$(git rev-parse --git-path rebase-apply)" ]] && exit 0
+    old="$1" new="$2" ;;
+  post-rewrite)
+    [[ "${1:-}" == rebase ]] || exit 0
+    old=ORIG_HEAD new=HEAD ;;
+  *) exit 0 ;;
+esac
+
+git rev-parse --verify --quiet "$old^{commit}" >/dev/null || exit 0
+[[ "$(git rev-parse "$old")" == "$(git rev-parse "$new")" ]] && exit 0
+
+changes="$(
+  git diff --no-renames --name-only --diff-filter=ADT "$old" "$new" -- home
+  git diff --name-only "$old" "$new" -- .stowrc home/.local/bin/dot
+)"
+[[ -z "$changes" ]] && exit 0
+
+echo "dot: files added or removed under home/; running 'dot link'..."
+"$(git rev-parse --show-toplevel)/home/.local/bin/dot" link || echo "dot: 'dot link' failed; run it by hand." >&2

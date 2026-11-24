@@ -283,8 +283,17 @@ link_linux() {
   return 0
 }
 
+# .githooks/relink runs `dot link` after a pull or checkout that adds or removes
+# files under home/. Git only runs it once core.hooksPath points there.
+enable_git_hooks() {
+  [[ "$(git -C "$repo_root" config --local core.hooksPath || true)" == .githooks ]] && return
+  git -C "$repo_root" config --local core.hooksPath .githooks
+  info "Enabled git hooks in .githooks (relink after pulls)"
+}
+
 cmd_link() {
   local package dir entry rc=0
+  enable_git_hooks
   if [[ "$(uname -s)" != Darwin ]]; then
     link_linux
     return
@@ -342,6 +351,10 @@ cmd_status() {
     clean=false
     printf 'Claude Code skill links missing or stale:\n%s\n' "$out"
   fi
+  if [[ "$(git -C "$repo_root" config --local core.hooksPath || true)" != .githooks ]]; then
+    clean=false
+    printf 'Git hooks off: pulls will not relink (core.hooksPath is not .githooks)\n'
+  fi
   info "Linked as whole directories: ${folded_dirs[*]/#/~/}"
   info "Never linked: ${ignored_paths[*]}"
   if [[ "$clean" == true ]]; then
@@ -366,7 +379,8 @@ sync_repo() {
     || fail "$(git -C "$repo_root" branch --show-current) has no upstream branch; nothing to sync with."
 
   info "Pulling $(hostname -s)..."
-  if ! git -C "$repo_root" pull --quiet --rebase --autostash; then
+  # DOT_SYNC tells .githooks/relink to skip; cmd_sync links after the pull.
+  if ! DOT_SYNC=1 git -C "$repo_root" pull --quiet --rebase --autostash; then
     fail "Pull stopped on a conflict in $repo_root. Resolve it there ('git status'), then run 'dot sync' again."
   fi
 

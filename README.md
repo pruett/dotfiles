@@ -46,7 +46,7 @@ $ dot skills   # list skills; `dot skills add|update` (see home/.agents/README.m
 $ dot edit     # open this repo in $EDITOR (bare `dot` in zsh also cds here)
 ```
 
-A package is any top-level directory with tracked files (today just `home`); dot-directories like `.plugins` and `.tools` (CLI projects whose `bin/` is symlinked from `home/.local/bin`) are never stowed. `.stowrc` sets `--no-folding`, so most files get their own link and **a new file needs `dot link`**. The directories in `folded_dirs` (`~/.agents/skills`, `~/.config/zsh`) are instead one symlink to the repo folder, so files added there appear immediately. Edits to existing files never need relinking. Paths in `ignored_paths` (e.g. `.gitconfig.local.sample`) stay in the repo and never get a link.
+A package is any top-level directory with tracked files (today just `home`); dot-directories like `.plugins` and `.tools` (CLI projects whose `bin/` is symlinked from `home/.local/bin`) are never stowed. `.stowrc` sets `--no-folding`, so most files get their own link and **a new file needs `dot link`**. Git hooks in `.githooks` (turned on by `dot link`, which sets `core.hooksPath`) run it for you after a pull, merge, rebase or branch checkout that adds, removes or renames files under `home/`. The directories in `folded_dirs` (`~/.agents/skills`, `~/.config/zsh`) are instead one symlink to the repo folder, so files added there appear immediately. Edits to existing files never need relinking. Paths in `ignored_paths` (e.g. `.gitconfig.local.sample`) stay in the repo and never get a link.
 
 ### Git
 
