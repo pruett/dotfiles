@@ -6,13 +6,18 @@ tabRailAppIcons = true
 
 [borders]
 enabled = true
-width = 5.0
+width = 3.0
 
 [borders.color]
 alpha = 1.0
 blue = 0.979300037944676
 green = 1.0
 red = 0.08458520228437894
+
+[borders.glow]
+enabled = false
+opacity = 0.6
+radius = 8.0
 
 [clipboard]
 historyEnabled = false
