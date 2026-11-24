@@ -34,4 +34,4 @@ Workers read principles by file, since each is a slash-only skill: name them in 
 | writing or changing tests | test-behavior-not-implementation |
 | measuring performance or an eval | explain-the-number |
 | a novel interaction or architecture with no precedent | exhaust-the-design-space, experience-first |
-| a reviewer | the same principles its implementer was given |
+| a reviewer | none: its bar is the chunk's ACCEPTANCE, and a principle it would cite is a finding only with a run that shows the failure |

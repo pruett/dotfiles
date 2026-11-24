@@ -36,6 +36,6 @@ Name in CONTEXT any skill the chunk needs. A skill marked `disable-model-invocat
 
 ## Rounds
 
-- A reviewer's findings go back to the implementer that wrote the code, in one message listing every finding.
+- A reviewer's kept findings (each with its command and output) go back in one message listing every finding: to the implementer that wrote the code for the first fix round, and to a fresh implementer in the same worktree from the second round on (`roles/lead.md` step 4). The implementer reruns each command and pastes the failing output before fixing; one that does not fail is dropped.
 - A tester's `ISSUES` go back the same way. Rerun the tester after the fix.
 - Accept a chunk only when its ACCEPTANCE lines are all checked against evidence you read.
