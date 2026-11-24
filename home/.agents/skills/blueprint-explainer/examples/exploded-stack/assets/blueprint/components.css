@@ -1,0 +1,86 @@
+/* blueprint-explainer — components. Needs palette.css first.
+   Every component is absolutely positioned by the scene; these rules only set the look. */
+
+/* ---------- Frame metadata: the three corner labels of a figure panel ---------- */
+.bp-meta {
+  position: absolute;
+  font-family: var(--bp-font);
+  font-size: var(--bp-size-meta);
+  letter-spacing: var(--bp-track);
+  color: var(--bp-meta);
+  text-transform: uppercase;
+  white-space: nowrap;
+  line-height: 1;
+}
+/* Vertical label: glyphs turned 90° clockwise, reads top → bottom. */
+.bp-vertical { writing-mode: vertical-rl; text-orientation: sideways; }
+.bp-meta.tl { left: calc(var(--bp-margin-x) + 18px);  top: calc(var(--bp-margin-y) + 18px); }
+.bp-meta.tr { right: calc(var(--bp-margin-x) + 18px); top: calc(var(--bp-margin-y) + 18px); }
+.bp-meta.br { right: calc(var(--bp-margin-x) + 18px); bottom: calc(var(--bp-margin-y) + 18px); }
+
+/* ---------- Corner ticks: registration marks on the panel corners ---------- */
+.bp-ticks { position: absolute; inset: var(--bp-margin-y) var(--bp-margin-x); pointer-events: none; }
+.bp-ticks i { position: absolute; width: 16px; height: 16px; border-color: var(--bp-ink); border-style: solid; border-width: 0; }
+.bp-ticks i:nth-child(1) { left: -8px;  top: -8px;    border-left-width: 2px;  border-top-width: 2px; }
+.bp-ticks i:nth-child(2) { right: -8px; top: -8px;    border-right-width: 2px; border-top-width: 2px; }
+.bp-ticks i:nth-child(3) { left: -8px;  bottom: -8px; border-left-width: 2px;  border-bottom-width: 2px; }
+.bp-ticks i:nth-child(4) { right: -8px; bottom: -8px; border-right-width: 2px; border-bottom-width: 2px; }
+
+/* ---------- Callout label (SVG <text> or HTML) ---------- */
+.bp-label {
+  font-family: var(--bp-font);
+  font-size: var(--bp-size-label);
+  letter-spacing: var(--bp-track);
+  text-transform: uppercase;
+  fill: var(--bp-ink);
+  color: var(--bp-ink);
+}
+.bp-label.muted { fill: var(--bp-meta); color: var(--bp-meta); }
+
+/* ---------- SVG line work ---------- */
+.bp-svg { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: visible; }
+.bp-line   { fill: none; stroke: var(--bp-ink); stroke-width: var(--bp-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.bp-detail { fill: none; stroke: var(--bp-ink); stroke-width: var(--bp-stroke-detail); stroke-linejoin: round; }
+.bp-guide  { fill: none; stroke: var(--bp-ink-soft); stroke-width: var(--bp-stroke-guide); stroke-dasharray: var(--bp-dash); }
+.bp-leader { fill: none; stroke: var(--bp-ink); stroke-width: var(--bp-stroke); }
+.bp-arrow  { fill: var(--bp-ink); stroke: none; }
+
+/* Faces of an isometric slab: outline in ink, fill in one of the three blues. */
+.bp-face   { fill: var(--bp-face);   stroke: var(--bp-ink); stroke-width: var(--bp-stroke); stroke-linejoin: round; }
+.bp-face.tint   { fill: var(--bp-tint); }
+.bp-face.accent { fill: var(--bp-accent); }
+.bp-face.signal { fill: var(--bp-signal); }
+/* Side faces read darker than the top: same fill, a 6% ink wash. */
+.bp-face.side { filter: brightness(0.96); }
+
+/* ---------- Dataviz ---------- */
+.bp-bar      { fill: var(--bp-tint); stroke: var(--bp-ink); stroke-width: var(--bp-stroke); }
+.bp-bar.hero { fill: var(--bp-accent); }
+.bp-axis     { stroke: var(--bp-ink); stroke-width: var(--bp-stroke); fill: none; }
+.bp-gridline { stroke: var(--bp-ink-soft); stroke-width: 1px; stroke-dasharray: 2 6; fill: none; }
+.bp-value {
+  font-family: var(--bp-font);
+  font-size: var(--bp-size-value);
+  color: var(--bp-ink); fill: var(--bp-ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.bp-hero-number { font-family: var(--bp-font); font-size: var(--bp-size-hero); color: var(--bp-ink); line-height: 1; letter-spacing: -0.02em; }
+
+/* ---------- Dotted divider rule (a row of small squares) ---------- */
+.bp-rule {
+  height: 11px;
+  background-image: linear-gradient(90deg, var(--bp-dot) 0 5px, transparent 5px);
+  background-size: 9px 11px;
+}
+
+/* ---------- Title (one per scene, optional) ---------- */
+.bp-title {
+  position: absolute;
+  font-family: var(--bp-font);
+  font-size: var(--bp-size-title);
+  color: var(--bp-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}

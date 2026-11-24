@@ -1,0 +1,35 @@
+<!doctype html>
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"bp-paper","type":"color","label":"Paper","default":"#F9F9FA"},
+    {"id":"bp-ink","type":"color","label":"Ink","default":"#2A36E0"},
+    {"id":"bp-accent","type":"color","label":"Accent fill","default":"#8C9BF9"},
+    {"id":"bp-font","type":"string","label":"Mono font","default":"BPMono"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <!-- Local only: GSAP, Departure Mono (OFL), blueprint tokens/components/helpers. -->
+    <script src="assets/vendor/gsap.min.js"></script>
+    <link rel="stylesheet" href="assets/blueprint/palette.css" />
+    <link rel="stylesheet" href="assets/blueprint/components.css" />
+    <script src="assets/blueprint/draw.js"></script>
+    <script src="assets/blueprint/motion.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bp-paper); font-family: var(--bp-font); }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: var(--bp-font); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="8.5" data-fps="30" data-width="1920" data-height="1080">
+      <div id="exploded" data-composition-id="exploded" data-composition-src="compositions/exploded-stack.html" data-start="0" data-duration="8.5" data-track-index="1" data-width="1920" data-height="1080"></div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

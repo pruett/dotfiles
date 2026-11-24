@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- blueprint-explainer component gallery: one static 1920x1080 sheet showing every component.
+     Open in Chrome from this folder. Copy markup/calls from here into scenes. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="palette.css" />
+    <link rel="stylesheet" href="components.css" />
+    <style>
+      /* palette.css resolves fonts at ../fonts/ — in this folder they live at ../assets/fonts/,
+         so the gallery loads its own face and points --bp-font at it. */
+      @font-face { font-family: "BPMonoGallery"; src: url("../assets/fonts/DepartureMono-Regular.woff2") format("woff2"); }
+      :root { --bp-font: "BPMonoGallery", ui-monospace, monospace; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bp-paper); font-family: var(--bp-font); }
+      #root { position: relative; width: 1920px; height: 1080px; }
+      .cap { position: absolute; font-size: 22px; color: var(--bp-meta); letter-spacing: var(--bp-track); }
+    </style>
+    <script src="draw.js"></script>
+  </head>
+  <body>
+    <div id="root">
+      <div class="bp-paper"></div>
+      <div class="bp-sheet"></div>
+      <div class="bp-ticks"><i></i><i></i><i></i><i></i></div>
+      <div class="bp-meta bp-vertical tl">FIG_000</div>
+      <div class="bp-meta bp-vertical tr">[ COMPONENT SHEET ]</div>
+      <div class="bp-meta bp-vertical br">[ 2026 ]</div>
+      <svg id="s" class="bp-svg" viewBox="0 0 1920 1080"></svg>
+
+      <div class="cap" style="left:200px;top:120px">01 EXPLODED STACK</div>
+      <div class="cap" style="left:860px;top:120px">02 BAR CHART</div>
+      <div class="cap" style="left:1400px;top:120px">03 COUNTER</div>
+      <div class="cap" style="left:1400px;top:520px">04 DIVIDER RULE</div>
+      <div class="cap" style="left:860px;top:640px">05 DIMENSION + GUIDE</div>
+
+      <div class="bp-value" style="position:absolute;left:1400px;top:170px">LATENCY</div>
+      <div class="bp-hero-number" style="position:absolute;left:1400px;top:230px">0412</div>
+      <div class="cap" style="left:1400px;top:370px">MS · P95</div>
+      <div class="bp-rule" style="position:absolute;left:1400px;top:570px;width:380px"></div>
+    </div>
+    <script>
+      const s = document.getElementById("s");
+      // 01 exploded stack, already apart (lifts 0 / 90 / 180), callouts left and right
+      const P = BP.iso(430, 700);
+      const g0 = BP.el("g", {}, s), g1 = BP.el("g", { transform: "translate(0,-90)" }, s), g2 = BP.el("g", { transform: "translate(0,-180)" }, s);
+      BP.tray(g0, { P, w: 240, d: 180, h: 10, wall: 20, t: 8 });
+      BP.slab(g1, { P, x: 15, y: 15, z: 20, w: 210, d: 150, h: 8, fill: "tint" });
+      const hero = BP.slab(g1, { P, x: 80, y: 50, z: 28, w: 80, d: 70, h: 20, fill: "accent" });
+      BP.slab(g2, { P, z: 40, w: 240, d: 180, h: 24 });
+      BP.leader(g2, { at: P(240, 40, 64), labelX: 690, text: "LID" });
+      BP.leader(g1, { at: hero.topCenter, labelX: 690, text: "CORE" });
+      BP.leader(g0, { at: P(0, 120, 30), labelX: 260, text: "TRAY" });
+      BP.guide(g0, P(0, 180, 30), [P(0, 180, 40)[0], P(0, 180, 40)[1] - 180]);
+      BP.guide(g0, P(240, 0, 30), [P(240, 0, 40)[0], P(240, 0, 40)[1] - 180]);
+
+      // 02 bar chart: tint bars, one accent hero bar, dashed gridlines, ink axis, mono values
+      const bx = 860, by = 560, bw = 70, gap = 30, vals = [120, 210, 160, 330, 190];
+      [100, 200, 300].forEach((v) => BP.el("path", { class: "bp-gridline", d: `M${bx},${by - v} L${bx + 5 * (bw + gap)},${by - v}` }, s));
+      vals.forEach((v, i) => {
+        BP.el("rect", { class: "bp-bar" + (i === 3 ? " hero" : ""), x: bx + i * (bw + gap), y: by - v, width: bw, height: v }, s);
+        const t = BP.el("text", { class: "bp-label", x: bx + i * (bw + gap) + bw / 2, y: by - v - 22, "text-anchor": "middle" }, s);
+        t.textContent = String(v);
+      });
+      BP.el("path", { class: "bp-axis", d: `M${bx - 10},${by} L${bx + 5 * (bw + gap)},${by}` }, s);
+
+      // 05 dimension on a flat plate + vertical guide
+      const Q = BP.iso(1100, 760);
+      const plate = BP.slab(s, { P: Q, w: 300, d: 160, h: 16, fill: "face" });
+      BP.dimension(s, { a: Q(0, 160, 0), b: Q(300, 160, 0), offset: 40, text: "300" });
+    </script>
+  </body>
+</html>

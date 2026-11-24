@@ -1,0 +1,100 @@
+<template>
+  <style>
+    #ex-root { position: absolute; inset: 0; overflow: hidden; font-family: var(--bp-font); }
+    #stage { position: absolute; inset: 0; }
+    .readout { position: absolute; left: calc(var(--bp-margin-x) + 48px); bottom: calc(var(--bp-margin-y) + 40px); display: flex; flex-direction: column; gap: 10px; }
+    .readout .k { font-size: var(--bp-size-meta); color: var(--bp-meta); letter-spacing: var(--bp-track); }
+  </style>
+  <div id="ex-root" data-composition-id="exploded" data-width="1920" data-height="1080">
+        <div class="bp-paper"></div>
+        <div class="bp-sheet"></div>
+        <div class="bp-ticks"><i></i><i></i><i></i><i></i></div>
+        <div id="meta-fig" data-layout-ignore class="bp-meta bp-vertical tl">FIG_001</div>
+        <div id="meta-title" data-layout-ignore class="bp-meta bp-vertical tr">[ LAYERED MODULE ]</div>
+        <div id="meta-year" data-layout-ignore class="bp-meta bp-vertical br">[ 2026 ]</div>
+        <div id="stage">
+          <svg id="dwg" class="bp-svg" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="readout">
+          <div class="k" data-layout-ignore>VERTICAL OFFSET</div>
+          <div id="offset" class="bp-value">+000 PX</div>
+        </div>
+        </div>
+    <script>
+    (function () {
+      // ---------- Drawing: one <g> per layer, painted bottom → top ----------
+      const svg = document.getElementById("dwg");
+      const P = BP.iso(908, 600);
+      const W = 420, D = 300;
+      const L = {};
+      for (const name of ["base", "board", "mesh", "cover"]) L[name] = BP.el("g", { id: "layer-" + name }, svg);
+
+      // Base tray (stays put)
+      const tray = BP.tray(L.base, { P, w: W, d: D, h: 14, wall: 30, t: 10, fill: "face" });
+      // Logic board with chips; the core chip is the accent part
+      BP.slab(L.board, { P, x: 20, y: 20, z: 20, w: W - 40, d: D - 40, h: 10, fill: "tint" });
+      const core = BP.slab(L.board, { P, x: 150, y: 90, z: 30, w: 130, d: 110, h: 26, fill: "accent" });
+      BP.slab(L.board, { P, x: 60, y: 60, z: 30, w: 60, d: 50, h: 14, fill: "face" });
+      BP.slab(L.board, { P, x: 310, y: 170, z: 30, w: 70, d: 60, h: 14, fill: "face" });
+      BP.slab(L.board, { P, x: 60, y: 190, z: 30, w: 60, d: 50, h: 14, fill: "face" });
+      // Sensor mesh: thin plate with a 6 × 4 cell grid, checker in tint/accent
+      const mesh = BP.slab(L.mesh, { P, x: 10, y: 10, z: 60, w: W - 20, d: D - 20, h: 6, fill: "face" });
+      const cw = (W - 60) / 6, cd = (D - 60) / 4;
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++)
+        BP.slab(L.mesh, { P, x: 30 + i * cw + 4, y: 30 + j * cd + 4, z: 66, w: cw - 8, d: cd - 8, h: 0, fill: (i + j) % 3 === 0 ? "accent" : "tint" });
+      // Cover with a recessed window
+      const cover = BP.slab(L.cover, { P, x: 0, y: 0, z: 70, w: W, d: D, h: 40, fill: "face" });
+      BP.slab(L.cover, { P, x: 250, y: 40, z: 110, w: 130, d: 90, h: 0, fill: "tint" });
+
+      // ---------- Callouts (inside each layer group, so they ride with it) ----------
+      const LEFT = 560, RIGHT = 1360;
+      const callouts = [
+        BP.leader(L.cover, { at: [P(W, 70, 110)[0] - 4, P(W, 70, 110)[1] + 0], labelX: RIGHT, text: "COVER", id: "co-cover" }),
+        BP.leader(L.mesh, { at: P(10, D - 40, 66), labelX: LEFT, text: "SENSOR MESH", id: "co-mesh" }),
+        BP.leader(L.board, { at: P(280, 170, 42), labelX: RIGHT, text: "CORE", id: "co-core" }), // front-right face of the chip: the part the mesh does not hide
+        BP.leader(L.board, { at: P(20, 200, 30).map((v, k) => (k ? v : v + 20)), labelX: LEFT, text: "LOGIC BOARD", id: "co-board" }),
+        BP.leader(L.base, { at: P(0, 220, 44).map((v, k) => (k ? v : v + 8)), labelX: LEFT, text: "BASE TRAY", id: "co-base" }),
+      ];
+
+      // ---------- Construction: alignment guides (in base, drawn to the exploded height) and a dimension ----------
+      const LIFT = { board: 110, mesh: 230, cover: 380 };
+      const g1 = BP.guide(L.base, P(0, D, 44), [P(0, D, 70)[0], P(0, D, 70)[1] - LIFT.cover], "guide-left");
+      const g2 = BP.guide(L.base, P(W, 0, 44), [P(W, 0, 70)[0], P(W, 0, 70)[1] - LIFT.cover], "guide-right");
+      const g3 = BP.guide(L.base, P(W, D, 44), [P(W, D, 70)[0], P(W, D, 70)[1] - LIFT.cover], "guide-front");
+      const dim = BP.dimension(L.base, { a: P(0, D, 0), b: P(W, D, 0), offset: 46, text: "420", id: "dim-w" });
+
+      // ---------- Timeline ----------
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const layers = [
+        { el: L.board, lift: LIFT.board },
+        { el: L.mesh, lift: LIFT.mesh },
+        { el: L.cover, lift: LIFT.cover },
+      ];
+      const guides = [g1, g2, g3];
+      gsap.set([...guides, dim], { opacity: 0 });
+
+      BP.typeOn(tl, "#meta-fig", 0.1, { cps: 30 });
+      BP.typeOn(tl, "#meta-title", 0.2, { cps: 40 });
+      BP.typeOn(tl, "#meta-year", 0.3, { cps: 30 });
+      // 1. Construct bottom → top: each layer traces on 0.25 s after the one below, fills follow (0.2 → ~1.8)
+      ["base", "board", "mesh", "cover"].forEach((n, i) => BP.drawOn(tl, L[n].querySelectorAll(".bp-face"), 0.2 + i * 0.25, { dur: 0.6, stagger: 0.01 }));
+      tl.to(dim, { opacity: 1, duration: 0.3 }, 1.3);
+      // 2. Hold 0.4 s, then explode (2.0 → 3.6) with the offset readout in sync
+      BP.explode(tl, layers, 2.0);
+      BP.counter(tl, "#offset", 0, LIFT.cover, 2.0, { dur: 1.6, pad: 3, prefix: "+", suffix: " PX", ease: BP.ease.explode });
+      // 3. Callouts arrive at ~70% of the explode; guides trace once parts are apart
+      tl.set(guides, { opacity: 1 }, 3.2);
+      BP.drawGuide(tl, guides, 3.2, { dur: 0.5 });
+      BP.calloutsIn(tl, callouts, 3.1);
+      // 4. Hold exploded (3.6 → 5.6), then everything retracts
+      BP.calloutsOut(tl, callouts, 5.6);
+      tl.to(guides, { opacity: 0, duration: 0.15 }, 5.6);
+      BP.collapse(tl, layers, 5.6);
+      BP.counter(tl, "#offset", LIFT.cover, 0, 5.6, { dur: 1.55, pad: 3, prefix: "+", suffix: " PX", ease: BP.ease.explode });
+      // 5. Rest hold to 8.5
+      tl.to({}, { duration: 0.01 }, 8.49);
+      window.__timelines["exploded"] = tl;
+    })();
+    </script>
+</template>

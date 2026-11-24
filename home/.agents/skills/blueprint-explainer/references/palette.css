@@ -1,0 +1,71 @@
+/* blueprint-explainer — tokens, font and dot-grid ground.
+   Copy to <video>/assets/blueprint/palette.css and link it from every scene.
+   Font file path is relative to this CSS file: keep fonts in ../fonts/. */
+
+@font-face {
+  font-family: "BPMono";                 /* Departure Mono 1.500, SIL OFL 1.1 */
+  src: url("../fonts/DepartureMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+
+:root {
+  /* Ground */
+  --bp-paper: #F9F9FA;        /* outer page, plain */
+  --bp-sheet: #F7F7FC;        /* inner figure panel, carries the dot grid */
+  --bp-dot: #CFCDE6;          /* grid dots (lavender grey) */
+  --bp-sheet-rule: #E4E4EF;   /* 1px hairline around the panel */
+
+  /* Ink: one blue does all line work and labels */
+  --bp-ink: #2A36E0;          /* strokes, leaders, label text */
+  --bp-ink-soft: #7C86EE;     /* construction / secondary strokes */
+  --bp-meta: #6B6B6B;         /* corner metadata (FIG_, [ TITLE ], year); 4.9:1 on sheet */
+
+  /* Fills: three steps of the same blue, lightest to strongest */
+  --bp-face: #EFF2F5;         /* neutral part faces (plastic, shells) */
+  --bp-tint: #DFE6FC;         /* secondary faces, side walls, bars at rest */
+  --bp-accent: #8C9BF9;       /* the ONE part the scene is about */
+
+  /* Signal: use only for an error/alert state, max one element per scene */
+  --bp-signal: #E5484D;
+
+  /* Line weights at 1920x1080 */
+  --bp-stroke: 2px;           /* object outlines, leaders */
+  --bp-stroke-detail: 1.5px;  /* inner edges, small parts */
+  --bp-stroke-guide: 1.5px;   /* dashed construction / alignment guides */
+  --bp-dash: 14 8;            /* guide dash pattern (SVG stroke-dasharray) */
+
+  /* Dot grid */
+  --bp-grid: 12px;            /* pitch */
+  --bp-dot-r: 1.1px;          /* dot radius */
+
+  /* Type: Departure Mono is pixel-built; sizes are multiples of 11px */
+  --bp-font: "BPMono", ui-monospace, monospace;
+  --bp-size-meta: 22px;       /* corner metadata, vertical labels: texture, mark data-layout-ignore */
+  --bp-size-label: 33px;      /* part callouts: reading text, >= 28px phone floor */
+  --bp-size-value: 44px;      /* counters, dimension values */
+  --bp-size-title: 66px;      /* scene title (one per scene, optional) */
+  --bp-size-hero: 132px;      /* one big number */
+  --bp-track: 0.04em;         /* letter-spacing for uppercase labels */
+
+  /* Layout at 1920x1080 */
+  --bp-margin-x: 96px;        /* paper → panel */
+  --bp-margin-y: 64px;
+  --bp-gutter: 48px;          /* panel edge → metadata text */
+}
+
+/* Ground: plain paper outside, dotted sheet inside. */
+.bp-paper {
+  position: absolute; inset: 0;
+  background: var(--bp-paper);
+}
+.bp-sheet {
+  position: absolute;
+  left: var(--bp-margin-x); right: var(--bp-margin-x);
+  top: var(--bp-margin-y); bottom: var(--bp-margin-y);
+  background-color: var(--bp-sheet);
+  background-image: radial-gradient(circle at center, var(--bp-dot) var(--bp-dot-r), transparent calc(var(--bp-dot-r) + 0.6px));
+  background-size: var(--bp-grid) var(--bp-grid);
+  background-position: calc(var(--bp-grid) / 2) calc(var(--bp-grid) / 2);
+  outline: 1px solid var(--bp-sheet-rule);
+}
