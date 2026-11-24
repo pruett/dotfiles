@@ -24,19 +24,9 @@
 # script so `wt new` and `wt cd` can change the shell's directory.
 set -uo pipefail
 
-# Config: $WT_CONFIG, else ~/.config/wt/config when it exists (a per-machine
-# override), else the config beside this script's skill folder.
-script_dir() { # follows symlinks; macOS bash 3.2 has no readlink -f
-  local f=${BASH_SOURCE[0]} l
-  while [ -L "$f" ]; do
-    l=$(readlink "$f"); case $l in /*) f=$l ;; *) f=$(dirname "$f")/$l ;; esac
-  done
-  cd "$(dirname "$f")" && pwd -P
-}
-if [ -z "${WT_CONFIG:-}" ]; then
-  WT_CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/wt/config
-  [ -f "$WT_CONFIG" ] || WT_CONFIG=$(dirname "$(script_dir)")/config
-fi
+# Config: $WT_CONFIG, else ~/.config/wt/config (linked from the dotfiles repo,
+# home/.config/wt/config, by `dot link`).
+WT_CONFIG=${WT_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/wt/config}
 WT_DIR=worktrees
 TAB=$(printf '\t')
 

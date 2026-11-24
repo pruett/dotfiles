@@ -264,8 +264,9 @@ claude_skill_changes() {
 # (plus dot itself) in ~/.local/bin.
 link_linux() {
   local bin dest
-  mkdir -p "$target/.agents" "$target/.claude" "$target/.local/bin"
+  mkdir -p "$target/.agents" "$target/.claude" "$target/.local/bin" "$target/.config/wt"
   ln -sfn "$managed_home/.agents/skills" "$target/.agents/skills"
+  ln -sfn "$managed_home/.config/wt/config" "$target/.config/wt/config"  # wt (worktrees skill)
   ln -sfn "$managed_home/.agents/docs" "$target/.agents/docs"
   ln -sfn ../.agents/docs "$target/.claude/docs"  # pstack skills link through ~/.claude/docs
   link_claude_skills || true

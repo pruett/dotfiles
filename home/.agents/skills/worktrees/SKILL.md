@@ -9,7 +9,7 @@ description: "Make, find, remove and prune git worktrees with the `wt` CLI. Use 
 
 ## Map
 
-`wt info --all` prints, for every repo `wt` manages: the main checkout, the `wt new` command, the worktree path and branch, and the `setup` and `note` lines that say how to boot and test it there. `wt info <repo>` prints one. Each block comes from that repo's section of the [`config`](config): a fact about booting a repo's worktree belongs there as a `note`, not in this file.
+`wt info --all` prints, for every repo `wt` manages: the main checkout, the `wt new` command, the worktree path and branch, and the `setup` and `note` lines that say how to boot and test it there. `wt info <repo>` prints one. Each block comes from that repo's section of the config, `~/.config/wt/config`: a fact about booting a repo's worktree belongs there as a `note`, not in this file.
 
 ## Learn the current CLI
 
@@ -29,7 +29,7 @@ Run `wt ls --no-pr` from inside the repo. Exit 2 with "not inside an allowed rep
 
 ## When setup fails
 
-The config, [`config`](config) in this skill (or `~/.config/wt/config` when that file exists, or `$WT_CONFIG`), decides how each repo's worktrees are stood up: which local files are copied (`include`), per-worktree variables (`env`), the commands run in order (`setup`) and before removal (`teardown`), and the rules for working there (`note`). `wt info <repo>` prints the entries that apply; `wt help config` explains each key.
+The config, `~/.config/wt/config` (or `$WT_CONFIG` when set), decides how each repo's worktrees are stood up: which local files are copied (`include`), per-worktree variables (`env`), the commands run in order (`setup`) and before removal (`teardown`), and the rules for working there (`note`). `wt info <repo>` prints the entries that apply; `wt help config` explains each key.
 
 When `wt new` exits 1, the worktree exists and its path is still printed, but setup stopped at the failed entry. Read the log the error names, fix the cause, then run `wt setup <repo>/<slug>`: it re-applies every entry in order and keeps files already in the worktree. When the entry itself is wrong (a stale command, a missing include file), the fix belongs in the config: show the user the entry and your proposed change, and edit it only on their word.
 
