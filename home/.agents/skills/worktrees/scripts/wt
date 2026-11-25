@@ -6,8 +6,8 @@
 #
 #   ~/work/suppco/                 workspace
 #     web/  backend/               main checkouts
-#     worktrees/web/<slug>/        linked worktrees of web
-#     worktrees/backend/<slug>/    linked worktrees of backend
+#     .worktrees/web/<slug>/       linked worktrees of web
+#     .worktrees/backend/<slug>/   linked worktrees of backend
 #
 # `new` makes a worktree ready to run by applying the repo's rules from the
 # config, in order: copy the gitignored files its include files list, trust
@@ -27,7 +27,9 @@ set -uo pipefail
 # Config: $WT_CONFIG, else ~/.config/wt/config (linked from the dotfiles repo,
 # home/.config/wt/config, by `dot link`).
 WT_CONFIG=${WT_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/wt/config}
-WT_DIR=worktrees
+WT_DIR=.worktrees
+# Before 2026-11-25 the default was <workspace>/worktrees; worktrees made there keep working.
+LEGACY_WT_DIR=worktrees
 TAB=$(printf '\t')
 
 log() { printf '%s\n' "$*" >&2; }
@@ -121,7 +123,7 @@ resolve() { # resolve <repo>/<slug> | <slug> | "" → E_* plus T_SLUG; a bare sl
   set_entry "$main"
 }
 
-wt_dir_of() { # wt_dir_of <main>: the folder holding that repo's worktrees (the `dir` key, else <parent>/worktrees/<repo>)
+wt_dir_of() { # wt_dir_of <main>: the folder holding that repo's worktrees (the `dir` key, else <parent>/$WT_DIR/<repo>)
   local d; d=$(cfg_values "$1" dir | tail -1)
   [ -n "$d" ] || { printf '%s\n' "$(dirname "$1")/$WT_DIR/$(basename "$1")"; return; }
   d=${d//\{main\}/$1}; d=${d//\{repo\}/$(basename "$1")}; d=${d/#\~/$HOME}
@@ -138,7 +140,7 @@ exclude_inside() { # exclude_inside <main>: when its worktrees folder is inside 
   mkdir -p "$(dirname "$ex")" && printf '%s\n' "$rel" >>"$ex" && step exclude "$rel in $(tilde "$ex")"
 }
 
-legacy_dir_of() { printf '%s\n' "$(dirname "$1")/$WT_DIR/$(basename "$1")"; }
+legacy_dir_of() { printf '%s\n' "$(dirname "$1")/$LEGACY_WT_DIR/$(basename "$1")"; }
 
 # A worktree made before the repo got a `dir` entry stays where it is and keeps working.
 wt_path() {
@@ -833,8 +835,8 @@ usage: wt ls [--all] [--json] [--no-pr]
 
 lists linked worktrees of the allowed repos in the workspace that holds the
 current directory, or of every workspace with --all or outside any of them.
-Worktrees outside <workspace>/$WT_DIR show as "(outside)": made by hand or
-by an older layout.
+Worktrees outside <workspace>/$WT_DIR (or the older <workspace>/$LEGACY_WT_DIR)
+show as "(outside)": made by hand or by another layout.
 columns: TARGET · BRANCH · PR (latest for the branch, via gh)
          · AHEAD (commits past origin's default branch) · DIRTY (changed files)
 --json   an array of {workspace, repo, slug (null when outside), path, inside,
