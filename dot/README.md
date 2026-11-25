@@ -43,7 +43,7 @@ dot doctor  → for each component: check    (exit 1 if a required one fails)
 | `packages` | macOS | `brew bundle` on packages/bundle; update upgrades what it lists |
 | `github` | macOS | `gh auth login`, SSH to GitHub, origin switched to SSH |
 | `git_identity` | macOS | name and email in `home/.gitconfig.local` (optional) |
-| `links` | all | `dot link`: stow, Claude Code skill links, git hooks |
+| `links` | all | `dot link`: stow and Claude Code skill links |
 | `skills` | macOS | update runs `dot skills update`; changed skill files are yours to review and commit (optional) |
 | `rex` | macOS | the Rex terminal from its own update feed (signature checked), config check, terminfo, agent skill and hooks (optional) |
 
@@ -101,7 +101,7 @@ dot/
 ├── lib/
 │   ├── output.sh           # info/warn/fail, heading, mark_ok/warn/fail, check_item, ask, confirm
 │   ├── components.sh       # define_component, component_order, --only/--skip, run_phase
-│   ├── links.sh            # stow, folded directories, skill links, git hooks (dot link, dot status)
+│   ├── links.sh            # stow, folded directories, skill links (dot link, dot status)
 │   ├── brewfile.sh         # read and edit packages/bundle
 │   └── components/<name>.sh
 └── commands/<command>.sh   # cmd_<command>, one file per command

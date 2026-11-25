@@ -1,5 +1,6 @@
 # Xcode Command Line Tools: git, clang and the headers Homebrew builds with.
-# bootstrap installs them too, since it needs git to clone this repo.
+# A new Mac needs them before the clone (for git), so README.md has you run
+# xcode-select --install first; this component checks them after that.
 define_component xcode darwin required "Xcode Command Line Tools"
 
 component_xcode_install() {

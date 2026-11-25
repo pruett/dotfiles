@@ -1,6 +1,6 @@
 # Devin plugin
 
-Personal [Devin plugin](https://docs.devin.ai/cli/extensibility/plugins/overview). It lives under a dot-directory so `bootstrap` doesn't stow it into `~`.
+Personal [Devin plugin](https://docs.devin.ai/cli/extensibility/plugins/overview). It lives under a dot-directory so `dot link` doesn't stow it into `~`.
 
 ```
 .devin-plugin/plugin.json   manifest (only `name` is required)

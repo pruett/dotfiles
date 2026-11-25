@@ -1,6 +1,6 @@
 # Terminal output: plain lines, section headings, the ✓/⚠/✗ marks that
 # components print, and prompts that read from the terminal even when stdin
-# is a pipe (bootstrap runs as `curl ... | bash`).
+# is a pipe.
 
 if [[ -t 1 ]]; then
   c_bold=$'\033[1m' c_green=$'\033[32m' c_yellow=$'\033[33m' c_red=$'\033[31m' c_reset=$'\033[0m'

@@ -1,5 +1,5 @@
 # Linking: stow the home/ package into ~, the folded directories, agent skill
-# links for Claude Code, and the git hooks that relink after pulls.
+# links for Claude Code. dot update and dot sync run it after pulling.
 
 # .stowrc sets --no-folding, so stow links file by file and a file added to the
 # repo only appears after relinking. These directories (relative to the home
@@ -275,17 +275,8 @@ link_linux() {
   return 0
 }
 
-# .githooks/relink runs `dot link` after a pull or checkout that adds or removes
-# files under home/. Git only runs it once core.hooksPath points there.
-enable_git_hooks() {
-  [[ "$(git -C "$repo_root" config --local core.hooksPath || true)" == .githooks ]] && return
-  git -C "$repo_root" config --local core.hooksPath .githooks
-  info "Enabled git hooks in .githooks (relink after pulls)"
-}
-
 link_all() {
   local package dir entry rc=0
-  enable_git_hooks
   if [[ "$(uname -s)" != Darwin ]]; then
     link_linux
     return
@@ -342,10 +333,6 @@ link_status() {
   if [[ -n "$out" ]]; then
     clean=false
     printf 'Claude Code skill links missing or stale:\n%s\n' "$out"
-  fi
-  if [[ "$(git -C "$repo_root" config --local core.hooksPath || true)" != .githooks ]]; then
-    clean=false
-    printf 'Git hooks off: pulls will not relink (core.hooksPath is not .githooks)\n'
   fi
   info "Linked as whole directories: ${folded_dirs[*]/#/~/}"
   info "Never linked: ${ignored_paths[*]}"

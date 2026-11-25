@@ -11,8 +11,7 @@ sync_repo() {
     || fail "$(git -C "$repo_root" branch --show-current) has no upstream branch; nothing to sync with."
 
   info "Pulling $(hostname -s)..."
-  # DOT_SYNC tells .githooks/relink to skip; cmd_sync links after the pull.
-  if ! DOT_SYNC=1 git -C "$repo_root" pull --quiet --rebase --autostash; then
+  if ! git -C "$repo_root" pull --quiet --rebase --autostash; then
     fail "Pull stopped on a conflict in $repo_root. Resolve it there ('git status'), then run 'dot sync' again."
   fi
 

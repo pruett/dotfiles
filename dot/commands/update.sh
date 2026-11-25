@@ -25,8 +25,7 @@ pull_repo() {
     return 0
   fi
   before="$(git -C "$repo_root" rev-parse HEAD)"
-  # DOT_SYNC tells .githooks/relink to skip; the links component relinks.
-  DOT_SYNC=1 git -C "$repo_root" pull --quiet --rebase --autostash \
+  git -C "$repo_root" pull --quiet --rebase --autostash \
     || fail "Pull stopped on a conflict in $repo_root. Resolve it there ('git status'), then run 'dot update' again."
   after="$(git -C "$repo_root" rev-parse HEAD)"
   if [[ "$before" == "$after" ]]; then
