@@ -10,14 +10,30 @@ width = 3.0
 
 [borders.color]
 alpha = 1.0
-blue = 0.979300037944676
-green = 1.0
-red = 0.08458520228437894
+blue = 0.8335543410728381
+green = 0.16172199559001066
+red = 1.0
 
 [borders.glow]
-enabled = false
+enabled = true
 opacity = 0.6
 radius = 8.0
+
+[borders.gradient]
+direction = "topLeftToBottomRight"
+enabled = true
+
+[borders.gradient.end]
+alpha = 1.0
+blue = 0.7
+green = 1.0
+red = 0.0
+
+[borders.gradient.start]
+alpha = 1.0
+blue = 1.0
+green = 0.4
+red = 0.0
 
 [clipboard]
 historyEnabled = false
@@ -35,7 +51,7 @@ splitWidthMultiplier = 1.0
 useGlobalGaps = true
 
 [focus]
-crossesMonitorAtEdge = false
+crossesMonitorAtEdge = true
 edgeNavigationInterval = 1.5
 followsMouse = false
 followsMouseOnlyFullyVisible = false
@@ -65,7 +81,7 @@ ipcEnabled = false
 preventSleepEnabled = false
 systemHyperTrigger = "None"
 updateChecksEnabled = true
-workspaceAutoBackAndForth = false
+workspaceAutoBackAndForth = true
 
 [gestures]
 adoptNativeMoveAcrossDisplays = false
@@ -113,7 +129,7 @@ terminal = "terminal"
 
 [mouseWarp]
 constrainToArrangement = false
-enabled = true
+enabled = false
 margin = 1
 
 [niri]
@@ -195,7 +211,7 @@ weather = true
 [statusBar]
 showAppNames = false
 showIcon = true
-showWorkspaceName = false
+showWorkspaceName = true
 useWorkspaceId = false
 
 [statusMenu]
@@ -1164,18 +1180,6 @@ id = "toggleSystemStats"
 
 [[hotkeys]]
 binding = "Unassigned"
-id = "toggleShellWidget.battery-details"
-
-[[hotkeys]]
-binding = "Unassigned"
-id = "toggleShellWidget.clock"
-
-[[hotkeys]]
-binding = "Unassigned"
-id = "toggleShellWidget.control-center"
-
-[[hotkeys]]
-binding = "Unassigned"
 id = "toggleShellWidget.hidden-bar"
 
 [[hotkeys]]
@@ -1184,19 +1188,7 @@ id = "toggleShellWidget.media"
 
 [[hotkeys]]
 binding = "Unassigned"
-id = "toggleShellWidget.notifications"
-
-[[hotkeys]]
-binding = "Unassigned"
 id = "toggleShellWidget.system-stats"
-
-[[hotkeys]]
-binding = "Unassigned"
-id = "toggleShellWidget.volume"
-
-[[hotkeys]]
-binding = "Unassigned"
-id = "toggleShellWidget.wifi"
 
 [[hotkeys]]
 binding = "Unassigned"
@@ -1238,40 +1230,6 @@ type = "main"
 id = "8B8C45D6-CE9E-41D9-BD50-BE4989D5E3DE"
 layoutType = "niri"
 name = "5"
-
-[workspaces.monitorAssignment]
-type = "main"
-
-[[workspaces]]
-displayName = "❤️"
-id = "5953F2BF-A378-4266-91B2-287174C4FA4D"
-layoutType = "niri"
-name = "6"
-
-[workspaces.monitorAssignment]
-type = "secondary"
-
-[[workspaces]]
-displayName = "🚀"
-id = "A7D5E104-6985-4516-8ED5-07F144F2A33D"
-layoutType = "niri"
-name = "7"
-
-[workspaces.monitorAssignment]
-type = "secondary"
-
-[[workspaces]]
-id = "0E18F6B0-345A-4078-8B21-33641F07A861"
-layoutType = "niri"
-name = "8"
-
-[workspaces.monitorAssignment]
-type = "main"
-
-[[workspaces]]
-id = "8D4D711C-2B2F-4FEC-86BF-FA952037738A"
-layoutType = "niri"
-name = "9"
 
 [workspaces.monitorAssignment]
 type = "main"
