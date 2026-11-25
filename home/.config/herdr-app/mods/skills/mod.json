@@ -1,0 +1,12 @@
+{
+  "place": "none",
+  "title": "Skills",
+  "overlay": {
+    "kind": "popup",
+    "at": "top",
+    "offset": 40,
+    "width": 1000,
+    "height": 0.8
+  },
+  "palette": [{ "title": "Skills", "command": "mod.open", "args": { "name": "skills" }, "words": "skill picker pstack" }]
+}
