@@ -15,9 +15,10 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git",
       "skillPath": "skills/engineering/domain-modeling/SKILL.md",
-      "skillFolderHash": "ea30ee454ba264543dbe40737973b1a5afb9f0e6",
+      "skillFolderHash": "db8ef024fb9a7b2022d57289359ae96cff0d8483",
       "installedAt": "2026-08-26T18:59:49.341Z",
-      "updatedAt": "2026-10-05T15:43:37.652Z"
+      "updatedAt": "2026-11-25T16:18:04.572Z",
+      "commit": "6f7f7831a625f040a8e06a0e7954826b87ce775a"
     },
     "improve-codebase-architecture": {
       "source": "mattpocock/skills",
