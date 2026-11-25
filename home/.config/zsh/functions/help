@@ -32,7 +32,7 @@ echo "  pn              pnpm"
 echo "  dot             cd \$DOTFILES && \$EDITOR .  (dot link|status|sync|skills)"
 echo "  c               clear"
 echo "  reload          source ~/.zshrc"
-echo "  brewu           Homebrew update/upgrade/cleanup, then mise upgrade"
+echo "  brewu           dot update: Homebrew, mise, skills, Rex and more"
 echo "  edit            \$EDITOR"
 echo ""
 

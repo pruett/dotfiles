@@ -35,7 +35,7 @@ Everything below is done by `dot init`, but documented here for one-off use.
 
 ```bash
 $ dot init     # install every component (new machine); safe to rerun
-$ dot update   # pull, then update every component (brew update, upgrades what packages/bundle lists, relink, dot skills update, Rex)
+$ dot update   # pull, then update every component (brew update, brew upgrade and cleanup, relink, dot skills update, Rex)
 $ dot doctor   # check every component; each ✗/⚠ names the command that fixes it
 $ dot components                     # the components, in run order
 $ dot package add <name> [cask]      # install and add to packages/bundle; also remove, list, check

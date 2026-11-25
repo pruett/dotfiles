@@ -18,11 +18,14 @@ component_packages_install() {
   packages_need_tools
 }
 
-# brew bundle upgrades what packages/bundle lists, and leaves everything else alone.
+# Install anything packages/bundle lists that is missing, upgrade every
+# installed formula and cask (listed or not), then delete old versions.
 component_packages_update() {
-  if ! brew bundle install --file="$brewfile"; then
-    mark_warn "Some packages/bundle entries failed to install or upgrade (see above)"
+  if ! brew bundle install --no-upgrade --file="$brewfile"; then
+    mark_warn "Some packages/bundle entries failed to install (see above)"
   fi
+  brew upgrade || mark_warn "brew upgrade failed for some packages (see above)"
+  brew cleanup || mark_warn "brew cleanup failed (see above)"
   packages_need_tools
 }
 
