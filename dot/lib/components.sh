@@ -8,7 +8,7 @@
 #
 # `dot init`, `dot update` and `dot doctor` walk component_order, so a tool
 # can't be installed by init and then forgotten by update or doctor.
-component_order=(xcode homebrew packages github git_identity links ssh macos skills rex)
+component_order=(xcode homebrew packages pi github git_identity links ssh macos skills rex)
 
 component_names=()
 component_platforms=()

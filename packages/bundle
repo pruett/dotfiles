@@ -95,6 +95,5 @@ cask "rectangle"
 cask "spotify"
 # Multiplayer code editor
 cask "zed"
-npm "@earendil-works/pi-coding-agent"
 npm "agent-browser"
 npm "vercel"
