@@ -155,6 +155,9 @@ trust_level = "trusted"
 [projects."/Users/kevinpruett/work/dashboard"]
 trust_level = "trusted"
 
+[projects."/Users/kevinpruett/Projects/personal/board"]
+trust_level = "trusted"
+
 [tui]
 screen_reader_detection_done = true
 
@@ -166,3 +169,6 @@ gpt-6-astra = 4
 
 [hooks.state."/Users/kevinpruett/.codex/hooks.json:session_start:0:0"]
 trusted_hash = "sha256:c10e09fdd5545e28d607411473718ccf96c05fa3162534fb26d29dc5798dd37b"
+
+[hooks.state."/Users/kevinpruett/.codex/hooks.json:session_start:1:0"]
+trusted_hash = "sha256:3da181f6a6d78fa2e4446bb51881bea0b4d69562eb909961fa616df84970d643"
