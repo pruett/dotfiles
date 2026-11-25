@@ -41,10 +41,10 @@ dot doctor  → for each component: check    (exit 1 if a required one fails)
 | `xcode` | macOS | Command Line Tools |
 | `homebrew` | macOS | Homebrew; update runs `brew update` |
 | `packages` | macOS | `brew bundle` on packages/bundle; update upgrades what it lists |
-| `pi` | macOS | the pi coding agent (global npm package); update runs `pi update --all` (optional) |
 | `github` | macOS | `gh auth login`, SSH to GitHub, origin switched to SSH |
 | `git_identity` | macOS | name and email in `home/.gitconfig.local` (optional) |
 | `links` | all | `dot link`: stow and Claude Code skill links |
+| `mise` | macOS | Node and global npm CLIs (pi, vercel, ...) from `home/.config/mise/config.toml`; update runs `mise upgrade` and `pi update --extensions` (optional) |
 | `ssh` | macOS | adds `Include ~/.ssh/config.d/*` to the top of `~/.ssh/config` (optional) |
 | `macos` | macOS | Dock, trackpad and Wi-Fi DNS settings; Caps Lock as Control via a `hidutil` launch agent (optional) |
 | `skills` | macOS | update runs `dot skills update`; changed skill files are yours to review and commit (optional) |

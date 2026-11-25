@@ -48,11 +48,14 @@ alias dvs="devin-as suppco"
 alias dvf="devin-as functionhealth"
 
 # ---------
-# Homebrew maintenance
+# Package maintenance: Homebrew, then mise (Node, Ruby, global npm CLIs).
+# `dot update` does this and more (skills, Rex, relinking).
 # ---------
 alias brewu="echo 'Updating Homebrew...' &&\
     brew update &&\
     echo 'Upgrading Homebrew formulae...' &&\
     brew upgrade &&\
     echo 'Cleaning up Homebrew...' &&\
-    brew cleanup && brew doctor"
+    brew cleanup && brew doctor;\
+    echo 'Upgrading mise tools...' &&\
+    mise upgrade"

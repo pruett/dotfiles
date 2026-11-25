@@ -35,8 +35,6 @@ brew "mise"
 brew "mosh"
 # Ambitious Vim-fork focused on extensibility and agility
 brew "neovim"
-# Open-source, cross-platform JavaScript runtime environment
-brew "node"
 # Pinentry for GPG on Mac
 brew "pinentry-mac"
 # Fast, disk space efficient package manager
@@ -95,5 +93,3 @@ cask "rectangle"
 cask "spotify"
 # Multiplayer code editor
 cask "zed"
-npm "agent-browser"
-npm "vercel"

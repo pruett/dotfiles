@@ -1,6 +1,11 @@
 [tools]
 node = "lts"
+# Global npm CLIs live here, not in packages/bundle: mise's node is the one
+# on PATH, so npm -g or brew bundle would install into a node you don't run.
+"npm:@earendil-works/pi-coding-agent" = "latest"
+"npm:agent-browser" = "latest"
 "npm:portless" = "latest"
+"npm:vercel" = "latest"
 ruby = "3.4"
 
 [settings]
