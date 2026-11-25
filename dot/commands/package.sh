@@ -40,7 +40,7 @@ package_add() {
   if brew_installed "$kind" "$name"; then
     info "$name is already installed"
   else
-    brew install "--$( [[ "$kind" == cask ]] && echo cask || echo formula )" "$name" \
+    brew install --yes "--$( [[ "$kind" == cask ]] && echo cask || echo formula )" "$name" \
       || fail "brew install failed; packages/bundle is unchanged."
   fi
 

@@ -3,6 +3,9 @@
 # need them.
 define_component packages darwin required "Homebrew packages (packages/bundle)"
 
+# Homebrew's ask mode stops for [y/N] before downloading. brew upgrade takes
+# --yes; brew bundle has no flag, so it gets HOMEBREW_NO_ASK.
+
 packages_need_tools() {
   local tool rc=0
   for tool in gh stow; do
@@ -12,7 +15,7 @@ packages_need_tools() {
 }
 
 component_packages_install() {
-  if ! brew bundle install --no-upgrade --file="$brewfile"; then
+  if ! HOMEBREW_NO_ASK=1 brew bundle install --no-upgrade --file="$brewfile"; then
     mark_warn "Some packages/bundle entries failed (see above). 'dot package check' lists them; 'dot init --only packages' retries"
   fi
   packages_need_tools
@@ -21,10 +24,10 @@ component_packages_install() {
 # Install anything packages/bundle lists that is missing, upgrade every
 # installed formula and cask (listed or not), then delete old versions.
 component_packages_update() {
-  if ! brew bundle install --no-upgrade --file="$brewfile"; then
+  if ! HOMEBREW_NO_ASK=1 brew bundle install --no-upgrade --file="$brewfile"; then
     mark_warn "Some packages/bundle entries failed to install (see above)"
   fi
-  brew upgrade || mark_warn "brew upgrade failed for some packages (see above)"
+  brew upgrade --yes || mark_warn "brew upgrade failed for some packages (see above)"
   brew cleanup || mark_warn "brew cleanup failed (see above)"
   packages_need_tools
 }

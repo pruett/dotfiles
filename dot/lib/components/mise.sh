@@ -10,13 +10,13 @@ mise_nothing_missing() {
 
 component_mise_install() {
   command -v mise >/dev/null || { mark_fail "mise is missing (brew \"mise\" in packages/bundle)"; return 1; }
-  mise install || { mark_fail "mise install failed"; return 1; }
+  mise install --yes || { mark_fail "mise install failed"; return 1; }
   mark_ok "mise tools are installed"
 }
 
 component_mise_update() {
   command -v mise >/dev/null || { mark_fail "mise is missing (brew \"mise\" in packages/bundle)"; return 1; }
-  mise upgrade || { mark_fail "mise upgrade failed"; return 1; }
+  mise upgrade --yes || { mark_fail "mise upgrade failed"; return 1; }
   mark_ok "mise tools are up to date"
   # pi's own packages (home/.pi/agent/settings.json); mise upgrades pi itself.
   # --no-approve: ignore project-local pi files in whatever directory this runs from.
