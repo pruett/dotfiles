@@ -29,7 +29,7 @@ git rev-parse --verify --quiet "$old^{commit}" >/dev/null || exit 0
 
 changes="$(
   git diff --no-renames --name-only --diff-filter=ADT "$old" "$new" -- home
-  git diff --name-only "$old" "$new" -- .stowrc home/.local/bin/dot
+  git diff --name-only "$old" "$new" -- .stowrc dot
 )"
 [[ -z "$changes" ]] && exit 0
 

@@ -13,7 +13,7 @@ lives here; the secret does not.
 | Runtime copies written by `install` | `/Library/LaunchDaemons/…plist`, `/Library/Application Support/com.cloudflare.cloudflared/token` | n/a |
 | Logs | `/Library/Logs/com.cloudflare.cloudflared.{out,err}.log` | n/a |
 
-`cloudflared` itself and Cloudflare WARP are in the Brewfile. Note `cloudflared`
+`cloudflared` itself and Cloudflare WARP are in packages/bundle. Note `cloudflared`
 does **not** read this directory: it is remotely managed (`tunnel run --token-file`),
 so a local `config.yml` would be ignored. `tunnel.conf` is a record for humans and
 for the helper script, not runtime config.

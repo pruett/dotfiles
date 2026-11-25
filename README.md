@@ -11,12 +11,13 @@ curl -fsSL https://raw.githubusercontent.com/pruett/dotfiles/main/bootstrap | ba
 The [`bootstrap`](bootstrap) script is idempotent (safe to re-run) and handles everything needed to install these dotfiles *and* push changes back to this repo:
 
 1. Installs Xcode Command Line Tools (which provides `git`)
-2. Installs [Homebrew](https://brew.sh/)
-3. Clones this repo to `~/.dotfiles` over HTTPS — public, so no auth needed yet (or pulls if already present)
-4. Installs all formulae and casks from the [Brewfile](Brewfile) via `brew bundle` (including `gh` and `stow`)
-5. Authenticates with GitHub via `gh auth login` (SSH key generated and uploaded for you), then switches the `origin` remote to SSH so you can push
-6. Prompts for your git identity and writes it to the gitignored `home/.gitconfig.local`
-7. Symlinks every package and links agent skills for Claude Code with `dot link` ([GNU Stow](https://www.gnu.org/software/stow/) underneath), backing up any conflicting existing files to `<file>.pre-dotfiles`
+2. Clones this repo to `~/.dotfiles` over HTTPS — public, so no auth needed yet (or pulls if already present)
+3. Runs `dot init`, which installs each **component** in order:
+   - Homebrew, then everything in [packages/bundle](packages/bundle) via `brew bundle` (including `gh` and `stow`)
+   - GitHub login with `gh auth login` (SSH key generated and uploaded for you), then switches `origin` to SSH so you can push
+   - your git identity, written to the gitignored `home/.gitconfig.local`
+   - links: every package via [GNU Stow](https://www.gnu.org/software/stow/) plus agent skills for Claude Code, backing up any conflicting file to `<file>.pre-dotfiles`
+   - Rex, the terminal, from its own update feed (it isn't in Homebrew)
 
 Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checklist.
 
@@ -26,19 +27,18 @@ Dev boxes on exe.dev are declared and deployed with Alchemy from the private `pr
 
 ## Manual pieces (reference)
 
-Everything below is done automatically by `bootstrap`, but documented here for one-off use.
+Everything below is done by `bootstrap` and `dot init`, but documented here for one-off use.
 
-### Homebrew formulae
+### Managing this machine with `dot`
 
-```bash
-$ cd ~/.dotfiles && brew bundle
-```
-
-### Managing dotfiles with `dot`
-
-`dot` (`home/.local/bin/dot`) is the one CLI for this repo: it owns all linking into `~`, syncing with GitHub, and agent skills:
+`dot` ([`dot/`](dot/README.md), on PATH as `~/.local/bin/dot`) is the one CLI for this repo: setup, updates, checks, packages, linking, syncing and agent skills:
 
 ```bash
+$ dot init     # install every component (what bootstrap runs); safe to rerun
+$ dot update   # pull, then update every component (brew update, upgrades what packages/bundle lists, relink, dot skills update, Rex)
+$ dot doctor   # check every component; each ✗/⚠ names the command that fixes it
+$ dot components                     # the components, in run order
+$ dot package add <name> [cask]      # install and add to packages/bundle; also remove, list, check
 $ dot status   # what's out of date: unlinked files, folded dirs, dangling links
 $ dot link     # stow every package, link folded dirs and Claude Code skills, remove dangling links
 $ dot sync     # pull, push this machine's commits, link (--boxes: also every exe.dev box)
@@ -46,11 +46,13 @@ $ dot skills   # list skills; `dot skills add|update` (see home/.agents/README.m
 $ dot edit     # open this repo in $EDITOR (bare `dot` in zsh also cds here)
 ```
 
-A package is any top-level directory with tracked files (today just `home`); dot-directories like `.plugins` and `.tools` (CLI projects whose `bin/` is symlinked from `home/.local/bin`) are never stowed. `.stowrc` sets `--no-folding`, so most files get their own link and **a new file needs `dot link`**. Git hooks in `.githooks` (turned on by `dot link`, which sets `core.hooksPath`) run it for you after a pull, merge, rebase or branch checkout that adds, removes or renames files under `home/`. The directories in `folded_dirs` (`~/.agents/skills`, `~/.config/zsh`) are instead one symlink to the repo folder, so files added there appear immediately. Edits to existing files never need relinking. Paths in `ignored_paths` (e.g. `.gitconfig.local.sample`) stay in the repo and never get a link.
+`init`, `update` and `doctor` take `--only a,b` and `--skip a,b`; `init` and `update` take `--dry-run`. To add something `dot` should install and check, add a component ([dot/README.md](dot/README.md#add-a-component)).
+
+A package is any top-level directory with tracked files (today just `home`; `dot/` and `packages/` are never stowed); dot-directories like `.plugins` and `.tools` (CLI projects whose `bin/` is symlinked from `home/.local/bin`) are never stowed. `.stowrc` sets `--no-folding`, so most files get their own link and **a new file needs `dot link`**. Git hooks in `.githooks` (turned on by `dot link`, which sets `core.hooksPath`) run it for you after a pull, merge, rebase or branch checkout that adds, removes or renames files under `home/`. The directories in `folded_dirs` (in `dot/lib/links.sh`) (`~/.agents/skills`, `~/.config/zsh`) are instead one symlink to the repo folder, so files added there appear immediately. Edits to existing files never need relinking. Paths in `ignored_paths` (e.g. `.gitconfig.local.sample`) stay in the repo and never get a link.
 
 ### Git
 
-`home/.gitconfig` includes the gitignored `~/.gitconfig.local` for your identity and signing keys. `bootstrap` creates it from [`home/.gitconfig.local.sample`](home/.gitconfig.local.sample), which also covers GPG signing setup; to do it by hand:
+`home/.gitconfig` includes the gitignored `~/.gitconfig.local` for your identity and signing keys. `dot init` creates it from [`home/.gitconfig.local.sample`](home/.gitconfig.local.sample), which also covers GPG signing setup; to do it by hand:
 
 ```bash
 $ cp home/.gitconfig.local.sample home/.gitconfig.local && dot link

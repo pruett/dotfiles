@@ -1,3 +1,4 @@
+tap "anomalyco/tap"
 tap "hashicorp/tap"
 tap "oven-sh/bun"
 # Official Amazon AWS command-line interface
@@ -82,8 +83,8 @@ cask "codex"
 cask "devin-cli"
 cask "font-fira-code-nerd-font"
 cask "font-meslo-lg-nerd-font"
-# Terminal emulator that uses platform-native UI and GPU acceleration
-cask "ghostty"
+# Local voice dictation
+cask "anomalyco/tap/hex", trusted: true
 # Reverse proxy, secure introspectable tunnels to localhost
 cask "ngrok"
 # Tiling window manager for macOS

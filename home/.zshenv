@@ -9,6 +9,8 @@
 
 # System
 export DOTFILES="$HOME/.dotfiles"
+# Plain `brew bundle` (any directory) uses the tracked list; `dot package` edits it.
+export HOMEBREW_BUNDLE_FILE="$DOTFILES/packages/bundle"
 
 # XDG
 export XDG_CONFIG_HOME="$HOME/.config"

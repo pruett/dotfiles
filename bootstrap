@@ -6,7 +6,9 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/pruett/dotfiles/main/bootstrap | bash
 #
-# Safe to re-run at any time; every step is idempotent.
+# Safe to re-run at any time; every step is idempotent. This script only gets
+# far enough to clone the repo (Command Line Tools for git), then hands over
+# to `dot init`.
 
 set -euo pipefail
 
@@ -71,31 +73,11 @@ fi
 success "Xcode Command Line Tools installed"
 
 # ------------------------------------------------------------------------------
-# Homebrew
-# ------------------------------------------------------------------------------
-
-# Ensure brew is on PATH for both Apple Silicon and Intel installs
-for brew_prefix in /opt/homebrew /usr/local; do
-  [[ -x "${brew_prefix}/bin/brew" ]] && eval "$("${brew_prefix}/bin/brew" shellenv)"
-done
-
-if ! command -v brew >/dev/null 2>&1; then
-  info "Installing Homebrew (you may be prompted for your macOS password)..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" <"$TTY" \
-    || fail "Homebrew installation failed. Install it manually per https://brew.sh (requires an admin account), then re-run this script."
-  for brew_prefix in /opt/homebrew /usr/local; do
-    [[ -x "${brew_prefix}/bin/brew" ]] && eval "$("${brew_prefix}/bin/brew" shellenv)"
-  done
-fi
-require_cmd brew "Install Homebrew manually per https://brew.sh (requires an admin account)."
-success "Homebrew installed"
-
-# ------------------------------------------------------------------------------
 # Clone (or update) the dotfiles repo
 #
 # The repo is public, so the initial clone happens over HTTPS with the git that
 # ships with the Command Line Tools — no auth and no extra installs needed yet.
-# The remote is switched to SSH after GitHub authentication below.
+# dot's github component switches the remote to SSH once gh is logged in.
 # ------------------------------------------------------------------------------
 
 require_cmd git "git ships with the Xcode Command Line Tools; run 'xcode-select --install'."
@@ -113,76 +95,13 @@ else
 fi
 success "Dotfiles repo ready"
 
-cd "$DOTFILES_DIR"
-
 # ------------------------------------------------------------------------------
-# Brewfile — installs everything, including the tools the rest of this
-# script depends on (gh, stow)
+# Everything else: dot init (Homebrew, packages/bundle, GitHub login and SSH
+# remote, git identity, links). See dot/README.md; `dot doctor` checks it later.
 # ------------------------------------------------------------------------------
 
-info "Installing Brewfile formulae and casks (this can take a while)..."
-brew bundle --file "${DOTFILES_DIR}/Brewfile" || warn "Some Brewfile entries failed; re-run 'brew bundle' later to retry."
-require_cmd gh   "Run 'brew install gh' manually."
-require_cmd stow "Run 'brew install stow' manually."
-success "Brewfile processed"
-
-# ------------------------------------------------------------------------------
-# GitHub authentication (SSH, with push access to the repo)
-# ------------------------------------------------------------------------------
-
-if gh auth status >/dev/null 2>&1; then
-  success "GitHub CLI already authenticated"
-else
-  info "Authenticating with GitHub (this also generates and uploads an SSH key)..."
-  gh auth login --hostname github.com --git-protocol ssh --web <"$TTY" \
-    || fail "GitHub authentication failed or was cancelled. Run 'gh auth login --git-protocol ssh --web' manually, then re-run this script."
-fi
-
-# Make sure github.com is a known host so git over SSH doesn't prompt
-if ! ssh-keygen -F github.com >/dev/null 2>&1; then
-  mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
-  ssh-keyscan -t ed25519 github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
-fi
-
-# Verify SSH access, then point origin at the SSH remote so pushes work
-if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
-  success "SSH access to GitHub verified"
-else
-  fail "SSH access to GitHub failed. Run 'gh auth login --git-protocol ssh --web' and ensure an SSH key is added at https://github.com/settings/keys, then re-run this script."
-fi
-
-if [[ "$(git remote get-url origin)" != "$DOTFILES_REPO_SSH" ]]; then
-  git remote set-url origin "$DOTFILES_REPO_SSH"
-  success "origin remote switched to SSH (${DOTFILES_REPO_SSH})"
-fi
-
-# ------------------------------------------------------------------------------
-# Machine-local git identity (.gitconfig.local is gitignored)
-# ------------------------------------------------------------------------------
-
-if [[ ! -f home/.gitconfig.local ]]; then
-  info "Creating home/.gitconfig.local (machine-local git identity)"
-  read -rp "  git user.name: " git_name <"$TTY"
-  read -rp "  git user.email: " git_email <"$TTY"
-  cp home/.gitconfig.local.sample home/.gitconfig.local
-  {
-    echo ""
-    echo "[user]"
-    echo "  name = ${git_name}"
-    echo "  email = ${git_email}"
-  } >> home/.gitconfig.local
-  success "home/.gitconfig.local created (add signing keys there later if needed)"
-else
-  success "home/.gitconfig.local already exists"
-fi
-
-# ------------------------------------------------------------------------------
-# Symlink packages with stow and agent skills for Claude Code (via `dot`)
-# ------------------------------------------------------------------------------
-
-info "Linking dotfile packages..."
-./home/.local/bin/dot link
-success "Dotfiles linked"
+"${DOTFILES_DIR}/dot/bin/dot" init <"$TTY" \
+  || fail "dot init stopped (see above). Fix that step, then run '${DOTFILES_DIR}/dot/bin/dot init' again."
 
 # ------------------------------------------------------------------------------
 # Done

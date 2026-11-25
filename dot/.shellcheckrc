@@ -1,0 +1,4 @@
+# The files under dot/ are sourced into one shell by bin/dot, so variables and
+# functions defined in one file are used in another.
+shell=bash
+disable=SC2034,SC2154,SC1090,SC1091

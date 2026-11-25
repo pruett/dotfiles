@@ -5,7 +5,7 @@
 # To use, duplicate and edit a copy of this file named `.gitconfig.local`
 #
 # GPG commit signing setup (macOS):
-#   brew install gnupg pinentry-mac      # both in Brewfile
+#   brew install gnupg pinentry-mac      # both in packages/bundle
 #   gpg --full-generate-key              # email must match GitHub
 #   gpg --list-secret-keys --keyid-format=long   # copy the ID after "sec ed25519/"
 #   gpg --armor --export <key> > key.asc && gh gpg-key add key.asc

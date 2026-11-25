@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# dot: set up, update and check this machine from ~/.dotfiles. See dot/README.md.
+# Runs on the stock macOS /bin/bash (3.2): no mapfile, no associative arrays,
+# and empty arrays are expanded as ${a[@]+"${a[@]}"} because of set -u.
+set -euo pipefail
+
+script_path="$(realpath "${BASH_SOURCE[0]}")"
+dot_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
+repo_root="$(dirname "$dot_dir")"
+managed_home="$repo_root/home"
+target="$HOME"
+brewfile="$repo_root/packages/bundle"
+npm_cache="${npm_config_cache:-$target/.npm}"
+
+for file in "$dot_dir"/lib/*.sh "$dot_dir"/commands/*.sh; do
+  # shellcheck source=/dev/null
+  source "$file"
+done
+load_components
+
+# Put brew on PATH for the packages commands, even from a shell that hasn't
+# run `brew shellenv` (a fresh machine, launchd, ssh).
+if [[ "$dot_os" == darwin ]]; then
+  brew_shellenv || true
+fi
+
+command="${1:-help}"
+[[ $# -gt 0 ]] && shift
+case "$command" in
+  init) cmd_init "$@" ;;
+  update) cmd_update "$@" ;;
+  doctor) cmd_doctor "$@" ;;
+  components) cmd_components ;;
+  package|packages) cmd_package "$@" ;;
+  link|restow) cmd_link ;;
+  status) cmd_status ;;
+  sync) cmd_sync "$@" ;;
+  skills) cmd_skills "$@" ;;
+  edit) exec "${EDITOR:-vi}" "$repo_root" ;;
+  help|-h|--help) usage ;;
+  *)
+    warn "Unknown command: $command"
+    usage >&2
+    exit 2
+    ;;
+esac

@@ -1,7 +1,7 @@
 .DS_Store
 .netrwhist
 !home/.config/zsh/plugins/*
-Brewfile.lock.json
+packages/bundle.lock.json
 lazy-lock.json
 home/.gitconfig.local
 deno/.deno/bin/*
