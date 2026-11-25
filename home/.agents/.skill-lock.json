@@ -639,6 +639,16 @@
       "skillFolderHash": "1ccca3c7c0d358c0cd5edd313cd03a31fc75ee5f",
       "installedAt": "2026-11-22T17:10:09.204Z",
       "updatedAt": "2026-11-22T17:10:09.204Z"
+    },
+    "board": {
+      "source": "vercel/board",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel/board.git",
+      "commit": "dc4578b414522c66729b2caeecd550df3d6c4809",
+      "skillPath": "skills/board/SKILL.md",
+      "skillFolderHash": "bcfe72e2c437e1bf08a495dbec4c9422b4aee5c4",
+      "installedAt": "2026-11-25T21:26:49.038Z",
+      "updatedAt": "2026-11-25T21:26:49.038Z"
     }
   },
   "dismissed": {}
