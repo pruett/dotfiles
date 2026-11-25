@@ -17,7 +17,7 @@ up, updates and checks the machine. `dot help` lists every command.
 | Shell | `home/.zshenv`, `home/.zshrc`, `home/.config/zsh/` (`extras/` sourced, `functions/` autoloaded) |
 | Git | `home/.gitconfig`; identity and signing keys in the gitignored `home/.gitconfig.local` |
 | Linking rules (folded or ignored paths) | `folded_dirs` and `ignored_paths` in `dot/lib/links.sh` |
-| Manual macOS settings | `MACOS.md` |
+| macOS settings (Dock, trackpad, DNS, Caps Lock) | `dot/lib/components/macos.sh` |
 
 ## Working in this repo
 

@@ -16,11 +16,10 @@ The clone is over HTTPS (the repo is public, so no auth yet). `dot init` is safe
 - GitHub login with `gh auth login` (SSH key generated and uploaded for you), then switches `origin` to SSH so you can push
 - your git identity, written to the gitignored `home/.gitconfig.local`
 - links: every package via [GNU Stow](https://www.gnu.org/software/stow/) plus agent skills for Claude Code, backing up any conflicting file to `<file>.pre-dotfiles`
+- macOS settings: Dock, trackpad, Cloudflare DNS on Wi-Fi, and Caps Lock as Control on every keyboard
 - Rex, the terminal, from its own update feed (it isn't in Homebrew)
 
 Then open a new terminal (`dot` is on PATH from now on) and run `dot doctor`. If you sign commits, add your signing key to `home/.gitconfig.local`. For the Cloudflare Tunnel, see [home/.config/cloudflared/README.md](home/.config/cloudflared/README.md).
-
-Afterwards, review [MACOS.md](MACOS.md) for the manual System Preferences checklist.
 
 ## exe.dev VMs
 
