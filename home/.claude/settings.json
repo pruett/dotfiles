@@ -67,7 +67,8 @@
     "frontend-design@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "html-plan@claude-community": true,
-    "ruby-lsp@claude-plugins-official": true
+    "ruby-lsp@claude-plugins-official": true,
+    "cloudflare@cloudflare": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -80,6 +81,12 @@
       "source": {
         "source": "github",
         "repo": "anthropics/claude-plugins-community"
+      }
+    },
+    "cloudflare": {
+      "source": {
+        "source": "github",
+        "repo": "cloudflare/skills"
       }
     }
   },
