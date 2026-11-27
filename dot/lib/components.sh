@@ -20,6 +20,12 @@ case "$(uname -s)" in
   *) dot_os=linux ;;
 esac
 
+# This OS's package list (a Brewfile): the Mac's, or the slim one for Linux
+# (exe.dev VMs). `dot package --linux` edits the Linux one from the Mac.
+mac_brewfile="$repo_root/packages/bundle"
+linux_brewfile="$repo_root/packages/bundle.linux"
+if [[ "$dot_os" == darwin ]]; then brewfile="$mac_brewfile"; else brewfile="$linux_brewfile"; fi
+
 # define_component <name> <all|darwin|linux> <required|optional> <description>
 # A required component that fails stops init and update, and makes doctor
 # exit 1. An optional one only warns.

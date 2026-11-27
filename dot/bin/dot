@@ -9,7 +9,6 @@ dot_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
 repo_root="$(dirname "$dot_dir")"
 managed_home="$repo_root/home"
 target="$HOME"
-brewfile="$repo_root/packages/bundle"
 npm_cache="${npm_config_cache:-$target/.npm}"
 # What home/.zshenv sets, for runs outside zsh (first boot, the dot-sync
 # timer): Homebrew keeps trusted taps under it, so a different value from

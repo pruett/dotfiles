@@ -40,7 +40,7 @@ dot doctor  → for each component: check    (exit 1 if a required one fails)
 |-----------|----------|--------------|
 | `xcode` | macOS | Command Line Tools |
 | `homebrew` | all | Homebrew (on Linux in `/home/linuxbrew`, installed with sudo); update runs `brew update` |
-| `packages` | all | `brew bundle` on packages/bundle (on Linux without casks or `packages_macos_only`); update also runs `brew upgrade` (everything installed) and `brew cleanup` |
+| `packages` | all | `brew bundle` on packages/bundle (macOS) or packages/bundle.linux (Linux); update also runs `brew upgrade` (everything installed) and `brew cleanup` |
 | `github` | macOS | `gh auth login`, SSH to GitHub, origin switched to SSH |
 | `git_identity` | all | name and email in `home/.gitconfig.local`; on a VM first boot writes it (optional) |
 | `links` | all | `dot link`: stow and Claude Code skill links; Linux skips the Mac-only `ignored_paths` |
@@ -94,6 +94,7 @@ dot package add anomalyco/tap/hex cask # a tapped cask: also adds the tap, and t
 dot package remove jq                  # remove from packages/bundle, then ask before uninstalling
 dot package list                       # every entry, ✓ installed / ✗ missing
 dot package check                      # brew bundle check --verbose
+dot package add jq --linux             # edit packages/bundle.linux, the VMs' list; installs nothing on the Mac
 ```
 
 New entries go before the first entry of their kind whose name sorts after

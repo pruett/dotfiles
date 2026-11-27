@@ -18,6 +18,8 @@ Packages (packages/bundle, the Brewfile):
   package remove <name>       Remove from packages/bundle, then ask to uninstall
   package list                packages/bundle entries, with what's installed
   package check               What packages/bundle lists but isn't installed
+  package ... --linux         The same for packages/bundle.linux (exe.dev VMs);
+                              from the Mac it only edits the file
 
 Links and sync:
   link                 Stow every package into ~, link folded directories and
