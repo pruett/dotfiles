@@ -54,7 +54,7 @@ setup = UV_KEYRING_PROVIDER=subprocess uv sync --frozen
 note  = Needs `gcloud auth application-default login` for the FH internal package index.
 note  = If uv.lock changes on this branch, run `UV_KEYRING_PROVIDER=subprocess uv sync --frozen` again.
 
-[~/projects/flight]
+[~/Projects/flight]
 # iOS app (XcodeGen) + Supabase. The .xcodeproj is generated, never committed.
 dir   = {main}/.worktrees
 setup = xcodegen
@@ -74,7 +74,7 @@ note  = Without supabase/.env.local, supabase commands here hit the main checkou
 # No gitignored files to copy and no install step; add include/setup when that changes.
 note = Edits here do not reach ~/ until merged to main in ~/.dotfiles (the home links point at the main checkout).
 
-[~/Projects/personal/board]
+[~/Projects/board]
 # Cloudflare Worker + Durable Object host for @vercel/board. The only gitignored essential is
 # hosts/cloudflare/.dev.vars (BOARD_TOKEN, 32+ chars). Copy the main checkout's when it has one,
 # else generate a local-only token; keep a worktree's existing file. Temp file + mv, so a crash leaves no half file.

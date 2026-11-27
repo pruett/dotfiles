@@ -114,7 +114,7 @@ fi
 # --------
 # PATH entry for the SDK lives in path.zsh.
 # The next line enables shell command completion for gcloud.
-if [ -f '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/kevinpruett/google-cloud-sdk/completion.zsh.inc'; fi
+if [ -f "$HOME/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/google-cloud-sdk/completion.zsh.inc"; fi
 
 # --------
 # GPG

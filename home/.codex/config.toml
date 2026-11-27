@@ -136,23 +136,26 @@ trust_level = "trusted"
 [projects."/Users/kevinpruett/work/functionhealth/member-app-middleware"]
 trust_level = "trusted"
 
-# Codex has no glob for trust: list each repo under ~/projects (worktrees inherit).
-[projects."/Users/pruett/projects"]
+# Codex has no glob for trust: list each repo under ~/Projects (worktrees inherit).
+[projects."/Users/pruett/Projects"]
 trust_level = "trusted"
 
-[projects."/Users/pruett/projects/commissioner"]
+[projects."/Users/pruett/Projects/commissioner"]
 trust_level = "trusted"
 
-[projects."/Users/pruett/projects/flight"]
+[projects."/Users/pruett/Projects/flight"]
 trust_level = "trusted"
 
-[projects."/Users/pruett/projects/halloween-2026"]
+[projects."/Users/pruett/Projects/halloween-2026"]
 trust_level = "trusted"
 
-[projects."/Users/pruett/projects/wpm"]
+[projects."/Users/pruett/Projects/wpm"]
 trust_level = "trusted"
 
 [projects."/Users/kevinpruett/work/dashboard"]
+trust_level = "trusted"
+
+[projects."/Users/pruett/Projects/board"]
 trust_level = "trusted"
 
 [projects."/Users/kevinpruett/Projects/personal/board"]
