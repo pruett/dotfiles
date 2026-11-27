@@ -43,7 +43,9 @@ packages() {
 # a global array instead of printing.
 set_stow_args() {
   local package="$1" dir
-  stow_args=(--dir="$repo_root" --target="$target")
+  # --no-folding is also in .stowrc, but stow reads that only from the current
+  # directory, and dot runs from anywhere (first boot on a VM runs from ~).
+  stow_args=(--dir="$repo_root" --target="$target" --no-folding)
   if [[ "$package" == home ]]; then
     for dir in "${folded_dirs[@]}" "${ignored_paths[@]}"; do
       stow_args+=("--ignore=(^|/)${dir//./\\.}")
