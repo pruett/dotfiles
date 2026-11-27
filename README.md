@@ -23,7 +23,7 @@ Then open a new terminal (`dot` is on PATH from now on) and run `dot doctor`. If
 
 ## exe.dev VMs
 
-Dev boxes on exe.dev are declared and deployed with Alchemy from the private `pruett/iac` repo (`infra/exe-dev`). First boot clones this repo, links the agent skills, sets up git and a GitHub key, and joins the tailnet; then `ssh exe-dev-<name>`. This repo keeps only the Mac side: `home/.ssh/config.d/exe-dev` and `tailnet-ssh-known-hosts`.
+Dev boxes on exe.dev are declared and deployed with Alchemy from the private `pruett/iac` repo (`infra/exe-dev`). First boot clones this repo, writes the git identity and SSH signing key to `home/.gitconfig.local`, runs `dot init --headless` (Homebrew, packages/bundle without casks, mise, every link, zsh as the login shell) and joins the tailnet; then `ssh exe-dev-<name>`. The Mac side is `home/.ssh/config.d/exe-dev` and `tailnet-ssh-known-hosts`.
 
 ## Manual pieces (reference)
 

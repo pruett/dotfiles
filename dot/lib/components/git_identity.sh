@@ -1,6 +1,8 @@
 # This machine's git name and email, in home/.gitconfig.local (gitignored),
 # which home/.gitconfig includes. Runs before links so the file gets linked.
-define_component git_identity darwin optional "Git identity (.gitconfig.local)"
+# On exe.dev VMs first boot writes the file (identity and SSH signing) before
+# `dot init --headless`, so this only checks it there.
+define_component git_identity all optional "Git identity (.gitconfig.local)"
 
 local_gitconfig="$managed_home/.gitconfig.local"
 

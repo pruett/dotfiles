@@ -8,7 +8,7 @@
 #
 # `dot init`, `dot update` and `dot doctor` walk component_order, so a tool
 # can't be installed by init and then forgotten by update or doctor.
-component_order=(xcode homebrew packages github git_identity links mise ssh macos skills rex)
+component_order=(xcode homebrew packages github git_identity links shell mise ssh macos skills rex)
 
 component_names=()
 component_platforms=()
@@ -42,9 +42,12 @@ load_components() {
 only=""
 skip=""
 dry_run=false
+# --headless (init and update): no prompts, for exe.dev VMs and scripts. has_tty
+# answers no, so ask fails and confirm takes its default (no).
+dot_headless=false
 
 # parse_component_options <command> [options]: the options init, update and
-# doctor share. Only init and update take --dry-run.
+# doctor share. Only init and update take --dry-run and --headless.
 parse_component_options() {
   local command="$1" names name
   shift
@@ -60,6 +63,11 @@ parse_component_options() {
       --dry-run)
         [[ "$command" != doctor ]] || fail "dot doctor changes nothing; it has no --dry-run"
         dry_run=true
+        shift
+        ;;
+      --headless)
+        [[ "$command" != doctor ]] || fail "dot doctor never prompts; it has no --headless"
+        dot_headless=true
         shift
         ;;
       -h|--help) usage; exit 0 ;;

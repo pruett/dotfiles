@@ -11,7 +11,7 @@ Set up, update and check this machine:
   components           List components in run order, with platform and update step
 
   Options: --only a,b and --skip a,b (names from 'dot components');
-  init and update also take --dry-run.
+  init and update also take --dry-run, and --headless (never prompt).
 
 Packages (packages/bundle, the Brewfile):
   package add <name> [cask]   Install and add to packages/bundle
@@ -34,8 +34,8 @@ Skills:
   edit                 Open the dotfiles repo in $EDITOR
   help                 Show this help
 
-On Linux (exe.dev boxes) only the links component runs, and it links just the
-agent skills and their CLIs. In zsh, bare `dot` (a function in aliases.zsh)
+On Linux (exe.dev VMs) the components marked 'all' or 'linux' run; first boot
+runs 'dot init --headless'. In zsh, bare `dot` (a function in aliases.zsh)
 cds into the repo and opens it.
 USAGE
 }

@@ -18,11 +18,10 @@ for file in "$dot_dir"/lib/*.sh "$dot_dir"/commands/*.sh; do
 done
 load_components
 
-# Put brew on PATH for the packages commands, even from a shell that hasn't
-# run `brew shellenv` (a fresh machine, launchd, ssh).
-if [[ "$dot_os" == darwin ]]; then
-  brew_shellenv || true
-fi
+# Put brew (and the stow, mise and gh it installs) on PATH, even from a shell
+# that hasn't run `brew shellenv`: a fresh machine, launchd, ssh, or the
+# dot-sync systemd timer on an exe.dev VM.
+brew_shellenv || true
 
 command="${1:-help}"
 [[ $# -gt 0 ]] && shift

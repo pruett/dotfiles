@@ -2,7 +2,7 @@
 # home/.config/mise/config.toml. It runs after links, so that config is in
 # place. mise waits 24h before installing a new release (minimum_release_age),
 # so `dot update` can lag a fresh release by a day.
-define_component mise darwin optional "mise tools (Node, npm CLIs)"
+define_component mise all optional "mise tools (Node, npm CLIs)"
 
 mise_nothing_missing() {
   [[ -z "$(mise ls --missing 2>/dev/null)" ]]

@@ -1,6 +1,6 @@
 # Dotfiles
 
-Kevin's macOS setup, plus the agent skills that exe.dev boxes share. `home/`
+Kevin's macOS setup, also installed on exe.dev VMs (Linux) by `dot init --headless`. `home/`
 mirrors `~` and is linked into it with GNU Stow; `dot` (`dot/README.md`) sets
 up, updates and checks the machine. `dot help` lists every command.
 
@@ -35,6 +35,11 @@ up, updates and checks the machine. `dot help` lists every command.
 - `dot` runs on the stock macOS `/bin/bash` 3.2: no `mapfile`, no associative
   arrays, and expand arrays that may be empty as `${a[@]+"${a[@]}"}`. Check
   changes with `shellcheck` from `dot/` (it reads `dot/.shellcheckrc`).
-- exe.dev boxes run `dot sync` every 10 minutes and only get the agent skills
-  and their CLIs. Commit to `main`; boxes pull it from there.
+- exe.dev VMs (Ubuntu, user `exedev`) are created in the private `iac` repo
+  (`~/Projects/iac/infra/exe-dev`); their first boot runs
+  `dot init --headless`, and they run `dot sync` every 10 minutes. On Linux,
+  Homebrew installs packages/bundle minus casks, `links` skips the Mac-only
+  paths in `ignored_paths`, and `shell` makes zsh the login shell. A component
+  that only makes sense on the Mac is `darwin`. Commit to `main`; VMs pull it
+  from there.
 - Finish with `dot doctor`: every ✗ or ⚠ line names the command that fixes it.

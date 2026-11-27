@@ -1,6 +1,6 @@
-# Links from ~ into home/ (stow) and Claude Code skill links. On Linux
-# (exe.dev boxes) only the agent skills and their CLIs. The work is in
-# lib/links.sh, which `dot link` also runs.
+# Links from ~ into home/ (stow) and Claude Code skill links, on macOS and
+# Linux alike (Linux skips the Mac-only files in ignored_paths). The work is
+# in lib/links.sh, which `dot link` also runs.
 define_component links all required "Links into ~"
 
 component_links_install() {

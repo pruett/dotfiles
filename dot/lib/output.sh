@@ -52,7 +52,8 @@ check_item() {
   return 1
 }
 
-has_tty() { { : </dev/tty; } 2>/dev/null; }
+# --headless (dot_headless, set in components.sh) counts as no terminal.
+has_tty() { [[ "${dot_headless:-false}" != true ]] && { : </dev/tty; } 2>/dev/null; }
 
 # ask <prompt> <variable>: read one line from the terminal; returns 1 without one.
 ask() {

@@ -18,6 +18,16 @@ ignored_paths=(
   .gitconfig.local.sample
 )
 
+# Also never linked on Linux (exe.dev VMs): files that only work on this Mac.
+# .codex/config.toml has /Users/... and /Applications paths; gpg-agent.conf
+# points at pinentry-mac.
+if [[ "$(uname -s)" != Darwin ]]; then
+  ignored_paths+=(
+    .codex/config.toml
+    .gnupg
+  )
+fi
+
 # ------------------------------------------------------------------------------
 # Linking: stow packages and folded directories
 # ------------------------------------------------------------------------------
@@ -250,37 +260,18 @@ claude_skill_changes() {
   return 0
 }
 
-# Linux boxes (exe.dev) have no stow and get only the skills: ~/.agents/{skills,docs},
-# the Claude Code links, ~/.claude/docs, and the CLIs that ship inside skills
-# (plus dot itself) in ~/.local/bin.
-link_linux() {
-  local bin dest
-  mkdir -p "$target/.agents" "$target/.claude" "$target/.local/bin" "$target/.config/wt"
-  ln -sfn "$managed_home/.agents/skills" "$target/.agents/skills"
-  ln -sfn "$managed_home/.config/wt/config" "$target/.config/wt/config"  # wt (worktrees skill)
-  ln -sfn "$managed_home/.agents/docs" "$target/.agents/docs"
-  ln -sfn ../.agents/docs "$target/.claude/docs"  # pstack skills link through ~/.claude/docs
-  link_claude_skills || true
-
-  # CLIs that ship inside a skill (home/.local/bin/wt -> ../../.agents/skills/...).
-  for bin in "$managed_home"/.local/bin/*; do
-    dest="$(readlink "$bin" || true)"
-    [[ "$dest" == *".agents/skills/"* ]] || continue
-    ln -sfn "$(cd "$(dirname "$bin")/$(dirname "$dest")" && pwd)/$(basename "$dest")" \
-      "$target/.local/bin/$(basename "$bin")"
-  done
-  ln -sfn "$managed_home/.local/bin/dot" "$target/.local/bin/dot"
-  # Before dot took over, boxes ran skills-sync.
+# Linux only (exe.dev VMs): the link that `home/.agents/README.md` relies on
+# (skills reach their docs through ~/.claude/docs), and the clean-up of a
+# skills-sync link from before dot took over.
+link_linux_extras() {
+  mkdir -p "$target/.claude"
+  [[ -e "$target/.claude/docs" || -L "$target/.claude/docs" ]] || ln -s ../.agents/docs "$target/.claude/docs"
   [[ -L "$target/.local/bin/skills-sync" ]] && rm "$target/.local/bin/skills-sync"
   return 0
 }
 
 link_all() {
   local package dir entry rc=0
-  if [[ "$(uname -s)" != Darwin ]]; then
-    link_linux
-    return
-  fi
   for package in $(packages); do
     stow_package "$package"
     info "Stowed $package"
@@ -299,6 +290,7 @@ link_all() {
   done < <(ignored_links)
   link_plugin_skills || rc=1
   link_claude_skills || rc=1
+  [[ "$(uname -s)" == Darwin ]] || link_linux_extras
   return "$rc"
 }
 
