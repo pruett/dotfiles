@@ -11,6 +11,10 @@ managed_home="$repo_root/home"
 target="$HOME"
 brewfile="$repo_root/packages/bundle"
 npm_cache="${npm_config_cache:-$target/.npm}"
+# What home/.zshenv sets, for runs outside zsh (first boot, the dot-sync
+# timer): Homebrew keeps trusted taps under it, so a different value from
+# zsh's would hide them from `brew bundle check`.
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 for file in "$dot_dir"/lib/*.sh "$dot_dir"/commands/*.sh; do
   # shellcheck source=/dev/null
